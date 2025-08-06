@@ -9,8 +9,9 @@ from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import Message
 from sqlalchemy import select
 
+from wpg_engine.core.admin_utils import determine_player_role
 from wpg_engine.core.engine import GameEngine
-from wpg_engine.models import Game, GameStatus, Player
+from wpg_engine.models import Game, GameStatus, Player, get_db
 
 
 class RegistrationStates(StatesGroup):
@@ -59,31 +60,33 @@ ASPECT_DESCRIPTIONS = {
 }
 
 
-async def register_command(
-    message: Message, state: FSMContext, game_engine: GameEngine
-) -> None:
+async def register_command(message: Message, state: FSMContext) -> None:
     """Handle /register command"""
     user_id = message.from_user.id
 
-    # Check if user is already registered
-    result = await game_engine.db.execute(
-        select(Player).where(Player.telegram_id == user_id)
-    )
-    if result.scalar_one_or_none():
-        await message.answer("❌ Вы уже зарегистрированы в игре!")
-        return
-
-    # Get active game
-    result = await game_engine.db.execute(
-        select(Game).where(Game.status == GameStatus.ACTIVE)
-    )
-    game = result.scalar_one_or_none()
-
-    if not game:
-        await message.answer(
-            "❌ В данный момент нет активных игр. Обратитесь к администратору."
+    async for db in get_db():
+        game_engine = GameEngine(db)
+        
+        # Check if user is already registered
+        result = await game_engine.db.execute(
+            select(Player).where(Player.telegram_id == user_id)
         )
-        return
+        if result.scalar_one_or_none():
+            await message.answer("❌ Вы уже зарегистрированы в игре!")
+            return
+
+        # Get active game
+        result = await game_engine.db.execute(
+            select(Game).where(Game.status == GameStatus.ACTIVE)
+        )
+        game = result.scalar_one_or_none()
+
+        if not game:
+            await message.answer(
+                "❌ В данный момент нет активных игр. Обратитесь к администратору."
+            )
+            return
+        break
 
     # Store game info in state
     await state.update_data(game_id=game.id, user_id=user_id)
@@ -93,7 +96,8 @@ async def register_command(
         f"Для участия в игре вам необходимо создать свою страну.\n"
         f"Вы будете управлять страной по 10 аспектам развития.\n\n"
         f"*Начнем с основной информации:*\n\n"
-        f"Как будет называться ваша страна?"
+        f"Как будет называться ваша страна?",
+        parse_mode="Markdown"
     )
     await state.set_state(RegistrationStates.waiting_for_country_name)
 
@@ -110,7 +114,8 @@ async def process_country_name(message: Message, state: FSMContext) -> None:
     await message.answer(
         f"✅ Название страны: *{country_name}*\n\n"
         f"Теперь дайте краткое описание вашей страны "
-        f"(история, особенности, культура):"
+        f"(история, особенности, культура):",
+        parse_mode="Markdown"
     )
     await state.set_state(RegistrationStates.waiting_for_country_description)
 
@@ -133,7 +138,8 @@ async def process_country_description(message: Message, state: FSMContext) -> No
         f"• 7-8: высокий уровень\n"
         f"• 9-10: выдающийся уровень\n\n"
         f"*{ASPECT_NAMES['economy']}* ({ASPECT_DESCRIPTIONS['economy']})\n"
-        f"Введите значение от 1 до 10:"
+        f"Введите значение от 1 до 10:",
+        parse_mode="Markdown"
     )
     await state.set_state(RegistrationStates.waiting_for_economy)
 
@@ -164,7 +170,8 @@ async def process_aspect(
         await message.answer(
             f"✅ {ASPECT_NAMES[aspect]}: {value}\n\n"
             f"*{ASPECT_NAMES[next_aspect]}* ({ASPECT_DESCRIPTIONS[next_aspect]})\n"
-            f"Введите значение от 1 до 10:"
+            f"Введите значение от 1 до 10:",
+            parse_mode="Markdown"
         )
         await state.set_state(next_state)
     else:
@@ -172,7 +179,8 @@ async def process_aspect(
         await message.answer(
             f"✅ {ASPECT_NAMES[aspect]}: {value}\n\n"
             f"*Дополнительная информация*\n\n"
-            f"Как называется столица вашей страны?"
+            f"Как называется столица вашей страны?",
+            parse_mode="Markdown"
         )
         await state.set_state(RegistrationStates.waiting_for_capital)
 
@@ -260,14 +268,13 @@ async def process_capital(message: Message, state: FSMContext) -> None:
     await message.answer(
         f"✅ Столица: *{capital}*\n\n"
         f"Какова примерная численность населения вашей страны? "
-        f"(введите число, например: 50000000)"
+        f"(введите число, например: 50000000)",
+        parse_mode="Markdown"
     )
     await state.set_state(RegistrationStates.waiting_for_population)
 
 
-async def process_population(
-    message: Message, state: FSMContext, game_engine: GameEngine
-) -> None:
+async def process_population(message: Message, state: FSMContext) -> None:
     """Process population and complete registration"""
     try:
         population = int(message.text.strip())
@@ -283,44 +290,68 @@ async def process_population(
     data = await state.get_data()
     data["population"] = population
 
-    # Create country
-    country = await game_engine.create_country(
-        game_id=data["game_id"],
-        name=data["country_name"],
-        description=data["country_description"],
-        capital=data["capital"],
-        population=data["population"],
-        aspects={
-            "economy": data["economy"],
-            "military": data["military"],
-            "foreign_policy": data["foreign_policy"],
-            "territory": data["territory"],
-            "technology": data["technology"],
-            "religion_culture": data["religion_culture"],
-            "governance_law": data["governance_law"],
-            "construction_infrastructure": data["construction_infrastructure"],
-            "social_relations": data["social_relations"],
-            "intelligence": data["intelligence"],
-        },
-    )
+    async for db in get_db():
+        game_engine = GameEngine(db)
+        
+        # Create country
+        country = await game_engine.create_country(
+            game_id=data["game_id"],
+            name=data["country_name"],
+            description=data["country_description"],
+            capital=data["capital"],
+            population=data["population"],
+            aspects={
+                "economy": data["economy"],
+                "military": data["military"],
+                "foreign_policy": data["foreign_policy"],
+                "territory": data["territory"],
+                "technology": data["technology"],
+                "religion_culture": data["religion_culture"],
+                "governance_law": data["governance_law"],
+                "construction_infrastructure": data["construction_infrastructure"],
+                "social_relations": data["social_relations"],
+                "intelligence": data["intelligence"],
+            },
+        )
 
-    # Create player (pending approval)
-    await game_engine.create_player(
-        game_id=data["game_id"],
-        telegram_id=data["user_id"],
-        username=message.from_user.username,
-        display_name=message.from_user.full_name,
-        country_id=country.id,
-    )
+        # Determine player role
+        player_role = await determine_player_role(
+            telegram_id=data["user_id"],
+            game_id=data["game_id"],
+            db=game_engine.db
+        )
+        
+        # Create player with determined role
+        await game_engine.create_player(
+            game_id=data["game_id"],
+            telegram_id=data["user_id"],
+            username=message.from_user.username,
+            display_name=message.from_user.full_name,
+            country_id=country.id,
+            role=player_role,
+        )
+        break
 
-    # Show summary
+    # Show summary with role-specific message
+    role_message = ""
+    if player_role.value == "admin":
+        role_message = (
+            f"👑 *Вы назначены администратором игры!*\n"
+            f"Используйте /admin для доступа к панели управления.\n\n"
+        )
+    else:
+        role_message = (
+            f"⏳ *Ваша заявка отправлена администратору на рассмотрение.*\n"
+            f"Вы получите уведомление, когда заявка будет одобрена.\n\n"
+        )
+    
     await message.answer(
         f"🎉 *Регистрация завершена!*\n\n"
         f"*Ваша страна:* {data['country_name']}\n"
         f"*Столица:* {data['capital']}\n"
         f"*Население:* {population:,}\n\n"
         f"*Аспекты развития:*\n"
-        f"🏛️ Экономика: {data['economy']}\n"
+        f"💰 Экономика: {data['economy']}\n"
         f"⚔️ Военное дело: {data['military']}\n"
         f"🤝 Внешняя политика: {data['foreign_policy']}\n"
         f"🗺️ Территория: {data['territory']}\n"
@@ -330,8 +361,9 @@ async def process_population(
         f"🏗️ Строительство: {data['construction_infrastructure']}\n"
         f"👥 Общественные отношения: {data['social_relations']}\n"
         f"🕵️ Разведка: {data['intelligence']}\n\n"
-        f"⏳ *Ваша заявка отправлена администратору на рассмотрение.*\n"
-        f"Вы получите уведомление, когда заявка будет одобрена."
+        f"{role_message}"
+        f"Используйте /start для просмотра доступных команд.",
+        parse_mode="Markdown"
     )
 
     await state.clear()

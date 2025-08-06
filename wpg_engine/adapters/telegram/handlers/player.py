@@ -8,9 +8,10 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import Message
 from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 
 from wpg_engine.core.engine import GameEngine
-from wpg_engine.models import Player
+from wpg_engine.models import Player, get_db
 
 
 class PostStates(StatesGroup):
@@ -19,15 +20,21 @@ class PostStates(StatesGroup):
     waiting_for_post_content = State()
 
 
-async def stats_command(message: Message, game_engine: GameEngine) -> None:
+async def stats_command(message: Message) -> None:
     """Handle /stats command - show player's country info"""
     user_id = message.from_user.id
 
-    # Get player
-    result = await game_engine.db.execute(
-        select(Player).where(Player.telegram_id == user_id)
-    )
-    player = result.scalar_one_or_none()
+    async for db in get_db():
+        game_engine = GameEngine(db)
+        
+        # Get player
+        result = await game_engine.db.execute(
+            select(Player)
+            .options(selectinload(Player.country), selectinload(Player.game))
+            .where(Player.telegram_id == user_id)
+        )
+        player = result.scalar_one_or_none()
+        break
 
     if not player:
         await message.answer("❌ Вы не зарегистрированы в игре. Используйте /register")
@@ -90,21 +97,26 @@ async def stats_command(message: Message, game_engine: GameEngine) -> None:
         f"*Аспекты развития:*\n\n{aspects_text}"
         f"*Игра:* {player.game.name}\n"
         f"*Сеттинг:* {player.game.setting}\n"
-        f"*Темп:* {player.game.years_per_day} лет/день"
+        f"*Темп:* {player.game.years_per_day} лет/день",
+        parse_mode="Markdown"
     )
 
 
-async def post_command(
-    message: Message, state: FSMContext, game_engine: GameEngine
-) -> None:
+async def post_command(message: Message, state: FSMContext) -> None:
     """Handle /post command - create a new post"""
     user_id = message.from_user.id
 
-    # Get player
-    result = await game_engine.db.execute(
-        select(Player).where(Player.telegram_id == user_id)
-    )
-    player = result.scalar_one_or_none()
+    async for db in get_db():
+        game_engine = GameEngine(db)
+        
+        # Get player
+        result = await game_engine.db.execute(
+            select(Player)
+            .options(selectinload(Player.country))
+            .where(Player.telegram_id == user_id)
+        )
+        player = result.scalar_one_or_none()
+        break
 
     if not player:
         await message.answer("❌ Вы не зарегистрированы в игре. Используйте /register")
@@ -123,14 +135,13 @@ async def post_command(
         f"• Военные операции\n"
         f"• Культурные инициативы\n"
         f"• Технологические разработки\n\n"
-        f"Напишите ваш пост:"
+        f"Напишите ваш пост:",
+        parse_mode="Markdown"
     )
     await state.set_state(PostStates.waiting_for_post_content)
 
 
-async def process_post_content(
-    message: Message, state: FSMContext, game_engine: GameEngine
-) -> None:
+async def process_post_content(message: Message, state: FSMContext) -> None:
     """Process post content"""
     user_id = message.from_user.id
     content = message.text.strip()
@@ -143,53 +154,66 @@ async def process_post_content(
         await message.answer("❌ Пост не должен превышать 2000 символов.")
         return
 
-    # Get player
-    result = await game_engine.db.execute(
-        select(Player).where(Player.telegram_id == user_id)
-    )
-    player = result.scalar_one_or_none()
+    async for db in get_db():
+        game_engine = GameEngine(db)
+        
+        # Get player
+        result = await game_engine.db.execute(
+            select(Player)
+            .options(selectinload(Player.country))
+            .where(Player.telegram_id == user_id)
+        )
+        player = result.scalar_one_or_none()
 
-    if not player:
-        await message.answer("❌ Ошибка: игрок не найден.")
+        if not player:
+            await message.answer("❌ Ошибка: игрок не найден.")
+            await state.clear()
+            return
+
+        # Create post
+        post = await game_engine.create_post(
+            author_id=player.id,
+            game_id=player.game_id,
+            content=content,
+        )
+
+        await message.answer(
+            f"✅ *Пост успешно отправлен!*\n\n"
+            f"*Автор:* {player.country.name}\n"
+            f"*ID поста:* #{post.id}\n"
+            f"*Содержание:*\n{content}\n\n"
+            f"⏳ Пост отправлен администратору для рассмотрения и вынесения вердикта.",
+            parse_mode="Markdown"
+        )
         await state.clear()
-        return
-
-    # Create post
-    post = await game_engine.create_post(
-        author_id=player.id,
-        game_id=player.game_id,
-        content=content,
-    )
-
-    await message.answer(
-        f"✅ *Пост успешно отправлен!*\n\n"
-        f"*Автор:* {player.country.name}\n"
-        f"*ID поста:* #{post.id}\n"
-        f"*Содержание:*\n{content}\n\n"
-        f"⏳ Пост отправлен администратору для рассмотрения и вынесения вердикта."
-    )
-    await state.clear()
+        break
 
 
-async def world_command(message: Message, game_engine: GameEngine) -> None:
+async def world_command(message: Message) -> None:
     """Handle /world command - show public info about other countries"""
     user_id = message.from_user.id
 
-    # Get player
-    result = await game_engine.db.execute(
-        select(Player).where(Player.telegram_id == user_id)
-    )
-    player = result.scalar_one_or_none()
+    async for db in get_db():
+        game_engine = GameEngine(db)
+        
+        # Get player
+        result = await game_engine.db.execute(
+            select(Player)
+            .options(selectinload(Player.country))
+            .where(Player.telegram_id == user_id)
+        )
+        player = result.scalar_one_or_none()
 
-    if not player:
-        await message.answer("❌ Вы не зарегистрированы в игре. Используйте /register")
-        return
+        if not player:
+            await message.answer("❌ Вы не зарегистрированы в игре. Используйте /register")
+            return
 
-    # Get all countries in the game
-    game = await game_engine.get_game(player.game_id)
-    if not game:
-        await message.answer("❌ Игра не найдена.")
-        return
+        # Get all countries in the game
+        game = await game_engine.get_game(player.game_id)
+        if not game:
+            await message.answer("❌ Игра не найдена.")
+            return
+        break
 
     countries_info = "🌍 *Информация о странах мира*\n\n"
 
@@ -248,15 +272,15 @@ async def world_command(message: Message, game_engine: GameEngine) -> None:
 
         for part in parts[1:]:  # Skip header
             if len(current_message + part + "\n\n") > 4000:
-                await message.answer(current_message)
+                await message.answer(current_message, parse_mode="Markdown")
                 current_message = part + "\n\n"
             else:
                 current_message += part + "\n\n"
 
         if current_message.strip():
-            await message.answer(current_message)
+            await message.answer(current_message, parse_mode="Markdown")
     else:
-        await message.answer(countries_info)
+        await message.answer(countries_info, parse_mode="Markdown")
 
 
 def register_player_handlers(dp: Dispatcher) -> None:

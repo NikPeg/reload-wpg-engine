@@ -2,8 +2,13 @@
 Application settings using Pydantic Settings
 """
 
-from pydantic import Field
+import os
+from dotenv import load_dotenv
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# Load environment variables from .env file
+load_dotenv()
 
 
 class DatabaseSettings(BaseSettings):
@@ -12,16 +17,27 @@ class DatabaseSettings(BaseSettings):
     url: str = Field(default="sqlite:///./wpg_engine.db", description="Database URL")
     echo: bool = Field(default=False, description="Echo SQL queries")
 
-    model_config = SettingsConfigDict(env_prefix="DB_")
+    model_config = SettingsConfigDict(env_prefix="DB_", extra="allow")
 
 
 class TelegramSettings(BaseSettings):
     """Telegram bot configuration"""
 
-    token: str | None = Field(default=None, description="Telegram bot token")
-    webhook_url: str | None = Field(default=None, description="Webhook URL")
+    token: str | None = Field(default_factory=lambda: os.getenv("TG_TOKEN"), description="Telegram bot token")
+    webhook_url: str | None = Field(default_factory=lambda: os.getenv("TG_WEBHOOK_URL"), description="Webhook URL")
+    admin_ids_str: str = Field(default="", alias="TG_ADMIN_IDS", description="Comma-separated admin Telegram IDs")
 
-    model_config = SettingsConfigDict(env_prefix="TG_")
+    model_config = SettingsConfigDict(env_prefix="TG_", extra="allow")
+    
+    @property
+    def admin_ids(self) -> list[int]:
+        """Parse admin IDs from string"""
+        if not self.admin_ids_str.strip():
+            return []
+        try:
+            return [int(id_str.strip()) for id_str in self.admin_ids_str.split(',') if id_str.strip()]
+        except ValueError:
+            return []
 
 
 class VKSettings(BaseSettings):
@@ -30,7 +46,14 @@ class VKSettings(BaseSettings):
     token: str | None = Field(default=None, description="VK bot token")
     group_id: int | None = Field(default=None, description="VK group ID")
 
-    model_config = SettingsConfigDict(env_prefix="VK_")
+    model_config = SettingsConfigDict(env_prefix="VK_", extra="allow")
+    
+    @field_validator('group_id', mode='before')
+    @classmethod
+    def validate_group_id(cls, v):
+        if isinstance(v, str) and v.startswith('your_vk_group_id'):
+            return None
+        return int(v) if v and str(v).isdigit() else None
 
 
 class AISettings(BaseSettings):
@@ -43,7 +66,7 @@ class AISettings(BaseSettings):
         default="anthropic/claude-3-haiku", description="Default AI model"
     )
 
-    model_config = SettingsConfigDict(env_prefix="AI_")
+    model_config = SettingsConfigDict(env_prefix="AI_", extra="allow")
 
 
 class Settings(BaseSettings):
@@ -62,6 +85,7 @@ class Settings(BaseSettings):
         env_file=".env",
         env_file_encoding="utf-8",
         case_sensitive=False,
+        extra="ignore",  # Ignore extra fields from .env
     )
 
 

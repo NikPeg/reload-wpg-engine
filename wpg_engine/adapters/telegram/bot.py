@@ -30,8 +30,6 @@ class TelegramBot:
             default=DefaultBotProperties(parse_mode=ParseMode.MARKDOWN),
         )
         self.dp = Dispatcher()
-        self.db_session: AsyncSession | None = None
-        self.game_engine: GameEngine | None = None
 
         # Register handlers
         register_handlers(self.dp)
@@ -43,15 +41,8 @@ class TelegramBot:
         # Initialize database
         await init_db()
 
-        # Set up database session for bot
-        async for db in get_db():
-            self.db_session = db
-            self.game_engine = GameEngine(db)
-            break
-
-        # Store bot instance and game engine in dispatcher for handlers
+        # Store bot instance in dispatcher for handlers
         self.dp["bot_instance"] = self
-        self.dp["game_engine"] = self.game_engine
 
         try:
             await self.dp.start_polling(self.bot)
@@ -61,8 +52,6 @@ class TelegramBot:
     async def stop(self) -> None:
         """Stop the bot"""
         logger.info("Stopping Telegram bot...")
-        if self.db_session:
-            await self.db_session.close()
         await self.bot.session.close()
 
     async def run(self) -> None:
