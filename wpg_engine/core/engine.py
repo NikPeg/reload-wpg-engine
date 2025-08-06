@@ -2,7 +2,6 @@
 Basic GameEngine class
 """
 
-from typing import List, Optional
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -29,17 +28,19 @@ class GameEngine:
     async def create_game(
         self,
         name: str,
-        description: Optional[str] = None,
+        description: str | None = None,
+        setting: str = "Современность",
         max_players: int = 10,
-        turn_duration_hours: int = 24,
-        settings: Optional[dict] = None,
+        years_per_day: int = 1,
+        settings: dict | None = None,
     ) -> Game:
         """Create a new game"""
         game = Game(
             name=name,
             description=description,
+            setting=setting,
             max_players=max_players,
-            turn_duration_hours=turn_duration_hours,
+            years_per_day=years_per_day,
             settings=settings or {},
         )
         self.db.add(game)
@@ -47,7 +48,7 @@ class GameEngine:
         await self.db.refresh(game)
         return game
 
-    async def get_game(self, game_id: int) -> Optional[Game]:
+    async def get_game(self, game_id: int) -> Game | None:
         """Get game by ID with all relationships"""
         result = await self.db.execute(
             select(Game)
@@ -75,10 +76,10 @@ class GameEngine:
         self,
         game_id: int,
         name: str,
-        description: Optional[str] = None,
-        aspects: Optional[dict] = None,
-        capital: Optional[str] = None,
-        population: Optional[int] = None,
+        description: str | None = None,
+        aspects: dict | None = None,
+        capital: str | None = None,
+        population: int | None = None,
     ) -> Country:
         """Create a new country in a game"""
         country_data = {
@@ -101,7 +102,7 @@ class GameEngine:
         await self.db.refresh(country)
         return country
 
-    async def get_country(self, country_id: int) -> Optional[Country]:
+    async def get_country(self, country_id: int) -> Country | None:
         """Get country by ID"""
         result = await self.db.execute(
             select(Country)
@@ -112,7 +113,7 @@ class GameEngine:
 
     async def update_country_aspects(
         self, country_id: int, aspects: dict
-    ) -> Optional[Country]:
+    ) -> Country | None:
         """Update country aspects"""
         country = await self.get_country(country_id)
         if not country:
@@ -130,12 +131,12 @@ class GameEngine:
     async def create_player(
         self,
         game_id: int,
-        telegram_id: Optional[int] = None,
-        vk_id: Optional[int] = None,
-        username: Optional[str] = None,
-        display_name: Optional[str] = None,
+        telegram_id: int | None = None,
+        vk_id: int | None = None,
+        username: str | None = None,
+        display_name: str | None = None,
         role: PlayerRole = PlayerRole.PLAYER,
-        country_id: Optional[int] = None,
+        country_id: int | None = None,
     ) -> Player:
         """Create a new player"""
         player = Player(
@@ -170,7 +171,7 @@ class GameEngine:
         author_id: int,
         game_id: int,
         content: str,
-        reply_to_id: Optional[int] = None,
+        reply_to_id: int | None = None,
     ) -> Post:
         """Create a new post"""
         post = Post(
@@ -184,7 +185,7 @@ class GameEngine:
         await self.db.refresh(post)
         return post
 
-    async def get_game_posts(self, game_id: int) -> List[Post]:
+    async def get_game_posts(self, game_id: int) -> list[Post]:
         """Get all posts for a game"""
         result = await self.db.execute(
             select(Post)
@@ -196,7 +197,7 @@ class GameEngine:
 
     # Verdict management
     async def create_verdict(
-        self, post_id: int, admin_id: int, result: str, reasoning: Optional[str] = None
+        self, post_id: int, admin_id: int, result: str, reasoning: str | None = None
     ) -> Verdict:
         """Create a verdict for a post"""
         verdict = Verdict(

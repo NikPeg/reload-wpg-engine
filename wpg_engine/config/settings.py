@@ -2,7 +2,6 @@
 Application settings using Pydantic Settings
 """
 
-from typing import Optional
 
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -20,8 +19,8 @@ class DatabaseSettings(BaseSettings):
 class TelegramSettings(BaseSettings):
     """Telegram bot configuration"""
 
-    token: Optional[str] = Field(default=None, description="Telegram bot token")
-    webhook_url: Optional[str] = Field(default=None, description="Webhook URL")
+    token: str | None = Field(default=None, description="Telegram bot token")
+    webhook_url: str | None = Field(default=None, description="Webhook URL")
 
     model_config = SettingsConfigDict(env_prefix="TG_")
 
@@ -29,8 +28,8 @@ class TelegramSettings(BaseSettings):
 class VKSettings(BaseSettings):
     """VK bot configuration"""
 
-    token: Optional[str] = Field(default=None, description="VK bot token")
-    group_id: Optional[int] = Field(default=None, description="VK group ID")
+    token: str | None = Field(default=None, description="VK bot token")
+    group_id: int | None = Field(default=None, description="VK group ID")
 
     model_config = SettingsConfigDict(env_prefix="VK_")
 
@@ -38,7 +37,7 @@ class VKSettings(BaseSettings):
 class AISettings(BaseSettings):
     """AI service configuration"""
 
-    openrouter_api_key: Optional[str] = Field(
+    openrouter_api_key: str | None = Field(
         default=None, description="OpenRouter API key"
     )
     default_model: str = Field(

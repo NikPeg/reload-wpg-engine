@@ -5,7 +5,7 @@ Test script to verify the WPG engine functionality
 import asyncio
 
 from wpg_engine.core.engine import GameEngine
-from wpg_engine.models import GameStatus, PlayerRole, get_db, init_db
+from wpg_engine.models import PlayerRole, get_db, init_db
 
 
 async def test_engine():
@@ -26,8 +26,9 @@ async def test_engine():
         game = await engine.create_game(
             name="Test WPG Game",
             description="A test war-political game",
+            setting="Древний мир",
             max_players=6,
-            turn_duration_hours=48,
+            years_per_day=10,
         )
         print(f"✅ Game created: {game}")
 
@@ -43,18 +44,30 @@ async def test_engine():
             population=50000000,
             aspects={
                 "economy": 9,
+                "economy_description": "Развитая торговая экономика с множеством торговых путей",
                 "military": 3,
+                "military_description": "Небольшая профессиональная армия, полагается на наемников",
                 "foreign_policy": 6,
+                "foreign_policy_description": "Активная дипломатия, множество торговых соглашений",
                 "territory": 5,
+                "territory_description": "Средние по размеру земли с плодородными долинами",
                 "technology": 8,
+                "technology_description": "Передовые технологии в металлургии и мореплавании",
                 "religion_culture": 6,
+                "religion_culture_description": "Культ торговли и богатства, веротерпимость",
                 "governance_law": 7,
+                "governance_law_description": "Республика торговцев с развитым торговым правом",
                 "construction_infrastructure": 8,
+                "construction_infrastructure_description": "Отличные дороги, порты и торговые центры",
                 "social_relations": 7,
+                "social_relations_description": "Социальная мобильность через торговлю",
             },
         )
         print(f"✅ Country 1 created: {country1}")
-        print(f"   Aspects: {country1.get_aspects()}")
+        print(f"   Aspects: {country1.get_aspects_values_only()}")
+        print("   Full aspects with descriptions:")
+        for aspect, data in country1.get_aspects().items():
+            print(f"     {aspect}: {data['value']} - {data['description']}")
 
         # Country 2: Strong military, average economy
         country2 = await engine.create_country(
@@ -65,18 +78,27 @@ async def test_engine():
             population=30000000,
             aspects={
                 "economy": 5,
+                "economy_description": "Военная экономика, основанная на завоеваниях",
                 "military": 9,
+                "military_description": "Мощная профессиональная армия с железной дисциплиной",
                 "foreign_policy": 4,
+                "foreign_policy_description": "Агрессивная экспансионистская политика",
                 "territory": 7,
+                "territory_description": "Обширные земли, завоеванные силой оружия",
                 "technology": 6,
+                "technology_description": "Развитые военные технологии и осадные машины",
                 "religion_culture": 5,
+                "religion_culture_description": "Культ войны и чести, поклонение богам битвы",
                 "governance_law": 6,
+                "governance_law_description": "Военная диктатура с жестким военным правом",
                 "construction_infrastructure": 5,
+                "construction_infrastructure_description": "Крепости и военные дороги",
                 "social_relations": 4,
+                "social_relations_description": "Жесткая военная иерархия, мало социальной мобильности",
             },
         )
         print(f"✅ Country 2 created: {country2}")
-        print(f"   Aspects: {country2.get_aspects()}")
+        print(f"   Aspects: {country2.get_aspects_values_only()}")
 
         # Test 3: Create players
         print("\n👥 Creating test players...")
@@ -149,7 +171,7 @@ async def test_engine():
             aspects={"economy": 10},  # Increase economy due to successful expansion
         )
         print(f"✅ Country updated: {updated_country}")
-        print(f"   New aspects: {updated_country.get_aspects()}")
+        print(f"   New aspects: {updated_country.get_aspects_values_only()}")
 
         # Test 7: Start the game
         print("\n🎯 Starting the game...")
@@ -161,7 +183,7 @@ async def test_engine():
         print("\n📊 Getting game statistics...")
 
         stats = await engine.get_game_statistics(game.id)
-        print(f"✅ Game statistics:")
+        print("✅ Game statistics:")
         for key, value in stats.items():
             print(f"   {key}: {value}")
 

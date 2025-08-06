@@ -3,7 +3,7 @@ Player model
 """
 
 from enum import Enum
-from typing import List, Optional
+from typing import Optional
 
 from sqlalchemy import BigInteger, ForeignKey, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -25,17 +25,17 @@ class Player(Base):
     __tablename__ = "players"
 
     # External service IDs
-    telegram_id: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
-    vk_id: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
+    telegram_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    vk_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
 
     # Player info
-    username: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
-    display_name: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    username: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    display_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     role: Mapped[PlayerRole] = mapped_column(String(20), default=PlayerRole.PLAYER)
 
     # Foreign keys
     game_id: Mapped[int] = mapped_column(ForeignKey("games.id"), nullable=False)
-    country_id: Mapped[Optional[int]] = mapped_column(
+    country_id: Mapped[int | None] = mapped_column(
         ForeignKey("countries.id"), nullable=True
     )
 
@@ -44,8 +44,8 @@ class Player(Base):
     country: Mapped[Optional["Country"]] = relationship(
         "Country", back_populates="players"
     )
-    posts: Mapped[List["Post"]] = relationship("Post", back_populates="author")
-    verdicts: Mapped[List["Verdict"]] = relationship("Verdict", back_populates="admin")
+    posts: Mapped[list["Post"]] = relationship("Post", back_populates="author")
+    verdicts: Mapped[list["Verdict"]] = relationship("Verdict", back_populates="admin")
 
     def __repr__(self) -> str:
         return f"<Player(id={self.id}, username='{self.username}', role='{self.role}')>"

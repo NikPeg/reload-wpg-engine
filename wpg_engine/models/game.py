@@ -3,7 +3,6 @@ Game model
 """
 
 from enum import Enum
-from typing import List, Optional
 
 from sqlalchemy import JSON, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -26,22 +25,23 @@ class Game(Base):
     __tablename__ = "games"
 
     name: Mapped[str] = mapped_column(String(255), nullable=False)
-    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
     status: Mapped[GameStatus] = mapped_column(String(20), default=GameStatus.CREATED)
+    setting: Mapped[str] = mapped_column(String(255), default="Современность")
     settings: Mapped[dict] = mapped_column(JSON, default=dict)
 
     # Game configuration
     max_players: Mapped[int] = mapped_column(default=10)
-    turn_duration_hours: Mapped[int] = mapped_column(default=24)
+    years_per_day: Mapped[int] = mapped_column(default=1)  # Сколько игровых лет проходит за один реальный день
 
     # Relationships
-    countries: Mapped[List["Country"]] = relationship(
+    countries: Mapped[list["Country"]] = relationship(
         "Country", back_populates="game", cascade="all, delete-orphan"
     )
-    players: Mapped[List["Player"]] = relationship(
+    players: Mapped[list["Player"]] = relationship(
         "Player", back_populates="game", cascade="all, delete-orphan"
     )
-    posts: Mapped[List["Post"]] = relationship(
+    posts: Mapped[list["Post"]] = relationship(
         "Post", back_populates="game", cascade="all, delete-orphan"
     )
 

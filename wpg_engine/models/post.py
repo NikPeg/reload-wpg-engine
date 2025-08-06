@@ -2,7 +2,7 @@
 Post model for player actions
 """
 
-from typing import List, Optional
+from typing import Optional
 
 from sqlalchemy import ForeignKey, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -22,7 +22,7 @@ class Post(Base):
     game_id: Mapped[int] = mapped_column(ForeignKey("games.id"), nullable=False)
 
     # Optional reply to another post
-    reply_to_id: Mapped[Optional[int]] = mapped_column(
+    reply_to_id: Mapped[int | None] = mapped_column(
         ForeignKey("posts.id"), nullable=True
     )
 
@@ -34,10 +34,10 @@ class Post(Base):
     reply_to: Mapped[Optional["Post"]] = relationship(
         "Post", remote_side="Post.id", back_populates="replies"
     )
-    replies: Mapped[List["Post"]] = relationship("Post", back_populates="reply_to")
+    replies: Mapped[list["Post"]] = relationship("Post", back_populates="reply_to")
 
     # Verdicts for this post
-    verdicts: Mapped[List["Verdict"]] = relationship(
+    verdicts: Mapped[list["Verdict"]] = relationship(
         "Verdict", back_populates="post", cascade="all, delete-orphan"
     )
 

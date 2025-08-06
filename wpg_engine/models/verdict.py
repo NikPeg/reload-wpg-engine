@@ -2,7 +2,6 @@
 Verdict model for admin decisions
 """
 
-from typing import Optional
 
 from sqlalchemy import ForeignKey, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -16,7 +15,7 @@ class Verdict(Base):
     __tablename__ = "verdicts"
 
     result: Mapped[str] = mapped_column(Text, nullable=False)
-    reasoning: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    reasoning: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     # Foreign keys
     post_id: Mapped[int] = mapped_column(ForeignKey("posts.id"), nullable=False)
