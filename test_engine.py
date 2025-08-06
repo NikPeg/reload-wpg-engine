@@ -61,6 +61,8 @@ async def test_engine():
                 "construction_infrastructure_description": "Отличные дороги, порты и торговые центры",
                 "social_relations": 7,
                 "social_relations_description": "Социальная мобильность через торговлю",
+                "intelligence": 6,
+                "intelligence_description": "Развитая торговая разведка и информационные сети",
             },
         )
         print(f"✅ Country 1 created: {country1}")
@@ -95,6 +97,8 @@ async def test_engine():
                 "construction_infrastructure_description": "Крепости и военные дороги",
                 "social_relations": 4,
                 "social_relations_description": "Жесткая военная иерархия, мало социальной мобильности",
+                "intelligence": 8,
+                "intelligence_description": "Мощная военная разведка и контрразведка",
             },
         )
         print(f"✅ Country 2 created: {country2}")
@@ -213,7 +217,7 @@ async def test_engine():
         print("\n" + "=" * 50)
         print("SUMMARY:")
         print(f"✅ Created game: '{game.name}' (ID: {game.id})")
-        print(f"✅ Created {len([country1, country2])} countries with 9 aspects each")
+        print(f"✅ Created {len([country1, country2])} countries with 10 aspects each")
         print(
             f"✅ Created {len([admin, player1, player2])} players (1 admin, 2 players)"
         )

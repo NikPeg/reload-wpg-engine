@@ -48,6 +48,9 @@ class Country(Base):
     social_relations: Mapped[int] = mapped_column(Integer, default=5)
     social_relations_description: Mapped[str | None] = mapped_column(Text, nullable=True)
 
+    intelligence: Mapped[int] = mapped_column(Integer, default=5)
+    intelligence_description: Mapped[str | None] = mapped_column(Text, nullable=True)
+
     # Additional country data
     capital: Mapped[str | None] = mapped_column(String(255), nullable=True)
     population: Mapped[int | None] = mapped_column(Integer, nullable=True)
@@ -62,6 +65,7 @@ class Country(Base):
     governance_law_public: Mapped[bool] = mapped_column(default=True)
     construction_infrastructure_public: Mapped[bool] = mapped_column(default=True)
     social_relations_public: Mapped[bool] = mapped_column(default=True)
+    intelligence_public: Mapped[bool] = mapped_column(default=False)  # Разведка по умолчанию скрыта
 
     # Relationships
     game: Mapped["Game"] = relationship("Game", back_populates="countries")
@@ -106,6 +110,10 @@ class Country(Base):
                 "value": self.social_relations,
                 "description": self.social_relations_description
             },
+            "intelligence": {
+                "value": self.intelligence,
+                "description": self.intelligence_description
+            },
         }
 
     def get_aspects_values_only(self) -> dict[str, int]:
@@ -120,6 +128,7 @@ class Country(Base):
             "governance_law": self.governance_law,
             "construction_infrastructure": self.construction_infrastructure,
             "social_relations": self.social_relations,
+            "intelligence": self.intelligence,
         }
 
     def get_public_aspects(self) -> dict[str, dict]:
@@ -135,6 +144,7 @@ class Country(Base):
             "governance_law": self.governance_law_public,
             "construction_infrastructure": self.construction_infrastructure_public,
             "social_relations": self.social_relations_public,
+            "intelligence": self.intelligence_public,
         }
 
         return {
