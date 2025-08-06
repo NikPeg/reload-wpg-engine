@@ -32,7 +32,9 @@ class Game(Base):
 
     # Game configuration
     max_players: Mapped[int] = mapped_column(default=10)
-    years_per_day: Mapped[int] = mapped_column(default=1)  # Сколько игровых лет проходит за один реальный день
+    years_per_day: Mapped[int] = mapped_column(
+        default=1
+    )  # Сколько игровых лет проходит за один реальный день
 
     # Relationships
     countries: Mapped[list["Country"]] = relationship(

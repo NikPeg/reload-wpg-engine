@@ -2,7 +2,6 @@
 Country model with 9 aspects
 """
 
-
 from sqlalchemy import ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -37,16 +36,22 @@ class Country(Base):
     technology_description: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     religion_culture: Mapped[int] = mapped_column(Integer, default=5)
-    religion_culture_description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    religion_culture_description: Mapped[str | None] = mapped_column(
+        Text, nullable=True
+    )
 
     governance_law: Mapped[int] = mapped_column(Integer, default=5)
     governance_law_description: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     construction_infrastructure: Mapped[int] = mapped_column(Integer, default=5)
-    construction_infrastructure_description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    construction_infrastructure_description: Mapped[str | None] = mapped_column(
+        Text, nullable=True
+    )
 
     social_relations: Mapped[int] = mapped_column(Integer, default=5)
-    social_relations_description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    social_relations_description: Mapped[str | None] = mapped_column(
+        Text, nullable=True
+    )
 
     intelligence: Mapped[int] = mapped_column(Integer, default=5)
     intelligence_description: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -65,7 +70,9 @@ class Country(Base):
     governance_law_public: Mapped[bool] = mapped_column(default=True)
     construction_infrastructure_public: Mapped[bool] = mapped_column(default=True)
     social_relations_public: Mapped[bool] = mapped_column(default=True)
-    intelligence_public: Mapped[bool] = mapped_column(default=False)  # Разведка по умолчанию скрыта
+    intelligence_public: Mapped[bool] = mapped_column(
+        default=False
+    )  # Разведка по умолчанию скрыта
 
     # Relationships
     game: Mapped["Game"] = relationship("Game", back_populates="countries")
@@ -74,45 +81,42 @@ class Country(Base):
     def get_aspects(self) -> dict[str, dict]:
         """Get all aspects with values and descriptions"""
         return {
-            "economy": {
-                "value": self.economy,
-                "description": self.economy_description
-            },
+            "economy": {"value": self.economy, "description": self.economy_description},
             "military": {
                 "value": self.military,
-                "description": self.military_description
+                "description": self.military_description,
             },
             "foreign_policy": {
                 "value": self.foreign_policy,
-                "description": self.foreign_policy_description
+                "description": self.foreign_policy_description,
             },
             "territory": {
                 "value": self.territory,
-                "description": self.territory_description
+                "description": self.territory_description,
             },
             "technology": {
                 "value": self.technology,
-                "description": self.technology_description
+                "description": self.technology_description,
             },
             "religion_culture": {
                 "value": self.religion_culture,
-                "description": self.religion_culture_description
+                "description": self.religion_culture_description,
             },
             "governance_law": {
                 "value": self.governance_law,
-                "description": self.governance_law_description
+                "description": self.governance_law_description,
             },
             "construction_infrastructure": {
                 "value": self.construction_infrastructure,
-                "description": self.construction_infrastructure_description
+                "description": self.construction_infrastructure_description,
             },
             "social_relations": {
                 "value": self.social_relations,
-                "description": self.social_relations_description
+                "description": self.social_relations_description,
             },
             "intelligence": {
                 "value": self.intelligence,
-                "description": self.intelligence_description
+                "description": self.intelligence_description,
             },
         }
 
@@ -148,9 +152,7 @@ class Country(Base):
         }
 
         return {
-            aspect: data
-            for aspect, data in aspects.items()
-            if public_flags[aspect]
+            aspect: data for aspect, data in aspects.items() if public_flags[aspect]
         }
 
     def __repr__(self) -> str:
