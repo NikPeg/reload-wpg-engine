@@ -19,14 +19,22 @@ class AddCountrySynonymsMigration(Migration):
 
     async def up(self, session: AsyncSession) -> None:
         """Add synonyms column to countries table"""
-        # Add synonyms column as JSON with default empty list
-        await session.execute(text("""
-            ALTER TABLE countries
-            ADD COLUMN synonyms TEXT DEFAULT '[]' NOT NULL
+        # Check if synonyms column already exists
+        result = await session.execute(text("""
+            PRAGMA table_info(countries)
         """))
-        await session.commit()
-
-        print("Added synonyms column to countries table")
+        columns = [row[1] for row in result.fetchall()]
+        
+        if 'synonyms' not in columns:
+            # Add synonyms column as JSON with default empty list
+            await session.execute(text("""
+                ALTER TABLE countries
+                ADD COLUMN synonyms TEXT DEFAULT '[]' NOT NULL
+            """))
+            await session.commit()
+            print("Added synonyms column to countries table")
+        else:
+            print("Synonyms column already exists, skipping")
 
     async def down(self, session: AsyncSession) -> None:
         """Remove synonyms column from countries table"""
