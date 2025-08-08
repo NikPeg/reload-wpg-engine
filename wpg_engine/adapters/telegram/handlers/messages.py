@@ -155,7 +155,7 @@ async def handle_registration_decision(message: Message, admin: Player, game_eng
     # Find telegram ID in the message
     import re
 
-    telegram_id_match = re.search(r"Telegram ID:</b> <code>(\d+)</code>", replied_text)
+    telegram_id_match = re.search(r"Telegram ID:\s*(\d+)", replied_text)
     if not telegram_id_match:
         await message.answer("❌ Не удалось найти Telegram ID в сообщении.")
         return

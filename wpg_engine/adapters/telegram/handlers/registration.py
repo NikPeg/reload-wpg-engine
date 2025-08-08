@@ -8,10 +8,12 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import Message
 from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 
 from wpg_engine.core.admin_utils import determine_player_role
 from wpg_engine.core.engine import GameEngine
-from wpg_engine.models import Game, GameStatus, Player, get_db
+from wpg_engine.models import Country, Game, GameStatus, Player, get_db
+from wpg_engine.models.message import Message as MessageModel
 
 
 class RegistrationStates(StatesGroup):
@@ -31,6 +33,9 @@ class RegistrationStates(StatesGroup):
     waiting_for_intelligence = State()
     waiting_for_capital = State()
     waiting_for_population = State()
+
+    # Re-registration confirmation state
+    waiting_for_reregistration_confirmation = State()
 
 
 ASPECT_NAMES = {
@@ -68,14 +73,17 @@ async def register_command(message: Message, state: FSMContext) -> None:
         game_engine = GameEngine(db)
 
         # Check if user is already registered
-        result = await game_engine.db.execute(select(Player).where(Player.telegram_id == user_id).limit(1))
-        if result.scalar_one_or_none():
-            await message.answer("❌ Вы уже зарегистрированы в игре!")
-            return
-
-        # Get available game (created or active)
         result = await game_engine.db.execute(
-            select(Game).where(Game.status.in_([GameStatus.CREATED, GameStatus.ACTIVE]))
+            select(Player)
+            .options(selectinload(Player.country))
+            .where(Player.telegram_id == user_id)
+            .limit(1)
+        )
+        existing_player = result.scalar_one_or_none()
+
+        # Get available game (created or active) - take the first one
+        result = await game_engine.db.execute(
+            select(Game).where(Game.status.in_([GameStatus.CREATED, GameStatus.ACTIVE])).limit(1)
         )
         game = result.scalar_one_or_none()
 
@@ -84,7 +92,37 @@ async def register_command(message: Message, state: FSMContext) -> None:
             return
         break
 
-    # Store game info in state
+    # If user is already registered, ask for confirmation to re-register
+    if existing_player:
+        # Store data for confirmation
+        await state.update_data(
+            user_id=user_id,
+            game_id=game.id,
+            max_points=game.max_points,
+            existing_player_id=existing_player.id,
+            existing_country_id=existing_player.country_id if existing_player.country else None
+        )
+
+        country_info = ""
+        if existing_player.country:
+            country_info = f"Ваша текущая страна: *{existing_player.country.name}*\n"
+
+        await message.answer(
+            f"⚠️ *ВНИМАНИЕ! ОПАСНАЯ ОПЕРАЦИЯ!*\n\n"
+            f"Вы уже зарегистрированы в игре.\n"
+            f"{country_info}\n"
+            f"Регистрация новой страны *ПОЛНОСТЬЮ УДАЛИТ* всю информацию о текущей регистрации:\n\n"
+            f"• Все данные о стране будут потеряны\n"
+            f"• История сообщений останется, но связь со страной пропадет\n"
+            f"• Это действие *НЕОБРАТИМО*\n\n"
+            f"Вы *ДЕЙСТВИТЕЛЬНО* хотите зарегистрировать новую страну?\n\n"
+            f"Напишите *ПОДТВЕРЖДАЮ* (заглавными буквами), чтобы продолжить, или любое другое сообщение для отмены.",
+            parse_mode="Markdown",
+        )
+        await state.set_state(RegistrationStates.waiting_for_reregistration_confirmation)
+        return
+
+    # New user registration
     await state.update_data(game_id=game.id, user_id=user_id, max_points=game.max_points, spent_points=0)
 
     await message.answer(
@@ -92,7 +130,7 @@ async def register_command(message: Message, state: FSMContext) -> None:
         f"Для участия в игре вам необходимо создать свою страну.\n"
         f"Вы будете управлять страной по 10 аспектам развития.\n\n"
         f"📊 *У вас есть {game.max_points} очков* для распределения между аспектами.\n"
-        f"Каждый аспект можно развить от 1 до 10 уровня.\n\n"
+        f"Каждый аспект можно развить от 0 до 10 уровня.\n\n"
         f"*Начнем с основной информации:*\n\n"
         f"Как будет называться ваша страна?",
         parse_mode="Markdown",
@@ -132,13 +170,14 @@ async def process_country_description(message: Message, state: FSMContext) -> No
         f"✅ Описание сохранено.\n\n"
         f"*Теперь настроим аспекты развития вашей страны.*\n\n"
         f"📊 *Доступно очков: {data['max_points']} | Потрачено: {data['spent_points']} | Осталось: {data['max_points'] - data['spent_points']}*\n\n"
-        f"Каждый аспект оценивается по шкале от 1 до 10:\n"
+        f"Каждый аспект оценивается по шкале от 0 до 10:\n"
+        f"• 0: отсутствует\n"
         f"• 1-3: слабый уровень\n"
         f"• 4-6: средний уровень\n"
         f"• 7-8: высокий уровень\n"
         f"• 9-10: выдающийся уровень\n\n"
         f"*{ASPECT_NAMES['economy']}* ({ASPECT_DESCRIPTIONS['economy']})\n"
-        f"Введите значение от 1 до 10:",
+        f"Введите значение от 0 до 10:",
         parse_mode="Markdown",
     )
     await state.set_state(RegistrationStates.waiting_for_economy)
@@ -148,10 +187,10 @@ async def process_aspect(message: Message, state: FSMContext, aspect: str, next_
     """Process aspect value"""
     try:
         value = int(message.text.strip())
-        if not 1 <= value <= 10:
+        if not 0 <= value <= 10:
             raise ValueError()
     except ValueError:
-        await message.answer("❌ Введите число от 1 до 10.")
+        await message.answer("❌ Введите число от 0 до 10.")
         return
 
     # Get current data and check points
@@ -169,7 +208,7 @@ async def process_aspect(message: Message, state: FSMContext, aspect: str, next_
             f"❌ Недостаточно очков!\n\n"
             f"📊 Потрачено: {current_spent} | Доступно: {max_points} | Осталось: {max_points - current_spent}\n"
             f"Вы пытаетесь потратить {value} очков, но у вас осталось только {max_points - current_spent}.\n\n"
-            f"Введите значение от 1 до {max_points - current_spent}:",
+            f"Введите значение от 0 до {max_points - current_spent}:",
             parse_mode="Markdown"
         )
         return
@@ -190,7 +229,7 @@ async def process_aspect(message: Message, state: FSMContext, aspect: str, next_
             f"✅ {ASPECT_NAMES[aspect]}: {value}\n\n"
             f"📊 *Потрачено: {new_spent} | Осталось: {remaining}*\n\n"
             f"*{ASPECT_NAMES[next_aspect]}* ({ASPECT_DESCRIPTIONS[next_aspect]})\n"
-            f"Введите значение от 1 до {max_for_next}:",
+            f"Введите значение от 0 до {max_for_next}:",
             parse_mode="Markdown",
         )
         await state.set_state(next_state)
@@ -425,9 +464,74 @@ async def process_population(message: Message, state: FSMContext) -> None:
     await state.clear()
 
 
+async def process_reregistration_confirmation(message: Message, state: FSMContext) -> None:
+    """Process confirmation for re-registration"""
+    confirmation = message.text.strip()
+
+    if confirmation != "ПОДТВЕРЖДАЮ":
+        await message.answer("❌ Перерегистрация отменена. Ваша текущая регистрация сохранена.")
+        await state.clear()
+        return
+
+    # Get stored data
+    data = await state.get_data()
+    user_id = data["user_id"]
+    game_id = data["game_id"]
+    max_points = data["max_points"]
+    existing_player_id = data["existing_player_id"]
+    existing_country_id = data.get("existing_country_id")
+
+    async for db in get_db():
+        game_engine = GameEngine(db)
+
+        # Delete existing player's messages first to avoid foreign key constraint issues
+        result = await game_engine.db.execute(select(MessageModel).where(MessageModel.player_id == existing_player_id))
+        messages = result.scalars().all()
+        for message in messages:
+            await game_engine.db.delete(message)
+
+        # Delete existing country
+        if existing_country_id:
+            result = await game_engine.db.execute(select(Country).where(Country.id == existing_country_id))
+            country = result.scalar_one_or_none()
+            if country:
+                await game_engine.db.delete(country)
+
+        # Delete player
+        result = await game_engine.db.execute(select(Player).where(Player.id == existing_player_id))
+        player = result.scalar_one_or_none()
+        if player:
+            await game_engine.db.delete(player)
+
+        await game_engine.db.commit()
+
+        # Get game info for new registration
+        result = await game_engine.db.execute(select(Game).where(Game.id == game_id))
+        game = result.scalar_one_or_none()
+        break
+
+    # Clear old data and start fresh registration
+    await state.clear()
+    await state.update_data(game_id=game_id, user_id=user_id, max_points=max_points, spent_points=0)
+
+    await message.answer(
+        f"✅ *Предыдущая регистрация удалена.*\n\n"
+        f"🎮 *Регистрация в игре '{game.name}'*\n\n"
+        f"Для участия в игре вам необходимо создать свою страну.\n"
+        f"Вы будете управлять страной по 10 аспектам развития.\n\n"
+        f"📊 *У вас есть {game.max_points} очков* для распределения между аспектами.\n"
+        f"Каждый аспект можно развить от 0 до 10 уровня.\n\n"
+        f"*Начнем с основной информации:*\n\n"
+        f"Как будет называться ваша страна?",
+        parse_mode="Markdown",
+    )
+    await state.set_state(RegistrationStates.waiting_for_country_name)
+
+
 def register_registration_handlers(dp: Dispatcher) -> None:
     """Register registration handlers"""
     dp.message.register(register_command, Command("register"))
+    dp.message.register(process_reregistration_confirmation, RegistrationStates.waiting_for_reregistration_confirmation)
     dp.message.register(process_country_name, RegistrationStates.waiting_for_country_name)
     dp.message.register(process_country_description, RegistrationStates.waiting_for_country_description)
     dp.message.register(process_economy, RegistrationStates.waiting_for_economy)
