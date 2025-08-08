@@ -24,7 +24,7 @@ def load_migration(file_path):
 
     # Extract migration number from filename (e.g., "001_add_country_synonyms.py" -> "001")
     filename = Path(file_path).name
-    migration_number = filename.split('_')[0]
+    migration_number = filename.split("_")[0]
     migration_attr = f"migration_{migration_number}"
 
     return getattr(module, migration_attr)
@@ -36,7 +36,7 @@ async def main():
 
     # Load and add all migrations
     migrations_dir = project_root / "migrations"
-    migration_files = sorted([f for f in os.listdir(migrations_dir) if f.endswith('.py') and f[0].isdigit()])
+    migration_files = sorted([f for f in os.listdir(migrations_dir) if f.endswith(".py") and f[0].isdigit()])
 
     for migration_file in migration_files:
         migration_path = migrations_dir / migration_file

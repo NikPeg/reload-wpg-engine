@@ -277,7 +277,9 @@ async def handle_country_edit(
                         for other_country in other_countries:
                             # Check against official names
                             if other_country.name.lower() == synonym.lower():
-                                error_messages.append(f"❌ Синоним '{synonym}' конфликтует с названием страны '{other_country.name}'")
+                                error_messages.append(
+                                    f"❌ Синоним '{synonym}' конфликтует с названием страны '{other_country.name}'"
+                                )
                                 conflict_found = True
                                 break
 
@@ -285,7 +287,9 @@ async def handle_country_edit(
                             if other_country.synonyms:
                                 for other_synonym in other_country.synonyms:
                                     if other_synonym.lower() == synonym.lower():
-                                        error_messages.append(f"❌ Синоним '{synonym}' уже используется страной '{other_country.name}'")
+                                        error_messages.append(
+                                            f"❌ Синоним '{synonym}' уже используется страной '{other_country.name}'"
+                                        )
                                         conflict_found = True
                                         break
                             if conflict_found:

@@ -16,6 +16,7 @@ from wpg_engine.models import Player, get_db
 
 class SendStates(StatesGroup):
     """Send message states"""
+
     waiting_for_message = State()
 
 
@@ -107,8 +108,7 @@ async def send_command(message: Message, state: FSMContext) -> None:
         # Store target country and ask for message
         await state.update_data(target_player_id=target_player.id, target_country_name=target_player.country.name)
         await message.answer(
-            f"📨 <b>Отправка сообщения в страну {target_player.country.name}</b>\n\n"
-            f"Введите ваше сообщение:",
+            f"📨 <b>Отправка сообщения в страну {target_player.country.name}</b>\n\n" f"Введите ваше сообщение:",
             parse_mode="HTML",
         )
         await state.set_state(SendStates.waiting_for_message)
@@ -162,9 +162,7 @@ async def process_message_content(message: Message, state: FSMContext) -> None:
 
         # Get target player
         result = await game_engine.db.execute(
-            select(Player)
-            .options(selectinload(Player.country))
-            .where(Player.id == target_player_id)
+            select(Player).options(selectinload(Player.country)).where(Player.id == target_player_id)
         )
         target_player = result.scalar_one_or_none()
         break

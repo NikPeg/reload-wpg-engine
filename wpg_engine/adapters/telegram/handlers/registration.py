@@ -120,7 +120,9 @@ async def register_command(message: Message, state: FSMContext) -> None:
         return
 
     # New user registration
-    await state.update_data(game_id=game.id, user_id=user_id, max_points=game.max_points, max_population=game.max_population, spent_points=0)
+    await state.update_data(
+        game_id=game.id, user_id=user_id, max_points=game.max_points, max_population=game.max_population, spent_points=0
+    )
 
     await message.answer(
         f"🎮 *Регистрация в игре '{game.name}'*\n\n"
@@ -151,9 +153,7 @@ async def process_country_name(message: Message, state: FSMContext) -> None:
         game_engine = GameEngine(db)
 
         # Get all countries in the game
-        result = await game_engine.db.execute(
-            select(Country).where(Country.game_id == game_id)
-        )
+        result = await game_engine.db.execute(select(Country).where(Country.game_id == game_id))
         existing_countries = result.scalars().all()
 
         # Check for conflicts
@@ -161,8 +161,7 @@ async def process_country_name(message: Message, state: FSMContext) -> None:
             # Check official name
             if country.name.lower() == country_name.lower():
                 await message.answer(
-                    f"❌ Страна с названием '{country_name}' уже существует.\n"
-                    f"Выберите другое название."
+                    f"❌ Страна с названием '{country_name}' уже существует.\n" f"Выберите другое название."
                 )
                 return
 
@@ -554,7 +553,9 @@ async def process_reregistration_confirmation(message: Message, state: FSMContex
 
     # Clear old data and start fresh registration
     await state.clear()
-    await state.update_data(game_id=game_id, user_id=user_id, max_points=max_points, max_population=game.max_population, spent_points=0)
+    await state.update_data(
+        game_id=game_id, user_id=user_id, max_points=max_points, max_population=game.max_population, spent_points=0
+    )
 
     await message.answer(
         f"✅ *Предыдущая регистрация удалена.*\n\n"

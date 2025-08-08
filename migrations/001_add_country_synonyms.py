@@ -12,25 +12,30 @@ class AddCountrySynonymsMigration(Migration):
     """Add synonyms field to countries table"""
 
     def __init__(self):
-        super().__init__(
-            version="001",
-            description="Add synonyms field to countries table"
-        )
+        super().__init__(version="001", description="Add synonyms field to countries table")
 
     async def up(self, session: AsyncSession) -> None:
         """Add synonyms column to countries table"""
         # Check if synonyms column already exists
-        result = await session.execute(text("""
+        result = await session.execute(
+            text(
+                """
             PRAGMA table_info(countries)
-        """))
+        """
+            )
+        )
         columns = [row[1] for row in result.fetchall()]
 
-        if 'synonyms' not in columns:
+        if "synonyms" not in columns:
             # Add synonyms column as JSON with default empty list
-            await session.execute(text("""
+            await session.execute(
+                text(
+                    """
                 ALTER TABLE countries
                 ADD COLUMN synonyms TEXT DEFAULT '[]' NOT NULL
-            """))
+            """
+                )
+            )
             await session.commit()
             print("Added synonyms column to countries table")
         else:

@@ -36,14 +36,18 @@ class MigrationRunner:
 
     async def create_migration_table(self, session: AsyncSession) -> None:
         """Create migrations table if it doesn't exist"""
-        await session.execute(text("""
+        await session.execute(
+            text(
+                """
             CREATE TABLE IF NOT EXISTS migrations (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 version TEXT NOT NULL UNIQUE,
                 description TEXT NOT NULL,
                 applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
-        """))
+        """
+            )
+        )
         await session.commit()
 
     async def get_applied_migrations(self, session: AsyncSession) -> list[str]:
@@ -53,9 +57,14 @@ class MigrationRunner:
 
     async def mark_migration_applied(self, session: AsyncSession, migration: Migration) -> None:
         """Mark migration as applied"""
-        await session.execute(text("""
+        await session.execute(
+            text(
+                """
             INSERT INTO migrations (version, description) VALUES (:version, :description)
-        """), {"version": migration.version, "description": migration.description})
+        """
+            ),
+            {"version": migration.version, "description": migration.description},
+        )
         await session.commit()
 
     async def run_migrations(self) -> None:
