@@ -24,7 +24,7 @@ class AddCountrySynonymsMigration(Migration):
             PRAGMA table_info(countries)
         """))
         columns = [row[1] for row in result.fetchall()]
-        
+
         if 'synonyms' not in columns:
             # Add synonyms column as JSON with default empty list
             await session.execute(text("""
