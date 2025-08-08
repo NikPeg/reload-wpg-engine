@@ -36,27 +36,27 @@ async def handle_text_message(message: Message) -> None:
             .where(Player.telegram_id == user_id)
         )
         player = result.scalar_one_or_none()
+
+        if not player:
+            await message.answer("❌ Вы не зарегистрированы в игре. Используйте /start для начала работы с ботом.")
+            return
+
+        # Check if this is an admin replying to a message or sending a message with ID
+        if await is_admin(user_id, game_engine.db):
+            # Check if this is a reply to a message (for registration decisions)
+            if message.reply_to_message:
+                await handle_admin_reply(message, player, game_engine)
+                return
+            # Check if message contains message ID for direct reply
+            import re
+
+            if re.search(r"(?:ID сообщения|msg|message):\s*\d+|^\d+\s+", content, re.IGNORECASE):
+                await handle_admin_reply(message, player, game_engine)
+                return
+
+        # Regular player message - send to admin
+        await handle_player_message(message, player, game_engine)
         break
-
-    if not player:
-        await message.answer("❌ Вы не зарегистрированы в игре. Используйте /start для начала работы с ботом.")
-        return
-
-    # Check if this is an admin replying to a message or sending a message with ID
-    if await is_admin(user_id, game_engine.db):
-        # Check if this is a reply to a message (for registration decisions)
-        if message.reply_to_message:
-            await handle_admin_reply(message, player, game_engine)
-            return
-        # Check if message contains message ID for direct reply
-        import re
-
-        if re.search(r"(?:ID сообщения|msg|message):\s*\d+|^\d+\s+", content, re.IGNORECASE):
-            await handle_admin_reply(message, player, game_engine)
-            return
-
-    # Regular player message - send to admin
-    await handle_player_message(message, player, game_engine)
 
 
 async def handle_player_message(message: Message, player: Player, game_engine: GameEngine) -> None:
@@ -266,36 +266,32 @@ async def handle_country_edit(
                 if new_synonyms:
                     # Check for conflicts with existing countries and their synonyms
                     conflict_found = False
-                    async for db in get_db():
-                        from sqlalchemy import select
+                    from wpg_engine.models import Country
 
-                        from wpg_engine.models import Country
+                    result = await game_engine.db.execute(
+                        select(Country).where(Country.game_id == country.game_id).where(Country.id != country_id)
+                    )
+                    other_countries = result.scalars().all()
 
-                        result = await db.execute(
-                            select(Country).where(Country.game_id == country.game_id).where(Country.id != country_id)
-                        )
-                        other_countries = result.scalars().all()
+                    for synonym in new_synonyms:
+                        for other_country in other_countries:
+                            # Check against official names
+                            if other_country.name.lower() == synonym.lower():
+                                error_messages.append(f"❌ Синоним '{synonym}' конфликтует с названием страны '{other_country.name}'")
+                                conflict_found = True
+                                break
 
-                        for synonym in new_synonyms:
-                            for other_country in other_countries:
-                                # Check against official names
-                                if other_country.name.lower() == synonym.lower():
-                                    error_messages.append(f"❌ Синоним '{synonym}' конфликтует с названием страны '{other_country.name}'")
-                                    conflict_found = True
-                                    break
-
-                                # Check against other synonyms
-                                if other_country.synonyms:
-                                    for other_synonym in other_country.synonyms:
-                                        if other_synonym.lower() == synonym.lower():
-                                            error_messages.append(f"❌ Синоним '{synonym}' уже используется страной '{other_country.name}'")
-                                            conflict_found = True
-                                            break
-                                if conflict_found:
-                                    break
+                            # Check against other synonyms
+                            if other_country.synonyms:
+                                for other_synonym in other_country.synonyms:
+                                    if other_synonym.lower() == synonym.lower():
+                                        error_messages.append(f"❌ Синоним '{synonym}' уже используется страной '{other_country.name}'")
+                                        conflict_found = True
+                                        break
                             if conflict_found:
                                 break
-                        break
+                        if conflict_found:
+                            break
 
                     if not conflict_found:
                         await game_engine.update_country_synonyms(country_id, new_synonyms)
