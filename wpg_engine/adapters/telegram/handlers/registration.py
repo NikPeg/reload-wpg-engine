@@ -85,12 +85,14 @@ async def register_command(message: Message, state: FSMContext) -> None:
         break
 
     # Store game info in state
-    await state.update_data(game_id=game.id, user_id=user_id)
+    await state.update_data(game_id=game.id, user_id=user_id, max_points=game.max_points, spent_points=0)
 
     await message.answer(
         f"🎮 *Регистрация в игре '{game.name}'*\n\n"
         f"Для участия в игре вам необходимо создать свою страну.\n"
         f"Вы будете управлять страной по 10 аспектам развития.\n\n"
+        f"📊 *У вас есть {game.max_points} очков* для распределения между аспектами.\n"
+        f"Каждый аспект можно развить от 1 до 10 уровня.\n\n"
         f"*Начнем с основной информации:*\n\n"
         f"Как будет называться ваша страна?",
         parse_mode="Markdown",
@@ -124,10 +126,12 @@ async def process_country_description(message: Message, state: FSMContext) -> No
         await message.answer("❌ Описание должно быть от 10 до 1000 символов.")
         return
 
+    data = await state.get_data()
     await state.update_data(country_description=description)
     await message.answer(
         f"✅ Описание сохранено.\n\n"
         f"*Теперь настроим аспекты развития вашей страны.*\n\n"
+        f"📊 *Доступно очков: {data['max_points']} | Потрачено: {data['spent_points']} | Осталось: {data['max_points'] - data['spent_points']}*\n\n"
         f"Каждый аспект оценивается по шкале от 1 до 10:\n"
         f"• 1-3: слабый уровень\n"
         f"• 4-6: средний уровень\n"
@@ -150,9 +154,29 @@ async def process_aspect(message: Message, state: FSMContext, aspect: str, next_
         await message.answer("❌ Введите число от 1 до 10.")
         return
 
-    # Store aspect value
+    # Get current data and check points
     data = await state.get_data()
+    current_spent = data.get('spent_points', 0)
+    max_points = data.get('max_points', 30)
+
+    # Calculate new total if we set this aspect
+    new_spent = current_spent + value
+    remaining = max_points - new_spent
+
+    # Check if we have enough points
+    if new_spent > max_points:
+        await message.answer(
+            f"❌ Недостаточно очков!\n\n"
+            f"📊 Потрачено: {current_spent} | Доступно: {max_points} | Осталось: {max_points - current_spent}\n"
+            f"Вы пытаетесь потратить {value} очков, но у вас осталось только {max_points - current_spent}.\n\n"
+            f"Введите значение от 1 до {max_points - current_spent}:",
+            parse_mode="Markdown"
+        )
+        return
+
+    # Store aspect value and update spent points
     data[aspect] = value
+    data['spent_points'] = new_spent
     await state.update_data(**data)
 
     # Get next aspect or finish
@@ -161,10 +185,12 @@ async def process_aspect(message: Message, state: FSMContext, aspect: str, next_
 
     if current_index < len(aspects) - 1:
         next_aspect = aspects[current_index + 1]
+        max_for_next = min(10, remaining)
         await message.answer(
             f"✅ {ASPECT_NAMES[aspect]}: {value}\n\n"
+            f"📊 *Потрачено: {new_spent} | Осталось: {remaining}*\n\n"
             f"*{ASPECT_NAMES[next_aspect]}* ({ASPECT_DESCRIPTIONS[next_aspect]})\n"
-            f"Введите значение от 1 до 10:",
+            f"Введите значение от 1 до {max_for_next}:",
             parse_mode="Markdown",
         )
         await state.set_state(next_state)
@@ -172,6 +198,8 @@ async def process_aspect(message: Message, state: FSMContext, aspect: str, next_
         # All aspects done, ask for capital
         await message.answer(
             f"✅ {ASPECT_NAMES[aspect]}: {value}\n\n"
+            f"📊 *Итого потрачено: {new_spent} из {max_points} очков*\n"
+            f"*Осталось неиспользованных: {remaining} очков*\n\n"
             f"*Дополнительная информация*\n\n"
             f"Как называется столица вашей страны?",
             parse_mode="Markdown",
@@ -317,6 +345,14 @@ async def process_population(message: Message, state: FSMContext) -> None:
 
             if admin and admin.telegram_id:
                 try:
+                    # Calculate total points spent
+                    total_points = (
+                        data['economy'] + data['military'] + data['foreign_policy'] +
+                        data['territory'] + data['technology'] + data['religion_culture'] +
+                        data['governance_law'] + data['construction_infrastructure'] +
+                        data['social_relations'] + data['intelligence']
+                    )
+
                     # Format registration message for admin
                     registration_message = (
                         f"📋 <b>Новая заявка на регистрацию</b>\n\n"
@@ -327,6 +363,7 @@ async def process_population(message: Message, state: FSMContext) -> None:
                         f"<b>Столица:</b> {data['capital']}\n"
                         f"<b>Население:</b> {population:,}\n\n"
                         f"<b>Описание:</b>\n{data['country_description']}\n\n"
+                        f"📊 <b>Очки: {total_points}/{data['max_points']} (осталось: {data['max_points'] - total_points})</b>\n\n"
                         f"<b>Аспекты развития:</b>\n"
                         f"💰 Экономика: {data['economy']}/10\n"
                         f"⚔️ Военное дело: {data['military']}/10\n"

@@ -297,8 +297,9 @@ async def create_game_command(message: Message) -> None:
         if len(args) < 2:
             await message.answer(
                 "❌ Неверный формат команды.\n\n"
-                "Используйте: <code>/create_game Название игры | Сеттинг | Лет за сутки</code>\n\n"
-                "Пример: <code>/create_game Древний мир | Античность | 10</code>",
+                "Используйте: <code>/create_game Название игры | Сеттинг | Лет за сутки | Макс очков</code>\n\n"
+                "Пример: <code>/create_game Древний мир | Античность | 10 | 30</code>\n"
+                "Макс очков - максимальная сумма очков для аспектов страны (по умолчанию 30)",
                 parse_mode="HTML",
             )
             return
@@ -306,11 +307,14 @@ async def create_game_command(message: Message) -> None:
         try:
             # Parse arguments
             parts = [part.strip() for part in args[1].split("|")]
-            if len(parts) != 3:
+            if len(parts) < 3 or len(parts) > 4:
                 raise ValueError("Неверное количество параметров")
 
-            game_name, setting, years_per_day_str = parts
+            game_name, setting, years_per_day_str = parts[:3]
+            max_points_str = parts[3] if len(parts) == 4 else "30"
+
             years_per_day = int(years_per_day_str)
+            max_points = int(max_points_str)
 
             if not game_name or not setting:
                 raise ValueError("Название игры и сеттинг не могут быть пустыми")
@@ -318,11 +322,14 @@ async def create_game_command(message: Message) -> None:
             if years_per_day < 1 or years_per_day > 365:
                 raise ValueError("Количество лет за сутки должно быть от 1 до 365")
 
+            if max_points < 10 or max_points > 100:
+                raise ValueError("Максимальное количество очков должно быть от 10 до 100")
+
         except ValueError as e:
             await message.answer(
                 f"❌ Ошибка в параметрах: {e}\n\n"
-                "Используйте: <code>/create_game Название игры | Сеттинг | Лет за сутки</code>\n\n"
-                "Пример: <code>/create_game Древний мир | Античность | 10</code>",
+                "Используйте: <code>/create_game Название игры | Сеттинг | Лет за сутки | Макс очков</code>\n\n"
+                "Пример: <code>/create_game Древний мир | Античность | 10 | 30</code>",
                 parse_mode="HTML",
             )
             return
@@ -334,6 +341,7 @@ async def create_game_command(message: Message) -> None:
             setting=setting,
             max_players=20,
             years_per_day=years_per_day,
+            max_points=max_points,
         )
 
         # Create admin player
@@ -373,6 +381,7 @@ async def create_game_command(message: Message) -> None:
             f"<b>Название:</b> {game_name}\n"
             f"<b>Сеттинг:</b> {setting}\n"
             f"<b>Лет за сутки:</b> {years_per_day}\n"
+            f"<b>Макс очков для стран:</b> {max_points}\n"
             f"<b>ID игры:</b> {game.id}\n\n"
             f"Вы назначены администратором игры и получили страну '{admin_country.name}'.\n\n"
             f"Теперь игроки могут регистрироваться в игре командой /register",

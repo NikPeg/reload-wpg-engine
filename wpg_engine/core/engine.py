@@ -32,6 +32,7 @@ class GameEngine:
         setting: str = "Современность",
         max_players: int = 10,
         years_per_day: int = 1,
+        max_points: int = 30,
         settings: dict | None = None,
     ) -> Game:
         """Create a new game"""
@@ -41,6 +42,7 @@ class GameEngine:
             setting=setting,
             max_players=max_players,
             years_per_day=years_per_day,
+            max_points=max_points,
             settings=settings or {},
         )
         self.db.add(game)

@@ -118,6 +118,7 @@ async def create_initial_game_if_needed():
             setting="Древний мир",
             max_players=8,
             years_per_day=5,
+            max_points=30,
         )
         print(f"✅ Game created: {game.name} (ID: {game.id})")
 
