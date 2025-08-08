@@ -16,8 +16,8 @@ async def determine_player_role(telegram_id: int, game_id: int, db: AsyncSession
     2. Auto-assign admin to first player in game
     """
 
-    # Check if user is in admin list from .env
-    if telegram_id in settings.telegram.admin_ids:
+    # Check if user is admin from .env
+    if settings.telegram.admin_id and telegram_id == settings.telegram.admin_id:
         return PlayerRole.ADMIN
 
     # Check if this is the first player in the game
@@ -39,7 +39,7 @@ async def determine_player_role(telegram_id: int, game_id: int, db: AsyncSession
 
 async def is_admin(telegram_id: int, db: AsyncSession) -> bool:
     """Check if user is admin"""
-    result = await db.execute(select(Player).where(Player.telegram_id == telegram_id))
+    result = await db.execute(select(Player).where(Player.telegram_id == telegram_id).limit(1))
     player = result.scalar_one_or_none()
 
     return player is not None and player.role == PlayerRole.ADMIN

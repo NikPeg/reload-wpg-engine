@@ -24,13 +24,14 @@ async def start_command(message: Message) -> None:
             select(Player)
             .options(selectinload(Player.game), selectinload(Player.country))
             .where(Player.telegram_id == user_id)
+            .limit(1)
         )
         player = result.scalar_one_or_none()
 
         # Check if user is admin (from .env)
         from wpg_engine.config.settings import settings
 
-        is_admin_user = user_id in settings.telegram.admin_ids
+        is_admin_user = settings.telegram.admin_id and user_id == settings.telegram.admin_id
 
         # Check if any games exist
         from wpg_engine.models import Game
@@ -137,6 +138,7 @@ async def help_command(message: Message) -> None:
             select(Player)
             .options(selectinload(Player.game), selectinload(Player.country))
             .where(Player.telegram_id == user_id)
+            .limit(1)
         )
         player = result.scalar_one_or_none()
         break

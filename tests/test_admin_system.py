@@ -65,8 +65,8 @@ async def test_admin_system():
         # Simulate admin ID in environment
         from wpg_engine.config.settings import settings
 
-        if settings.telegram.admin_ids:
-            admin_id = settings.telegram.admin_ids[0]
+        if settings.telegram.admin_id:
+            admin_id = settings.telegram.admin_id
             role3 = await determine_player_role(admin_id, game.id, session)
             print(f"Environment admin role: {role3}")
             assert role3 == PlayerRole.ADMIN, "Environment admin should be admin"

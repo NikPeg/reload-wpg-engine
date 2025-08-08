@@ -26,19 +26,9 @@ class TelegramSettings(BaseSettings):
 
     token: str | None = Field(default_factory=lambda: os.getenv("TG_TOKEN"), description="Telegram bot token")
     webhook_url: str | None = Field(default_factory=lambda: os.getenv("TG_WEBHOOK_URL"), description="Webhook URL")
-    admin_ids_str: str = Field(default="", alias="TG_ADMIN_IDS", description="Comma-separated admin Telegram IDs")
+    admin_id: int | None = Field(default=None, alias="TG_ADMIN_ID", description="Admin Telegram ID")
 
     model_config = SettingsConfigDict(env_prefix="TG_", extra="allow")
-
-    @property
-    def admin_ids(self) -> list[int]:
-        """Parse admin IDs from string"""
-        if not self.admin_ids_str.strip():
-            return []
-        try:
-            return [int(id_str.strip()) for id_str in self.admin_ids_str.split(",") if id_str.strip()]
-        except ValueError:
-            return []
 
 
 class VKSettings(BaseSettings):

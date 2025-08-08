@@ -290,7 +290,7 @@ async def create_game_command(message: Message) -> None:
             # Check if user is admin from .env
             from wpg_engine.config.settings import settings
 
-            if user_id not in settings.telegram.admin_ids:
+            if not settings.telegram.admin_id or user_id != settings.telegram.admin_id:
                 await message.answer("❌ У вас нет прав администратора.")
                 return
 

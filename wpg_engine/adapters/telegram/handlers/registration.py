@@ -68,7 +68,7 @@ async def register_command(message: Message, state: FSMContext) -> None:
         game_engine = GameEngine(db)
 
         # Check if user is already registered
-        result = await game_engine.db.execute(select(Player).where(Player.telegram_id == user_id))
+        result = await game_engine.db.execute(select(Player).where(Player.telegram_id == user_id).limit(1))
         if result.scalar_one_or_none():
             await message.answer("❌ Вы уже зарегистрированы в игре!")
             return
@@ -311,7 +311,7 @@ async def process_population(message: Message, state: FSMContext) -> None:
             from wpg_engine.models import PlayerRole
 
             result = await game_engine.db.execute(
-                select(Player).where(Player.game_id == data["game_id"]).where(Player.role == PlayerRole.ADMIN)
+                select(Player).where(Player.game_id == data["game_id"]).where(Player.role == PlayerRole.ADMIN).limit(1)
             )
             admin = result.scalar_one_or_none()
 
