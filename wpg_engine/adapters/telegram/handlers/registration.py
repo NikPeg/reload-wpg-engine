@@ -120,12 +120,12 @@ async def register_command(message: Message, state: FSMContext) -> None:
         return
 
     # New user registration
-    await state.update_data(game_id=game.id, user_id=user_id, max_points=game.max_points, spent_points=0)
+    await state.update_data(game_id=game.id, user_id=user_id, max_points=game.max_points, max_population=game.max_population, spent_points=0)
 
     await message.answer(
         f"🎮 *Регистрация в игре '{game.name}'*\n\n"
         f"Для участия в игре вам необходимо создать свою страну.\n"
-        f"Вы будете управлять страной по 10 аспектам развития.\n\n"
+        f"Вы будете управлять страной по *10 аспектам* развития.\n\n"
         f"📊 *У вас есть {game.max_points} очков* для распределения между аспектами.\n"
         f"Каждый аспект можно развить от 0 до 10 уровня.\n\n"
         f"*Начнем с основной информации:*\n\n"
@@ -146,16 +146,16 @@ async def process_country_name(message: Message, state: FSMContext) -> None:
     # Check if country name conflicts with existing countries or their synonyms
     data = await state.get_data()
     game_id = data["game_id"]
-    
+
     async for db in get_db():
         game_engine = GameEngine(db)
-        
+
         # Get all countries in the game
         result = await game_engine.db.execute(
             select(Country).where(Country.game_id == game_id)
         )
         existing_countries = result.scalars().all()
-        
+
         # Check for conflicts
         for country in existing_countries:
             # Check official name
@@ -165,7 +165,7 @@ async def process_country_name(message: Message, state: FSMContext) -> None:
                     f"Выберите другое название."
                 )
                 return
-            
+
             # Check synonyms
             if country.synonyms:
                 for synonym in country.synonyms:
@@ -344,7 +344,7 @@ async def process_capital(message: Message, state: FSMContext) -> None:
     await message.answer(
         f"✅ Столица: *{capital}*\n\n"
         f"Какова примерная численность населения вашей страны? "
-        f"(введите число, например: 50000000)",
+        f"(введите число, например: 5000000)",
         parse_mode="Markdown",
     )
     await state.set_state(RegistrationStates.waiting_for_population)
@@ -352,12 +352,16 @@ async def process_capital(message: Message, state: FSMContext) -> None:
 
 async def process_population(message: Message, state: FSMContext) -> None:
     """Process population and complete registration"""
+    # Get max population from game settings
+    data = await state.get_data()
+    max_population = data.get("max_population", 10_000_000)
+
     try:
         population = int(message.text.strip())
-        if population < 1000 or population > 2000000000:
+        if population < 1000 or population > max_population:
             raise ValueError()
     except ValueError:
-        await message.answer("❌ Введите корректное число населения (от 1000 до 2 млрд).")
+        await message.answer(f"❌ Введите корректное число населения (от 1,000 до {max_population:,}).")
         return
 
     # Get all registration data
@@ -550,7 +554,7 @@ async def process_reregistration_confirmation(message: Message, state: FSMContex
 
     # Clear old data and start fresh registration
     await state.clear()
-    await state.update_data(game_id=game_id, user_id=user_id, max_points=max_points, spent_points=0)
+    await state.update_data(game_id=game_id, user_id=user_id, max_points=max_points, max_population=game.max_population, spent_points=0)
 
     await message.answer(
         f"✅ *Предыдущая регистрация удалена.*\n\n"

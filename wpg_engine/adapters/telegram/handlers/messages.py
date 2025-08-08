@@ -268,13 +268,14 @@ async def handle_country_edit(
                     conflict_found = False
                     async for db in get_db():
                         from sqlalchemy import select
+
                         from wpg_engine.models import Country
-                        
+
                         result = await db.execute(
                             select(Country).where(Country.game_id == country.game_id).where(Country.id != country_id)
                         )
                         other_countries = result.scalars().all()
-                        
+
                         for synonym in new_synonyms:
                             for other_country in other_countries:
                                 # Check against official names
@@ -282,7 +283,7 @@ async def handle_country_edit(
                                     error_messages.append(f"❌ Синоним '{synonym}' конфликтует с названием страны '{other_country.name}'")
                                     conflict_found = True
                                     break
-                                
+
                                 # Check against other synonyms
                                 if other_country.synonyms:
                                     for other_synonym in other_country.synonyms:
@@ -295,7 +296,7 @@ async def handle_country_edit(
                             if conflict_found:
                                 break
                         break
-                    
+
                     if not conflict_found:
                         await game_engine.update_country_synonyms(country_id, new_synonyms)
                         success_messages.append(f"✅ Синонимы обновлены: {', '.join(new_synonyms)}")

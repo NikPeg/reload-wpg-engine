@@ -34,6 +34,7 @@ class Game(Base):
     max_players: Mapped[int] = mapped_column(default=10)
     years_per_day: Mapped[int] = mapped_column(default=1)  # Сколько игровых лет проходит за один реальный день
     max_points: Mapped[int] = mapped_column(default=30)  # Максимальная сумма очков для аспектов страны
+    max_population: Mapped[int] = mapped_column(default=10_000_000)  # Максимальное население страны
 
     # Relationships
     countries: Mapped[list["Country"]] = relationship("Country", back_populates="game", cascade="all, delete-orphan")

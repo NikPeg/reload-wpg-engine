@@ -2,25 +2,23 @@
 Migration runner for database schema changes
 """
 
-import asyncio
-from typing import List, Dict, Any
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from wpg_engine.models.base import engine, AsyncSessionLocal
+from wpg_engine.models.base import AsyncSessionLocal
 
 
 class Migration:
     """Base migration class"""
-    
+
     def __init__(self, version: str, description: str):
         self.version = version
         self.description = description
-    
+
     async def up(self, session: AsyncSession) -> None:
         """Apply migration"""
         raise NotImplementedError
-    
+
     async def down(self, session: AsyncSession) -> None:
         """Rollback migration"""
         raise NotImplementedError
@@ -28,14 +26,14 @@ class Migration:
 
 class MigrationRunner:
     """Migration runner"""
-    
+
     def __init__(self):
-        self.migrations: List[Migration] = []
-    
+        self.migrations: list[Migration] = []
+
     def add_migration(self, migration: Migration) -> None:
         """Add migration to runner"""
         self.migrations.append(migration)
-    
+
     async def create_migration_table(self, session: AsyncSession) -> None:
         """Create migrations table if it doesn't exist"""
         await session.execute(text("""
@@ -47,25 +45,25 @@ class MigrationRunner:
             )
         """))
         await session.commit()
-    
-    async def get_applied_migrations(self, session: AsyncSession) -> List[str]:
+
+    async def get_applied_migrations(self, session: AsyncSession) -> list[str]:
         """Get list of applied migration versions"""
         result = await session.execute(text("SELECT version FROM migrations ORDER BY version"))
         return [row[0] for row in result.fetchall()]
-    
+
     async def mark_migration_applied(self, session: AsyncSession, migration: Migration) -> None:
         """Mark migration as applied"""
         await session.execute(text("""
             INSERT INTO migrations (version, description) VALUES (:version, :description)
         """), {"version": migration.version, "description": migration.description})
         await session.commit()
-    
+
     async def run_migrations(self) -> None:
         """Run all pending migrations"""
         async with AsyncSessionLocal() as session:
             await self.create_migration_table(session)
             applied_migrations = await self.get_applied_migrations(session)
-            
+
             for migration in self.migrations:
                 if migration.version not in applied_migrations:
                     print(f"Applying migration {migration.version}: {migration.description}")

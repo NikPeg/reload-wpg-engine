@@ -4,7 +4,7 @@ Common handlers for all users
 
 from aiogram import Dispatcher
 from aiogram.filters import Command
-from aiogram.types import Message
+from aiogram.types import Message, ReplyKeyboardRemove
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
@@ -60,6 +60,7 @@ async def start_command(message: Message) -> None:
                 f"🎮 /create_game - создать новую игру\n"
                 f"🔄 /register - перерегистрироваться (создать новую страну)",
                 parse_mode="HTML",
+                reply_markup=ReplyKeyboardRemove(),
             )
         else:
             # Use HTML parsing to avoid markdown issues
@@ -96,8 +97,9 @@ async def start_command(message: Message) -> None:
                 f"🌍 /world - информация о других странах\n"
                 f"📨 /send - отправить сообщение другой стране\n"
                 f"🔄 /register - перерегистрироваться (создать новую страну)\n\n"
-                f"напиши свое, задай вопрос или начни проект! Например: <code>{random_example}</code>",
+                f"Напиши свой приказ, задай вопрос или начни проект! Например: <code>{random_example}</code>",
                 parse_mode="HTML",
+                reply_markup=ReplyKeyboardRemove(),
             )
     elif is_admin_user:
         # Admin user but no games exist
@@ -109,12 +111,14 @@ async def start_command(message: Message) -> None:
                 "Формат: <code>/create_game Название игры | Сеттинг | Лет за сутки</code>\n\n"
                 "Пример: <code>/create_game Древний мир | Античность | 10</code>",
                 parse_mode="HTML",
+                reply_markup=ReplyKeyboardRemove(),
             )
         else:
             await message.answer(
                 "🎯 Добро пожаловать, <b>Администратор</b>!\n\n"
                 "Для участия в игре используйте команду /register для регистрации.",
                 parse_mode="HTML",
+                reply_markup=ReplyKeyboardRemove(),
             )
     else:
         await message.answer(
@@ -127,6 +131,7 @@ async def start_command(message: Message) -> None:
             "где игроки управляют странами, развивают их по 10 аспектам "
             "и взаимодействуют друг с другом через дипломатию, торговлю и конфликты.",
             parse_mode="HTML",
+            reply_markup=ReplyKeyboardRemove(),
         )
 
 

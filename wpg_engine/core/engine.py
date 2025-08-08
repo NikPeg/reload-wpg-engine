@@ -33,6 +33,7 @@ class GameEngine:
         max_players: int = 10,
         years_per_day: int = 1,
         max_points: int = 30,
+        max_population: int = 10_000_000,
         settings: dict | None = None,
     ) -> Game:
         """Create a new game"""
@@ -43,6 +44,7 @@ class GameEngine:
             max_players=max_players,
             years_per_day=years_per_day,
             max_points=max_points,
+            max_population=max_population,
             settings=settings or {},
         )
         self.db.add(game)
@@ -72,6 +74,41 @@ class GameEngine:
         game.status = GameStatus.ACTIVE
         await self.db.commit()
         return True
+
+    async def update_game_settings(
+        self,
+        game_id: int,
+        name: str | None = None,
+        description: str | None = None,
+        setting: str | None = None,
+        max_players: int | None = None,
+        years_per_day: int | None = None,
+        max_points: int | None = None,
+        max_population: int | None = None,
+    ) -> Game | None:
+        """Update game settings"""
+        game = await self.get_game(game_id)
+        if not game:
+            return None
+
+        if name is not None:
+            game.name = name
+        if description is not None:
+            game.description = description
+        if setting is not None:
+            game.setting = setting
+        if max_players is not None:
+            game.max_players = max_players
+        if years_per_day is not None:
+            game.years_per_day = years_per_day
+        if max_points is not None:
+            game.max_points = max_points
+        if max_population is not None:
+            game.max_population = max_population
+
+        await self.db.commit()
+        await self.db.refresh(game)
+        return game
 
     # Country management
     async def create_country(

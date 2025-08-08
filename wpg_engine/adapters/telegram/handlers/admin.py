@@ -4,13 +4,20 @@ Admin handlers
 
 from aiogram import Dispatcher
 from aiogram.filters import Command
+from aiogram.fsm.context import FSMContext
+from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import Message
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.orm import selectinload
 
 from wpg_engine.core.admin_utils import is_admin
 from wpg_engine.core.engine import GameEngine
 from wpg_engine.models import Player, PlayerRole, get_db
+
+
+class AdminStates(StatesGroup):
+    """Admin states"""
+    waiting_for_restart_confirmation = State()
 
 
 async def admin_command(message: Message) -> None:
@@ -25,9 +32,13 @@ async def admin_command(message: Message) -> None:
             await message.answer("❌ У вас нет прав администратора.")
             return
 
-        # Get player info for game details with eager loading
+        # Get player info for game details with eager loading - take the first admin player
         result = await game_engine.db.execute(
-            select(Player).options(selectinload(Player.game)).where(Player.telegram_id == user_id)
+            select(Player)
+            .options(selectinload(Player.game))
+            .where(Player.telegram_id == user_id)
+            .where(Player.role == PlayerRole.ADMIN)
+            .limit(1)
         )
         player = result.scalar_one_or_none()
         break
@@ -45,73 +56,20 @@ async def admin_command(message: Message) -> None:
         f"⚙️ *Панель администратора*\n\n"
         f"*Игра:* {player.game.name}\n"
         f"*Сеттинг:* {player.game.setting}\n"
-        f"*Статус:* {player.game.status}",
+        f"*Статус:* {player.game.status}\n"
+        f"*Макс игроков:* {player.game.max_players}\n"
+        f"*Лет за сутки:* {player.game.years_per_day}\n"
+        f"*Макс очков:* {player.game.max_points}\n"
+        f"*Макс население:* {player.game.max_population:,}\n\n"
+        f"*Доступные команды:*\n"
+        f"• `/game_stats` - статистика игры\n"
+        f"• `/restart_game` - перезапустить игру (полная очистка)\n"
+        f"• `/update_game` - изменить параметры игры",
         parse_mode="Markdown",
     )
 
 
 # Removed pending_command - registrations are now sent directly to admin
-
-
-async def approve_command(message: Message) -> None:
-    """Handle /approve command"""
-    user_id = message.from_user.id
-    args = message.text.split()[1:]
-
-    async for db in get_db():
-        game_engine = GameEngine(db)
-
-        # Check if user is admin
-        if not await is_admin(user_id, game_engine.db):
-            await message.answer("❌ У вас нет прав администратора.")
-            return
-
-        # Get admin info
-        result = await game_engine.db.execute(select(Player).where(Player.telegram_id == user_id))
-        result.scalar_one_or_none()
-
-    if not args:
-        await message.answer("❌ Укажите Telegram ID игрока: `/approve 123456789`")
-        return
-
-    try:
-        target_user_id = int(args[0])
-    except ValueError:
-        await message.answer("❌ Некорректный Telegram ID.")
-        return
-
-        # Find player with eager loading
-        result = await game_engine.db.execute(
-            select(Player)
-            .options(selectinload(Player.country), selectinload(Player.game))
-            .where(Player.telegram_id == target_user_id)
-        )
-        player = result.scalar_one_or_none()
-
-        if not player:
-            await message.answer("❌ Игрок не найден.")
-            return
-
-        await message.answer(
-            f"✅ *Регистрация одобрена!*\n\n"
-            f"Игрок *{player.display_name}* теперь может участвовать в игре "
-            f"за страну *{player.country.name}*.",
-            parse_mode="Markdown",
-        )
-
-        # Notify player (if bot has access to send messages)
-        try:
-            bot = message.bot
-            await bot.send_message(
-                target_user_id,
-                f"🎉 *Поздравляем!*\n\n"
-                f"Ваша регистрация в игре *{player.game.name}* одобрена!\n"
-                f"Вы управляете страной *{player.country.name}*.\n\n"
-                f"Используйте /start для просмотра доступных команд.",
-                parse_mode="Markdown",
-            )
-        except Exception:
-            await message.answer("⚠️ Не удалось уведомить игрока (возможно, он не начинал диалог с ботом).")
 
 
 async def game_stats_command(message: Message) -> None:
@@ -126,8 +84,13 @@ async def game_stats_command(message: Message) -> None:
             await message.answer("❌ У вас нет прав администратора.")
             return
 
-        # Get admin info
-        result = await game_engine.db.execute(select(Player).where(Player.telegram_id == user_id))
+        # Get admin info - take the first admin player
+        result = await game_engine.db.execute(
+            select(Player)
+            .where(Player.telegram_id == user_id)
+            .where(Player.role == PlayerRole.ADMIN)
+            .limit(1)
+        )
         admin = result.scalar_one_or_none()
 
         stats = await game_engine.get_game_statistics(admin.game_id)
@@ -145,61 +108,8 @@ async def game_stats_command(message: Message) -> None:
         )
 
 
-async def posts_command(message: Message) -> None:
-    """Handle /posts command - show posts without verdicts"""
-    user_id = message.from_user.id
-
-    async for db in get_db():
-        game_engine = GameEngine(db)
-
-        # Check if user is admin
-        if not await is_admin(user_id, game_engine.db):
-            await message.answer("❌ У вас нет прав администратора.")
-            return
-
-        # Get admin info
-        result = await game_engine.db.execute(select(Player).where(Player.telegram_id == user_id))
-        admin = result.scalar_one_or_none()
-
-        # Get posts without verdicts
-        posts = await game_engine.get_game_posts(admin.game_id)
-        posts_without_verdicts = [post for post in posts if not post.verdicts]
-
-        if not posts_without_verdicts:
-            await message.answer("📝 Нет постов, ожидающих вердикта.")
-            return
-
-        posts_text = "📝 *Посты без вердиктов:*\n\n"
-
-        for post in posts_without_verdicts:
-            posts_text += f"*Пост #{post.id}*\n"
-            posts_text += f"*Автор:* {post.author.country.name if post.author.country else post.author.display_name}\n"
-            posts_text += f"*Дата:* {post.created_at.strftime('%d.%m.%Y %H:%M')}\n\n"
-            posts_text += f"*Содержание:*\n{post.content}\n\n"
-            posts_text += f"⚖️ Вердикт: `/verdict {post.id} <результат>`\n\n"
-            posts_text += "─" * 30 + "\n\n"
-
-        # Split if too long
-        if len(posts_text) > 4000:
-            parts = posts_text.split("─" * 30)
-            current_message = "📝 *Посты без вердиктов:*\n\n"
-
-            for part in parts:
-                if part.strip():
-                    if len(current_message + part) > 4000:
-                        await message.answer(current_message, parse_mode="Markdown")
-                        current_message = part
-                    else:
-                        current_message += part
-
-            if current_message.strip():
-                await message.answer(current_message, parse_mode="Markdown")
-        else:
-            await message.answer(posts_text, parse_mode="Markdown")
-
-
-async def create_game_command(message: Message) -> None:
-    """Handle /create_game command"""
+async def restart_game_command(message: Message, state: FSMContext) -> None:
+    """Handle /restart_game command"""
     user_id = message.from_user.id
     args = message.text.split(" ", 1)
 
@@ -218,9 +128,10 @@ async def create_game_command(message: Message) -> None:
         if len(args) < 2:
             await message.answer(
                 "❌ Неверный формат команды.\n\n"
-                "Используйте: <code>/create_game Название игры | Сеттинг | Лет за сутки | Макс очков</code>\n\n"
-                "Пример: <code>/create_game Древний мир | Античность | 10 | 30</code>\n"
-                "Макс очков - максимальная сумма очков для аспектов страны (по умолчанию 30)",
+                "Используйте: <code>/restart_game Название игры | Сеттинг | Лет за сутки | Макс очков | Макс население</code>\n\n"
+                "Пример: <code>/restart_game Древний мир | Античность | 10 | 30 | 10000000</code>\n"
+                "• Макс очков - максимальная сумма очков для аспектов страны (по умолчанию 30)\n"
+                "• Макс население - максимальное население страны (по умолчанию 10,000,000)",
                 parse_mode="HTML",
             )
             return
@@ -228,14 +139,16 @@ async def create_game_command(message: Message) -> None:
         try:
             # Parse arguments
             parts = [part.strip() for part in args[1].split("|")]
-            if len(parts) < 3 or len(parts) > 4:
+            if len(parts) < 3 or len(parts) > 5:
                 raise ValueError("Неверное количество параметров")
 
             game_name, setting, years_per_day_str = parts[:3]
-            max_points_str = parts[3] if len(parts) == 4 else "30"
+            max_points_str = parts[3] if len(parts) >= 4 else "30"
+            max_population_str = parts[4] if len(parts) == 5 else "10000000"
 
             years_per_day = int(years_per_day_str)
             max_points = int(max_points_str)
+            max_population = int(max_population_str)
 
             if not game_name or not setting:
                 raise ValueError("Название игры и сеттинг не могут быть пустыми")
@@ -246,16 +159,87 @@ async def create_game_command(message: Message) -> None:
             if max_points < 10 or max_points > 100:
                 raise ValueError("Максимальное количество очков должно быть от 10 до 100")
 
+            if max_population < 1000 or max_population > 1_000_000_000:
+                raise ValueError("Максимальное население должно быть от 1,000 до 1 млрд")
+
         except ValueError as e:
             await message.answer(
                 f"❌ Ошибка в параметрах: {e}\n\n"
-                "Используйте: <code>/create_game Название игры | Сеттинг | Лет за сутки | Макс очков</code>\n\n"
-                "Пример: <code>/create_game Древний мир | Античность | 10 | 30</code>",
+                "Используйте: <code>/restart_game Название игры | Сеттинг | Лет за сутки | Макс очков | Макс население</code>\n\n"
+                "Пример: <code>/restart_game Древний мир | Античность | 10 | 30 | 10000000</code>",
                 parse_mode="HTML",
             )
             return
 
-        # Create game
+        # Store data for confirmation
+        await state.update_data(
+            user_id=user_id,
+            game_name=game_name,
+            setting=setting,
+            years_per_day=years_per_day,
+            max_points=max_points,
+            max_population=max_population,
+        )
+
+        await message.answer(
+            f"⚠️ *ВНИМАНИЕ! ОПАСНАЯ ОПЕРАЦИЯ!*\n\n"
+            f"Вы собираетесь *ПОЛНОСТЬЮ ОЧИСТИТЬ* всю базу данных и создать новую игру:\n\n"
+            f"*Название:* {game_name}\n"
+            f"*Сеттинг:* {setting}\n"
+            f"*Лет за сутки:* {years_per_day}\n"
+            f"*Макс очков:* {max_points}\n"
+            f"*Макс население:* {max_population:,}\n\n"
+            f"*ВСЕ ДАННЫЕ БУДУТ ПОТЕРЯНЫ НАВСЕГДА:*\n"
+            f"• Все игры\n"
+            f"• Все игроки\n"
+            f"• Все страны\n"
+            f"• Все сообщения\n"
+            f"• Все посты\n\n"
+            f"Это действие *НЕОБРАТИМО*!\n\n"
+            f"Вы *ДЕЙСТВИТЕЛЬНО* хотите перезапустить игру?\n\n"
+            f"Напишите *ПОДТВЕРЖДАЮ* (заглавными буквами), чтобы продолжить, или любое другое сообщение для отмены.",
+            parse_mode="Markdown",
+        )
+        await state.set_state(AdminStates.waiting_for_restart_confirmation)
+        break
+
+
+async def process_restart_confirmation(message: Message, state: FSMContext) -> None:
+    """Process confirmation for game restart"""
+    confirmation = message.text.strip()
+
+    if confirmation != "ПОДТВЕРЖДАЮ":
+        await message.answer("❌ Перезапуск игры отменен.")
+        await state.clear()
+        return
+
+    # Get stored data
+    data = await state.get_data()
+    user_id = data["user_id"]
+    game_name = data["game_name"]
+    setting = data["setting"]
+    years_per_day = data["years_per_day"]
+    max_points = data["max_points"]
+    max_population = data["max_population"]
+
+    async for db in get_db():
+        game_engine = GameEngine(db)
+
+        # ПОЛНАЯ ОЧИСТКА БАЗЫ ДАННЫХ
+        await message.answer("🔄 Очищаю базу данных...")
+
+        # Удаляем все данные из всех таблиц
+        await game_engine.db.execute(text("DELETE FROM verdicts"))
+        await game_engine.db.execute(text("DELETE FROM posts"))
+        await game_engine.db.execute(text("DELETE FROM messages"))
+        await game_engine.db.execute(text("DELETE FROM players"))
+        await game_engine.db.execute(text("DELETE FROM countries"))
+        await game_engine.db.execute(text("DELETE FROM games"))
+        await game_engine.db.commit()
+
+        await message.answer("✅ База данных очищена. Создаю новую игру...")
+
+        # Create new game
         game = await game_engine.create_game(
             name=game_name,
             description=f"Игра в сеттинге '{setting}'",
@@ -263,6 +247,7 @@ async def create_game_command(message: Message) -> None:
             max_players=20,
             years_per_day=years_per_day,
             max_points=max_points,
+            max_population=max_population,
         )
 
         # Create admin player
@@ -298,14 +283,143 @@ async def create_game_command(message: Message) -> None:
         await game_engine.assign_player_to_country(admin_player.id, admin_country.id)
 
         await message.answer(
-            f"✅ <b>Игра успешно создана!</b>\n\n"
+            f"✅ <b>Игра успешно перезапущена!</b>\n\n"
             f"<b>Название:</b> {game_name}\n"
             f"<b>Сеттинг:</b> {setting}\n"
             f"<b>Лет за сутки:</b> {years_per_day}\n"
             f"<b>Макс очков для стран:</b> {max_points}\n"
+            f"<b>Макс население стран:</b> {max_population:,}\n"
             f"<b>ID игры:</b> {game.id}\n\n"
             f"Вы назначены администратором игры и получили страну '{admin_country.name}'.\n\n"
             f"Теперь игроки могут регистрироваться в игре командой /register",
+            parse_mode="HTML",
+        )
+        break
+
+    await state.clear()
+
+
+async def update_game_command(message: Message) -> None:
+    """Handle /update_game command - update game settings"""
+    user_id = message.from_user.id
+    args = message.text.split(" ", 1)
+
+    async for db in get_db():
+        game_engine = GameEngine(db)
+
+        # Check if user is admin
+        if not await is_admin(user_id, game_engine.db):
+            await message.answer("❌ У вас нет прав администратора.")
+            return
+
+        # Get admin info - take the first admin player for this user
+        result = await game_engine.db.execute(
+            select(Player)
+            .where(Player.telegram_id == user_id)
+            .where(Player.role == PlayerRole.ADMIN)
+            .limit(1)
+        )
+        admin = result.scalar_one_or_none()
+
+        if not admin:
+            await message.answer("❌ Вы не зарегистрированы в игре.")
+            return
+
+        if len(args) < 2:
+            await message.answer(
+                "❌ Неверный формат команды.\n\n"
+                "Используйте: <code>/update_game параметр значение</code>\n\n"
+                "Доступные параметры:\n"
+                "• <code>name</code> - название игры\n"
+                "• <code>setting</code> - сеттинг игры\n"
+                "• <code>max_players</code> - максимальное количество игроков\n"
+                "• <code>years_per_day</code> - лет за сутки (1-365)\n"
+                "• <code>max_points</code> - максимальные очки для стран (10-100)\n"
+                "• <code>max_population</code> - максимальное население стран (1000-1000000000)\n\n"
+                "Примеры:\n"
+                "• <code>/update_game name Новое название игры</code>\n"
+                "• <code>/update_game max_population 5000000</code>\n"
+                "• <code>/update_game setting Средневековье</code>",
+                parse_mode="HTML",
+            )
+            return
+
+        # Parse parameters - first word is parameter, rest is value
+        parts = args[1].split(" ", 1)
+        if len(parts) < 2:
+            await message.answer("❌ Укажите параметр и его значение.")
+            return
+
+        param = parts[0].strip()
+        value = parts[1].strip()
+
+        updates = {}
+
+        try:
+            if param == "name":
+                if len(value) < 2 or len(value) > 255:
+                    raise ValueError("Название должно быть от 2 до 255 символов")
+                updates["name"] = value
+            elif param == "setting":
+                if len(value) < 2 or len(value) > 255:
+                    raise ValueError("Сеттинг должен быть от 2 до 255 символов")
+                updates["setting"] = value
+            elif param == "max_players":
+                max_players = int(value)
+                if max_players < 1 or max_players > 1000:
+                    raise ValueError("Максимальное количество игроков должно быть от 1 до 1000")
+                updates["max_players"] = max_players
+            elif param == "years_per_day":
+                years_per_day = int(value)
+                if years_per_day < 1 or years_per_day > 365:
+                    raise ValueError("Лет за сутки должно быть от 1 до 365")
+                updates["years_per_day"] = years_per_day
+            elif param == "max_points":
+                max_points = int(value)
+                if max_points < 10 or max_points > 100:
+                    raise ValueError("Максимальные очки должны быть от 10 до 100")
+                updates["max_points"] = max_points
+            elif param == "max_population":
+                max_population = int(value)
+                if max_population < 1000 or max_population > 1_000_000_000:
+                    raise ValueError("Максимальное население должно быть от 1,000 до 1 млрд")
+                updates["max_population"] = max_population
+            else:
+                raise ValueError(f"Неизвестный параметр: {param}")
+
+        except ValueError as e:
+            await message.answer(f"❌ Ошибка в параметрах: {e}")
+            return
+
+        # Update game
+        updated_game = await game_engine.update_game_settings(admin.game_id, **updates)
+
+        if not updated_game:
+            await message.answer("❌ Не удалось обновить настройки игры.")
+            return
+
+        # Show updated settings
+        param_names = {
+            "name": "Название",
+            "setting": "Сеттинг",
+            "max_players": "Макс игроков",
+            "years_per_day": "Лет за сутки",
+            "max_points": "Макс очков",
+            "max_population": "Макс население"
+        }
+
+        changes_text = "\n".join([f"• <b>{param_names.get(key, key)}:</b> {value:,}" if isinstance(value, int) else f"• <b>{param_names.get(key, key)}:</b> {value}" for key, value in updates.items()])
+
+        await message.answer(
+            f"✅ <b>Настройки игры обновлены!</b>\n\n"
+            f"<b>Обновленные параметры:</b>\n{changes_text}\n\n"
+            f"<b>Текущие настройки игры:</b>\n"
+            f"• <b>Название:</b> {updated_game.name}\n"
+            f"• <b>Сеттинг:</b> {updated_game.setting}\n"
+            f"• <b>Макс игроков:</b> {updated_game.max_players}\n"
+            f"• <b>Лет за сутки:</b> {updated_game.years_per_day}\n"
+            f"• <b>Макс очков:</b> {updated_game.max_points}\n"
+            f"• <b>Макс население:</b> {updated_game.max_population:,}",
             parse_mode="HTML",
         )
         break
@@ -314,7 +428,7 @@ async def create_game_command(message: Message) -> None:
 def register_admin_handlers(dp: Dispatcher) -> None:
     """Register admin handlers"""
     dp.message.register(admin_command, Command("admin"))
-    dp.message.register(approve_command, Command("approve"))
     dp.message.register(game_stats_command, Command("game_stats"))
-    dp.message.register(posts_command, Command("posts"))
-    dp.message.register(create_game_command, Command("create_game"))
+    dp.message.register(restart_game_command, Command("restart_game"))
+    dp.message.register(update_game_command, Command("update_game"))
+    dp.message.register(process_restart_confirmation, AdminStates.waiting_for_restart_confirmation)

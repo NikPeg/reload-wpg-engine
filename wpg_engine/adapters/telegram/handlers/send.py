@@ -47,7 +47,7 @@ async def send_command(message: Message, state: FSMContext) -> None:
     # Get all countries in the same game
     async for db in get_db():
         game_engine = GameEngine(db)
-        
+
         result = await game_engine.db.execute(
             select(Player)
             .options(selectinload(Player.country))
@@ -70,7 +70,7 @@ async def send_command(message: Message, state: FSMContext) -> None:
     # Check if country name was provided
     if len(args) > 1:
         target_country_name = args[1].strip()
-        
+
         # Find target country (case-insensitive search by name and synonyms)
         target_player = None
         for player in all_players:
@@ -79,7 +79,7 @@ async def send_command(message: Message, state: FSMContext) -> None:
                 if player.country.name.lower() == target_country_name.lower():
                     target_player = player
                     break
-                
+
                 # Check synonyms
                 if player.country.synonyms:
                     for synonym in player.country.synonyms:
@@ -177,20 +177,20 @@ async def process_message_content(message: Message, state: FSMContext) -> None:
     # Send message to target player
     try:
         bot = message.bot
-        
+
         # Format message for recipient
         recipient_message = (
             f"📨 <b>Вам пришло послание из страны {sender.country.name}</b>\n\n"
             f"<b>Сообщение:</b>\n{message_content}\n\n"
             f"<i>Для ответа используйте:</i> <code>/send {sender.country.name}</code>"
         )
-        
+
         await bot.send_message(
             target_player.telegram_id,
             recipient_message,
             parse_mode="HTML",
         )
-        
+
         # Confirm to sender
         await message.answer(
             f"✅ <b>Сообщение отправлено!</b>\n\n"
@@ -202,7 +202,7 @@ async def process_message_content(message: Message, state: FSMContext) -> None:
         # Save message to database for history
         async for db in get_db():
             game_engine = GameEngine(db)
-            
+
             # Create a record of the inter-country message
             await game_engine.create_message(
                 player_id=sender.id,
