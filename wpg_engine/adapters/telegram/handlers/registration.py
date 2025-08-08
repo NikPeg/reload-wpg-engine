@@ -419,7 +419,8 @@ async def process_population(message: Message, state: FSMContext) -> None:
                         f"🕵️ Разведка: {data['intelligence']}/10\n\n"
                         f"<b>Ответьте на это сообщение:</b>\n"
                         f"• <code>одобрить</code> - для одобрения заявки\n"
-                        f"• <code>отклонить</code> - для отклонения заявки"
+                        f"• <code>отклонить</code> - для отклонения заявки\n"
+                        f"• <code>отклонить [причина]</code> - для отклонения с указанием причины"
                     )
 
                     # Send to admin
@@ -490,8 +491,8 @@ async def process_reregistration_confirmation(message: Message, state: FSMContex
         # Delete existing player's messages first to avoid foreign key constraint issues
         result = await game_engine.db.execute(select(MessageModel).where(MessageModel.player_id == existing_player_id))
         messages = result.scalars().all()
-        for message in messages:
-            await game_engine.db.delete(message)
+        for msg in messages:
+            await game_engine.db.delete(msg)
 
         # Delete existing country
         if existing_country_id:

@@ -105,13 +105,26 @@ async def handle_player_message(message: Message, player: Player, game_engine: G
 
 
 async def handle_admin_reply(message: Message, admin: Player, game_engine: GameEngine) -> None:
-    """Handle admin reply to player message or registration"""
+    """Handle admin reply to player message, registration, or country editing"""
     content = message.text.strip()
 
     # Check if this is a registration approval/rejection (when replying to registration message)
-    if message.reply_to_message and content.lower() in ["одобрить", "отклонить"]:
-        await handle_registration_decision(message, admin, game_engine, content.lower())
+    if message.reply_to_message and (content.lower() == "одобрить" or content.lower().startswith("отклонить")):
+        decision = "одобрить" if content.lower() == "одобрить" else "отклонить"
+        await handle_registration_decision(message, admin, game_engine, decision)
         return
+
+    # Check if this is a country editing reply (when replying to country info message)
+    if message.reply_to_message and message.reply_to_message.text:
+        replied_text = message.reply_to_message.text
+        import re
+
+        # Look for country editing marker
+        country_match = re.search(r"\[EDIT_COUNTRY:(\d+)\]", replied_text)
+        if country_match:
+            country_id = int(country_match.group(1))
+            await handle_country_edit(message, admin, game_engine, country_id, content)
+            return
 
     # If admin is replying to a message, find the original player message in database
     if not message.reply_to_message:
@@ -150,6 +163,154 @@ async def handle_admin_reply(message: Message, admin: Player, game_engine: GameE
 
     except Exception as e:
         await message.answer(f"❌ Не удалось отправить ответ игроку: {e}")
+
+
+async def handle_country_edit(
+    message: Message, admin: Player, game_engine: GameEngine, country_id: int, content: str
+) -> None:
+    """Handle country editing by admin"""
+
+    # Get the country
+    country = await game_engine.get_country(country_id)
+    if not country:
+        await message.answer("❌ Страна не найдена.")
+        return
+
+    # Parse the editing command
+    # Format examples:
+    # "экономика 8" - set economy value to 8
+    # "экономика описание Новое описание экономики" - set economy description
+    # "название Новое название страны" - set country name
+    # "описание Новое описание страны" - set country description
+    # "столица Новая столица" - set capital
+    # "население 5000000" - set population
+
+    # Aspect mappings
+    aspect_mappings = {
+        "экономика": "economy",
+        "военное": "military",
+        "военное дело": "military",
+        "армия": "military",
+        "внешняя": "foreign_policy",
+        "внешняя политика": "foreign_policy",
+        "дипломатия": "foreign_policy",
+        "территория": "territory",
+        "технологии": "technology",
+        "технологичность": "technology",
+        "наука": "technology",
+        "религия": "religion_culture",
+        "культура": "religion_culture",
+        "религия и культура": "religion_culture",
+        "управление": "governance_law",
+        "право": "governance_law",
+        "управление и право": "governance_law",
+        "строительство": "construction_infrastructure",
+        "инфраструктура": "construction_infrastructure",
+        "общество": "social_relations",
+        "общественные отношения": "social_relations",
+        "социальные": "social_relations",
+        "разведка": "intelligence",
+        "шпионаж": "intelligence",
+    }
+
+    # Try to parse different formats
+    lines = content.strip().split("\n")
+    success_messages = []
+    error_messages = []
+
+    for line in lines:
+        line = line.strip()
+        if not line:
+            continue
+
+        # Check for basic country info updates
+        if line.lower().startswith("название "):
+            new_name = line[9:].strip()
+            if new_name:
+                await game_engine.update_country_basic_info(country_id, name=new_name)
+                success_messages.append(f"✅ Название изменено на: {new_name}")
+            else:
+                error_messages.append("❌ Название не может быть пустым")
+            continue
+
+        elif line.lower().startswith("описание "):
+            new_description = line[9:].strip()
+            await game_engine.update_country_basic_info(country_id, description=new_description)
+            success_messages.append("✅ Описание страны обновлено")
+            continue
+
+        elif line.lower().startswith("столица "):
+            new_capital = line[8:].strip()
+            await game_engine.update_country_basic_info(country_id, capital=new_capital)
+            success_messages.append(f"✅ Столица изменена на: {new_capital}")
+            continue
+
+        elif line.lower().startswith("население "):
+            try:
+                new_population = int(line[10:].strip().replace(",", "").replace(" ", ""))
+                await game_engine.update_country_basic_info(country_id, population=new_population)
+                success_messages.append(f"✅ Население изменено на: {new_population:,}")
+            except ValueError:
+                error_messages.append("❌ Некорректное значение населения")
+            continue
+
+        # Parse aspect updates
+        found_aspect = None
+        for key, aspect in aspect_mappings.items():
+            if line.lower().startswith(key.lower() + " "):
+                found_aspect = aspect
+                remaining = line[len(key) :].strip()
+                break
+
+        if not found_aspect:
+            error_messages.append(f"❌ Неизвестный аспект: {line}")
+            continue
+
+        # Check if it's a description update
+        if remaining.lower().startswith("описание "):
+            new_description = remaining[9:].strip()
+            result = await game_engine.update_country_aspect_description(country_id, found_aspect, new_description)
+            if result:
+                success_messages.append(f"✅ Описание аспекта '{key}' обновлено")
+            else:
+                error_messages.append(f"❌ Не удалось обновить описание аспекта '{key}'")
+        else:
+            # Try to parse as value update
+            try:
+                new_value = int(remaining.strip())
+                if 1 <= new_value <= 10:
+                    result = await game_engine.update_country_aspect_value(country_id, found_aspect, new_value)
+                    if result:
+                        success_messages.append(f"✅ {key.capitalize()}: {new_value}/10")
+                    else:
+                        error_messages.append(f"❌ Не удалось обновить {key}")
+                else:
+                    error_messages.append(f"❌ Значение {key} должно быть от 1 до 10")
+            except ValueError:
+                error_messages.append(f"❌ Некорректное значение для {key}: {remaining}")
+
+    # Send response
+    response = f"🏛️ *Редактирование страны {country.name}*\n\n"
+
+    if success_messages:
+        response += "*Успешно обновлено:*\n" + "\n".join(success_messages) + "\n\n"
+
+    if error_messages:
+        response += "*Ошибки:*\n" + "\n".join(error_messages) + "\n\n"
+
+    if not success_messages and not error_messages:
+        response += "❌ Не удалось распознать команды редактирования.\n\n"
+
+    response += "*Доступные команды:*\n"
+    response += "• `название Новое название`\n"
+    response += "• `описание Новое описание`\n"
+    response += "• `столица Новая столица`\n"
+    response += "• `население 1000000`\n"
+    response += "• `экономика 8` - изменить значение\n"
+    response += "• `экономика описание Новое описание` - изменить описание\n"
+    response += "• Аналогично для других аспектов: военное, внешняя, территория, технологии, религия, управление, строительство, общество, разведка"
+
+    await message.answer(response, parse_mode="Markdown")
 
 
 async def handle_registration_decision(message: Message, admin: Player, game_engine: GameEngine, decision: str) -> None:
@@ -202,6 +363,12 @@ async def handle_registration_decision(message: Message, admin: Player, game_eng
             )
 
         elif decision == "отклонить":
+            # Extract rejection reason from the message
+            rejection_reason = ""
+            message_text = message.text.strip()
+            if message_text.lower().startswith("отклонить "):
+                rejection_reason = message_text[10:].strip()  # Remove "отклонить " prefix
+
             # Reject registration - delete player and country
             country_name = player.country.name if player.country else "без страны"
             player_name = player.display_name
@@ -212,19 +379,33 @@ async def handle_registration_decision(message: Message, admin: Player, game_eng
             await game_engine.db.delete(player)
             await game_engine.db.commit()
 
+            # Prepare rejection message for player
+            rejection_message = (
+                "❌ <b>Регистрация отклонена</b>\n\n"
+                "К сожалению, ваша заявка на участие в игре была отклонена администратором."
+            )
+
+            if rejection_reason:
+                rejection_message += f"\n\n<b>Причина отклонения:</b>\n{rejection_reason}"
+
+            rejection_message += "\n\nВы можете попробовать зарегистрироваться снова с помощью команды /register."
+
             await bot.send_message(
                 player_telegram_id,
-                "❌ <b>Регистрация отклонена</b>\n\n"
-                "К сожалению, ваша заявка на участие в игре была отклонена администратором.\n"
-                "Вы можете попробовать зарегистрироваться снова с помощью команды /register.",
+                rejection_message,
                 parse_mode="HTML",
             )
 
-            await message.answer(
+            # Prepare confirmation message for admin
+            admin_message = (
                 f"❌ <b>Регистрация отклонена</b>\n\n"
-                f"Заявка игрока <b>{player_name}</b> ({country_name}) отклонена и удалена.",
-                parse_mode="HTML",
+                f"Заявка игрока <b>{player_name}</b> ({country_name}) отклонена и удалена."
             )
+
+            if rejection_reason:
+                admin_message += f"\n\n<b>Указанная причина:</b>\n{rejection_reason}"
+
+            await message.answer(admin_message, parse_mode="HTML")
 
     except Exception as e:
         await message.answer(f"❌ Не удалось уведомить игрока: {e}")

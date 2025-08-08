@@ -114,71 +114,6 @@ async def approve_command(message: Message) -> None:
             await message.answer("⚠️ Не удалось уведомить игрока (возможно, он не начинал диалог с ботом).")
 
 
-async def reject_command(message: Message) -> None:
-    """Handle /reject command"""
-    user_id = message.from_user.id
-    args = message.text.split()[1:]
-
-    async for db in get_db():
-        game_engine = GameEngine(db)
-
-        # Check if user is admin
-        if not await is_admin(user_id, game_engine.db):
-            await message.answer("❌ У вас нет прав администратора.")
-            return
-
-        # Get admin info
-        result = await game_engine.db.execute(select(Player).where(Player.telegram_id == user_id))
-        result.scalar_one_or_none()
-
-    if not args:
-        await message.answer("❌ Укажите Telegram ID игрока: `/reject 123456789`")
-        return
-
-    try:
-        target_user_id = int(args[0])
-    except ValueError:
-        await message.answer("❌ Некорректный Telegram ID.")
-        return
-
-        # Find and delete player with eager loading
-        result = await game_engine.db.execute(
-            select(Player).options(selectinload(Player.country)).where(Player.telegram_id == target_user_id)
-        )
-        player = result.scalar_one_or_none()
-
-        if not player:
-            await message.answer("❌ Игрок не найден.")
-            return
-
-        player_name = player.display_name
-        country_name = player.country.name if player.country else "без страны"
-
-        # Delete player and country
-        if player.country:
-            await game_engine.db.delete(player.country)
-        await game_engine.db.delete(player)
-        await game_engine.db.commit()
-
-        await message.answer(
-            f"❌ *Регистрация отклонена*\n\n" f"Заявка игрока *{player_name}* ({country_name}) отклонена и удалена.",
-            parse_mode="Markdown",
-        )
-
-        # Notify player
-        try:
-            bot = message.bot
-            await bot.send_message(
-                target_user_id,
-                "❌ *Регистрация отклонена*\n\n"
-                "К сожалению, ваша заявка на участие в игре была отклонена администратором.\n"
-                "Вы можете попробовать зарегистрироваться снова с помощью команды /register.",
-                parse_mode="Markdown",
-            )
-        except Exception:
-            pass
-
-
 async def game_stats_command(message: Message) -> None:
     """Handle /game_stats command"""
     user_id = message.from_user.id
@@ -380,7 +315,6 @@ def register_admin_handlers(dp: Dispatcher) -> None:
     """Register admin handlers"""
     dp.message.register(admin_command, Command("admin"))
     dp.message.register(approve_command, Command("approve"))
-    dp.message.register(reject_command, Command("reject"))
     dp.message.register(game_stats_command, Command("game_stats"))
     dp.message.register(posts_command, Command("posts"))
     dp.message.register(create_game_command, Command("create_game"))

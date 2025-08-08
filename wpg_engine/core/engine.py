@@ -125,6 +125,50 @@ class GameEngine:
         await self.db.refresh(country)
         return country
 
+    async def update_country_aspect_description(self, country_id: int, aspect: str, description: str) -> Country | None:
+        """Update specific aspect description"""
+        country = await self.get_country(country_id)
+        if not country:
+            return None
+
+        description_field = f"{aspect}_description"
+        if hasattr(country, description_field):
+            setattr(country, description_field, description)
+            await self.db.commit()
+            await self.db.refresh(country)
+            return country
+
+        return None
+
+    async def update_country_aspect_value(self, country_id: int, aspect: str, value: int) -> Country | None:
+        """Update specific aspect value"""
+        country = await self.get_country(country_id)
+        if not country:
+            return None
+
+        if hasattr(country, aspect) and 1 <= value <= 10:
+            setattr(country, aspect, value)
+            await self.db.commit()
+            await self.db.refresh(country)
+            return country
+
+        return None
+
+    async def update_country_basic_info(self, country_id: int, **kwargs) -> Country | None:
+        """Update country basic information (name, description, capital, population)"""
+        country = await self.get_country(country_id)
+        if not country:
+            return None
+
+        allowed_fields = ["name", "description", "capital", "population"]
+        for field, value in kwargs.items():
+            if field in allowed_fields and hasattr(country, field):
+                setattr(country, field, value)
+
+        await self.db.commit()
+        await self.db.refresh(country)
+        return country
+
     # Player management
     async def create_player(
         self,
