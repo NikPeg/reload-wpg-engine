@@ -19,7 +19,7 @@ async def admin_command(message: Message) -> None:
 
     async for db in get_db():
         game_engine = GameEngine(db)
-        
+
         # Check if user is admin
         if not await is_admin(user_id, game_engine.db):
             await message.answer("❌ У вас нет прав администратора.")
@@ -27,9 +27,7 @@ async def admin_command(message: Message) -> None:
 
         # Get player info for game details with eager loading
         result = await game_engine.db.execute(
-            select(Player)
-            .options(selectinload(Player.game))
-            .where(Player.telegram_id == user_id)
+            select(Player).options(selectinload(Player.game)).where(Player.telegram_id == user_id)
         )
         player = result.scalar_one_or_none()
         break
@@ -46,7 +44,7 @@ async def admin_command(message: Message) -> None:
             "❌ /reject <user_id> - отклонить регистрацию\n"
             "📝 /posts - непроверенные посты\n"
             "⚖️ /verdict <post_id> <result> - вынести вердикт",
-            parse_mode="Markdown"
+            parse_mode="Markdown",
         )
         return
 
@@ -62,99 +60,11 @@ async def admin_command(message: Message) -> None:
         f"❌ /reject <user_id> - отклонить регистрацию\n"
         f"📝 /posts - непроверенные посты\n"
         f"⚖️ /verdict <post_id> <result> - вынести вердикт",
-        parse_mode="Markdown"
+        parse_mode="Markdown",
     )
 
 
-async def pending_command(message: Message) -> None:
-    """Handle /pending command - show pending registrations"""
-    user_id = message.from_user.id
-
-    async for db in get_db():
-        game_engine = GameEngine(db)
-        
-        # Check if user is admin
-        if not await is_admin(user_id, game_engine.db):
-            await message.answer("❌ У вас нет прав администратора.")
-            return
-
-        # Get admin info with eager loading
-        result = await game_engine.db.execute(
-            select(Player)
-            .options(selectinload(Player.game))
-            .where(Player.telegram_id == user_id)
-        )
-        admin = result.scalar_one_or_none()
-
-        # Get pending players with eager loading
-        result = await game_engine.db.execute(
-            select(Player)
-            .options(selectinload(Player.country))
-            .where(Player.game_id == admin.game_id)
-            .where(Player.role == PlayerRole.PLAYER)
-            .where(Player.country_id.is_not(None))
-        )
-        pending_players = result.scalars().all()
-        break
-
-    if not pending_players:
-        await message.answer("📋 Нет заявок на рассмотрение.")
-        return
-
-    pending_text = "📋 *Заявки на регистрацию:*\n\n"
-
-    for player in pending_players:
-        country = player.country
-        aspects = country.get_aspects_values_only()
-
-        pending_text += f"👤 *Игрок:* {player.display_name}\n"
-        pending_text += f"*Telegram ID:* `{player.telegram_id}`\n"
-        pending_text += f"*Username:* @{player.username or 'не указан'}\n\n"
-
-        pending_text += f"🏛️ *Страна:* {country.name}\n"
-        pending_text += f"*Столица:* {country.capital}\n"
-        pending_text += f"*Население:* {country.population:,}\n"
-        pending_text += f"*Описание:* {country.description[:100]}...\n\n"
-
-        pending_text += "*Аспекты:*\n"
-        aspect_names = {
-            "economy": "💰 Экономика",
-            "military": "⚔️ Военное дело",
-            "foreign_policy": "🤝 Внешняя политика",
-            "territory": "🗺️ Территория",
-            "technology": "🔬 Технологичность",
-            "religion_culture": "🏛️ Религия и культура",
-            "governance_law": "⚖️ Управление и право",
-            "construction_infrastructure": "🏗️ Строительство",
-            "social_relations": "👥 Общественные отношения",
-            "intelligence": "🕵️ Разведка",
-        }
-
-        for aspect, value in aspects.items():
-            name = aspect_names.get(aspect, aspect)
-            pending_text += f"  {name}: {value}/10\n"
-
-        pending_text += f"\n✅ Одобрить: `/approve {player.telegram_id}`\n"
-        pending_text += f"❌ Отклонить: `/reject {player.telegram_id}`\n\n"
-        pending_text += "─" * 30 + "\n\n"
-
-    # Split message if too long
-    if len(pending_text) > 4000:
-        parts = pending_text.split("─" * 30)
-        current_message = "📋 *Заявки на регистрацию:*\n\n"
-
-        for part in parts:
-            if part.strip():
-                if len(current_message + part) > 4000:
-                    await message.answer(current_message, parse_mode="Markdown")
-                    current_message = part
-                else:
-                    current_message += part
-
-        if current_message.strip():
-            await message.answer(current_message, parse_mode="Markdown")
-    else:
-        await message.answer(pending_text, parse_mode="Markdown")
+# Removed pending_command - registrations are now sent directly to admin
 
 
 async def approve_command(message: Message) -> None:
@@ -164,17 +74,15 @@ async def approve_command(message: Message) -> None:
 
     async for db in get_db():
         game_engine = GameEngine(db)
-        
+
         # Check if user is admin
         if not await is_admin(user_id, game_engine.db):
             await message.answer("❌ У вас нет прав администратора.")
             return
 
         # Get admin info
-        result = await game_engine.db.execute(
-            select(Player).where(Player.telegram_id == user_id)
-        )
-        admin = result.scalar_one_or_none()
+        result = await game_engine.db.execute(select(Player).where(Player.telegram_id == user_id))
+        result.scalar_one_or_none()
 
     if not args:
         await message.answer("❌ Укажите Telegram ID игрока: `/approve 123456789`")
@@ -202,7 +110,7 @@ async def approve_command(message: Message) -> None:
             f"✅ *Регистрация одобрена!*\n\n"
             f"Игрок *{player.display_name}* теперь может участвовать в игре "
             f"за страну *{player.country.name}*.",
-            parse_mode="Markdown"
+            parse_mode="Markdown",
         )
 
         # Notify player (if bot has access to send messages)
@@ -214,12 +122,10 @@ async def approve_command(message: Message) -> None:
                 f"Ваша регистрация в игре *{player.game.name}* одобрена!\n"
                 f"Вы управляете страной *{player.country.name}*.\n\n"
                 f"Используйте /start для просмотра доступных команд.",
-                parse_mode="Markdown"
+                parse_mode="Markdown",
             )
         except Exception:
-            await message.answer(
-                "⚠️ Не удалось уведомить игрока (возможно, он не начинал диалог с ботом)."
-            )
+            await message.answer("⚠️ Не удалось уведомить игрока (возможно, он не начинал диалог с ботом).")
 
 
 async def reject_command(message: Message) -> None:
@@ -229,17 +135,15 @@ async def reject_command(message: Message) -> None:
 
     async for db in get_db():
         game_engine = GameEngine(db)
-        
+
         # Check if user is admin
         if not await is_admin(user_id, game_engine.db):
             await message.answer("❌ У вас нет прав администратора.")
             return
 
         # Get admin info
-        result = await game_engine.db.execute(
-            select(Player).where(Player.telegram_id == user_id)
-        )
-        admin = result.scalar_one_or_none()
+        result = await game_engine.db.execute(select(Player).where(Player.telegram_id == user_id))
+        result.scalar_one_or_none()
 
     if not args:
         await message.answer("❌ Укажите Telegram ID игрока: `/reject 123456789`")
@@ -253,9 +157,7 @@ async def reject_command(message: Message) -> None:
 
         # Find and delete player with eager loading
         result = await game_engine.db.execute(
-            select(Player)
-            .options(selectinload(Player.country))
-            .where(Player.telegram_id == target_user_id)
+            select(Player).options(selectinload(Player.country)).where(Player.telegram_id == target_user_id)
         )
         player = result.scalar_one_or_none()
 
@@ -273,9 +175,8 @@ async def reject_command(message: Message) -> None:
         await game_engine.db.commit()
 
         await message.answer(
-            f"❌ *Регистрация отклонена*\n\n"
-            f"Заявка игрока *{player_name}* ({country_name}) отклонена и удалена.",
-            parse_mode="Markdown"
+            f"❌ *Регистрация отклонена*\n\n" f"Заявка игрока *{player_name}* ({country_name}) отклонена и удалена.",
+            parse_mode="Markdown",
         )
 
         # Notify player
@@ -286,7 +187,7 @@ async def reject_command(message: Message) -> None:
                 "❌ *Регистрация отклонена*\n\n"
                 "К сожалению, ваша заявка на участие в игре была отклонена администратором.\n"
                 "Вы можете попробовать зарегистрироваться снова с помощью команды /register.",
-                parse_mode="Markdown"
+                parse_mode="Markdown",
             )
         except Exception:
             pass
@@ -298,16 +199,14 @@ async def game_stats_command(message: Message) -> None:
 
     async for db in get_db():
         game_engine = GameEngine(db)
-        
+
         # Check if user is admin
         if not await is_admin(user_id, game_engine.db):
             await message.answer("❌ У вас нет прав администратора.")
             return
 
         # Get admin info
-        result = await game_engine.db.execute(
-            select(Player).where(Player.telegram_id == user_id)
-        )
+        result = await game_engine.db.execute(select(Player).where(Player.telegram_id == user_id))
         admin = result.scalar_one_or_none()
 
         stats = await game_engine.get_game_statistics(admin.game_id)
@@ -321,7 +220,7 @@ async def game_stats_command(message: Message) -> None:
             f"*Постов:* {stats['posts_count']}\n"
             f"*Создана:* {stats['created_at'].strftime('%d.%m.%Y %H:%M')}\n"
             f"*Обновлена:* {stats['updated_at'].strftime('%d.%m.%Y %H:%M')}",
-            parse_mode="Markdown"
+            parse_mode="Markdown",
         )
 
 
@@ -331,16 +230,14 @@ async def posts_command(message: Message) -> None:
 
     async for db in get_db():
         game_engine = GameEngine(db)
-        
+
         # Check if user is admin
         if not await is_admin(user_id, game_engine.db):
             await message.answer("❌ У вас нет прав администратора.")
             return
 
         # Get admin info
-        result = await game_engine.db.execute(
-            select(Player).where(Player.telegram_id == user_id)
-        )
+        result = await game_engine.db.execute(select(Player).where(Player.telegram_id == user_id))
         admin = result.scalar_one_or_none()
 
         # Get posts without verdicts
@@ -380,11 +277,115 @@ async def posts_command(message: Message) -> None:
             await message.answer(posts_text, parse_mode="Markdown")
 
 
+async def create_game_command(message: Message) -> None:
+    """Handle /create_game command"""
+    user_id = message.from_user.id
+    args = message.text.split(" ", 1)
+
+    async for db in get_db():
+        game_engine = GameEngine(db)
+
+        # Check if user is admin
+        if not await is_admin(user_id, game_engine.db):
+            # Check if user is admin from .env
+            from wpg_engine.config.settings import settings
+
+            if user_id not in settings.telegram.admin_ids:
+                await message.answer("❌ У вас нет прав администратора.")
+                return
+
+        if len(args) < 2:
+            await message.answer(
+                "❌ Неверный формат команды.\n\n"
+                "Используйте: <code>/create_game Название игры | Сеттинг | Лет за сутки</code>\n\n"
+                "Пример: <code>/create_game Древний мир | Античность | 10</code>",
+                parse_mode="HTML",
+            )
+            return
+
+        try:
+            # Parse arguments
+            parts = [part.strip() for part in args[1].split("|")]
+            if len(parts) != 3:
+                raise ValueError("Неверное количество параметров")
+
+            game_name, setting, years_per_day_str = parts
+            years_per_day = int(years_per_day_str)
+
+            if not game_name or not setting:
+                raise ValueError("Название игры и сеттинг не могут быть пустыми")
+
+            if years_per_day < 1 or years_per_day > 365:
+                raise ValueError("Количество лет за сутки должно быть от 1 до 365")
+
+        except ValueError as e:
+            await message.answer(
+                f"❌ Ошибка в параметрах: {e}\n\n"
+                "Используйте: <code>/create_game Название игры | Сеттинг | Лет за сутки</code>\n\n"
+                "Пример: <code>/create_game Древний мир | Античность | 10</code>",
+                parse_mode="HTML",
+            )
+            return
+
+        # Create game
+        game = await game_engine.create_game(
+            name=game_name,
+            description=f"Игра в сеттинге '{setting}'",
+            setting=setting,
+            max_players=20,
+            years_per_day=years_per_day,
+        )
+
+        # Create admin player
+        username = message.from_user.username
+        display_name = message.from_user.full_name or f"Admin_{user_id}"
+
+        admin_player = await game_engine.create_player(
+            game_id=game.id, telegram_id=user_id, username=username, display_name=display_name, role=PlayerRole.ADMIN
+        )
+
+        # Create admin country
+        admin_country = await game_engine.create_country(
+            game_id=game.id,
+            name="Административная Республика",
+            description="Страна администратора игры",
+            capital="Центральный Город",
+            population=1000000,
+            aspects={
+                "economy": 8,
+                "military": 7,
+                "foreign_policy": 9,
+                "territory": 6,
+                "technology": 8,
+                "religion_culture": 7,
+                "governance_law": 10,
+                "construction_infrastructure": 7,
+                "social_relations": 8,
+                "intelligence": 9,
+            },
+        )
+
+        # Assign country to admin
+        await game_engine.assign_player_to_country(admin_player.id, admin_country.id)
+
+        await message.answer(
+            f"✅ <b>Игра успешно создана!</b>\n\n"
+            f"<b>Название:</b> {game_name}\n"
+            f"<b>Сеттинг:</b> {setting}\n"
+            f"<b>Лет за сутки:</b> {years_per_day}\n"
+            f"<b>ID игры:</b> {game.id}\n\n"
+            f"Вы назначены администратором игры и получили страну '{admin_country.name}'.\n\n"
+            f"Теперь игроки могут регистрироваться в игре командой /register",
+            parse_mode="HTML",
+        )
+        break
+
+
 def register_admin_handlers(dp: Dispatcher) -> None:
     """Register admin handlers"""
     dp.message.register(admin_command, Command("admin"))
-    dp.message.register(pending_command, Command("pending"))
     dp.message.register(approve_command, Command("approve"))
     dp.message.register(reject_command, Command("reject"))
     dp.message.register(game_stats_command, Command("game_stats"))
     dp.message.register(posts_command, Command("posts"))
+    dp.message.register(create_game_command, Command("create_game"))

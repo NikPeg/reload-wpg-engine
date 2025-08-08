@@ -197,9 +197,7 @@ async def test_engine():
         posts = await engine.get_game_posts(game.id)
         print(f"✅ Found {len(posts)} posts:")
         for post in posts:
-            print(
-                f"   Post {post.id} by {post.author.display_name}: {post.content[:50]}..."
-            )
+            print(f"   Post {post.id} by {post.author.display_name}: {post.content[:50]}...")
 
         # Test 10: Test public aspects visibility
         print("\n👁️ Testing public aspects visibility...")
@@ -218,9 +216,7 @@ async def test_engine():
         print("SUMMARY:")
         print(f"✅ Created game: '{game.name}' (ID: {game.id})")
         print(f"✅ Created {len([country1, country2])} countries with 10 aspects each")
-        print(
-            f"✅ Created {len([admin, player1, player2])} players (1 admin, 2 players)"
-        )
+        print(f"✅ Created {len([admin, player1, player2])} players (1 admin, 2 players)")
         print(f"✅ Created {len(posts)} posts")
         print(f"✅ Created {len([verdict])} verdict")
         print(f"✅ Game status: {game.status}")

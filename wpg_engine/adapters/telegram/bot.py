@@ -8,12 +8,10 @@ import logging
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from wpg_engine.adapters.telegram.handlers import register_handlers
 from wpg_engine.config.settings import settings
-from wpg_engine.core.engine import GameEngine
-from wpg_engine.models import get_db, init_db
+from wpg_engine.models import init_db
 
 logger = logging.getLogger(__name__)
 

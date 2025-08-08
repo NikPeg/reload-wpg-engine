@@ -3,6 +3,7 @@ Application settings using Pydantic Settings
 """
 
 import os
+
 from dotenv import load_dotenv
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -28,14 +29,14 @@ class TelegramSettings(BaseSettings):
     admin_ids_str: str = Field(default="", alias="TG_ADMIN_IDS", description="Comma-separated admin Telegram IDs")
 
     model_config = SettingsConfigDict(env_prefix="TG_", extra="allow")
-    
+
     @property
     def admin_ids(self) -> list[int]:
         """Parse admin IDs from string"""
         if not self.admin_ids_str.strip():
             return []
         try:
-            return [int(id_str.strip()) for id_str in self.admin_ids_str.split(',') if id_str.strip()]
+            return [int(id_str.strip()) for id_str in self.admin_ids_str.split(",") if id_str.strip()]
         except ValueError:
             return []
 
@@ -47,11 +48,11 @@ class VKSettings(BaseSettings):
     group_id: int | None = Field(default=None, description="VK group ID")
 
     model_config = SettingsConfigDict(env_prefix="VK_", extra="allow")
-    
-    @field_validator('group_id', mode='before')
+
+    @field_validator("group_id", mode="before")
     @classmethod
     def validate_group_id(cls, v):
-        if isinstance(v, str) and v.startswith('your_vk_group_id'):
+        if isinstance(v, str) and v.startswith("your_vk_group_id"):
             return None
         return int(v) if v and str(v).isdigit() else None
 
@@ -59,12 +60,8 @@ class VKSettings(BaseSettings):
 class AISettings(BaseSettings):
     """AI service configuration"""
 
-    openrouter_api_key: str | None = Field(
-        default=None, description="OpenRouter API key"
-    )
-    default_model: str = Field(
-        default="anthropic/claude-3-haiku", description="Default AI model"
-    )
+    openrouter_api_key: str | None = Field(default=None, description="OpenRouter API key")
+    default_model: str = Field(default="anthropic/claude-3-haiku", description="Default AI model")
 
     model_config = SettingsConfigDict(env_prefix="AI_", extra="allow")
 

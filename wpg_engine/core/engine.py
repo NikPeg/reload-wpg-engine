@@ -10,6 +10,7 @@ from wpg_engine.models import (
     Country,
     Game,
     GameStatus,
+    Message,
     Player,
     PlayerRole,
     Post,
@@ -104,15 +105,11 @@ class GameEngine:
     async def get_country(self, country_id: int) -> Country | None:
         """Get country by ID"""
         result = await self.db.execute(
-            select(Country)
-            .options(selectinload(Country.players))
-            .where(Country.id == country_id)
+            select(Country).options(selectinload(Country.players)).where(Country.id == country_id)
         )
         return result.scalar_one_or_none()
 
-    async def update_country_aspects(
-        self, country_id: int, aspects: dict
-    ) -> Country | None:
+    async def update_country_aspects(self, country_id: int, aspects: dict) -> Country | None:
         """Update country aspects"""
         country = await self.get_country(country_id)
         if not country:
@@ -195,13 +192,9 @@ class GameEngine:
         return list(result.scalars().all())
 
     # Verdict management
-    async def create_verdict(
-        self, post_id: int, admin_id: int, result: str, reasoning: str | None = None
-    ) -> Verdict:
+    async def create_verdict(self, post_id: int, admin_id: int, result: str, reasoning: str | None = None) -> Verdict:
         """Create a verdict for a post"""
-        verdict = Verdict(
-            post_id=post_id, admin_id=admin_id, result=result, reasoning=reasoning
-        )
+        verdict = Verdict(post_id=post_id, admin_id=admin_id, result=result, reasoning=reasoning)
         self.db.add(verdict)
         await self.db.commit()
         await self.db.refresh(verdict)
@@ -224,3 +217,47 @@ class GameEngine:
             "created_at": game.created_at,
             "updated_at": game.updated_at,
         }
+
+    # Message management
+    async def create_message(
+        self,
+        player_id: int,
+        game_id: int,
+        content: str,
+        telegram_message_id: int | None = None,
+        reply_to_id: int | None = None,
+        is_admin_reply: bool = False,
+    ) -> Message:
+        """Create a new message"""
+        message = Message(
+            player_id=player_id,
+            game_id=game_id,
+            content=content,
+            telegram_message_id=telegram_message_id,
+            reply_to_id=reply_to_id,
+            is_admin_reply=is_admin_reply,
+        )
+        self.db.add(message)
+        await self.db.commit()
+        await self.db.refresh(message)
+        return message
+
+    async def get_player_messages(self, player_id: int, limit: int = 10) -> list[Message]:
+        """Get recent messages for a player (last 10 by default)"""
+        result = await self.db.execute(
+            select(Message)
+            .options(selectinload(Message.player), selectinload(Message.reply_to))
+            .where(Message.player_id == player_id)
+            .order_by(Message.created_at.desc())
+            .limit(limit)
+        )
+        return list(result.scalars().all())
+
+    async def get_message_by_telegram_id(self, telegram_message_id: int) -> Message | None:
+        """Get message by telegram message ID"""
+        result = await self.db.execute(
+            select(Message)
+            .options(selectinload(Message.player), selectinload(Message.game))
+            .where(Message.telegram_message_id == telegram_message_id)
+        )
+        return result.scalar_one_or_none()

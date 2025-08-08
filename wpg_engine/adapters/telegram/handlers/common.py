@@ -18,7 +18,7 @@ async def start_command(message: Message) -> None:
 
     async for db in get_db():
         game_engine = GameEngine(db)
-        
+
         # Check if user is already registered
         result = await game_engine.db.execute(
             select(Player)
@@ -26,42 +26,90 @@ async def start_command(message: Message) -> None:
             .where(Player.telegram_id == user_id)
         )
         player = result.scalar_one_or_none()
+
+        # Check if user is admin (from .env)
+        from wpg_engine.config.settings import settings
+
+        is_admin_user = user_id in settings.telegram.admin_ids
+
+        # Check if any games exist
+        from wpg_engine.models import Game
+
+        result = await game_engine.db.execute(select(Game))
+        existing_games = result.scalars().all()
+
         break
 
     if player:
         if player.role == PlayerRole.ADMIN:
             # Use HTML parsing to avoid markdown issues
             from html import escape
+
             display_name = escape(player.display_name)
             game_name = escape(player.game.name)
-            
+
             await message.answer(
                 f"🎯 Добро пожаловать, <b>{display_name}</b>!\n\n"
                 f"Вы администратор игры <b>{game_name}</b>.\n\n"
                 f"<b>Доступные команды:</b>\n"
                 f"👤 /stats - информация о вашей стране\n"
-                f"📝 /post - отправить пост с действием\n"
                 f"⚙️ /admin - панель администратора\n"
-                f"📋 /pending - заявки на регистрацию\n"
-                f"📊 /game_stats - статистика игры",
-                parse_mode="HTML"
+                f"📊 /game_stats - статистика игры\n"
+                f"🎮 /create_game - создать новую игру",
+                parse_mode="HTML",
             )
         else:
             # Use HTML parsing to avoid markdown issues
             from html import escape
+
             display_name = escape(player.display_name)
-            country_name = escape(player.country.name if player.country else 'страну не назначена')
+            country_name = escape(player.country.name if player.country else "страну не назначена")
             game_name = escape(player.game.name)
-            
+
+            # List of example messages for random selection
+            examples = [
+                "Собрать всех детей в огромную город-школу",
+                "Начать строительство космического лифта",
+                "Объявить войну соседней стране из-за спора о границах",
+                "Создать новую религию на основе поклонения технологиям",
+                "Провести массовую эвакуацию населения в подземные города",
+                "Запустить программу по превращению пустыни в цветущий сад",
+                "Установить дипломатические отношения с инопланетной цивилизацией",
+                "Ввести всеобщий базовый доход для всех граждан",
+                "Построить гигантскую стену вокруг всей страны",
+                "Объявить о создании первого в мире города на воде",
+            ]
+
+            import random
+
+            random_example = random.choice(examples)
+
             await message.answer(
                 f"🎮 Добро пожаловать, <b>{display_name}</b>!\n\n"
                 f"Вы играете за <b>{country_name}</b> "
                 f"в игре <b>{game_name}</b>.\n\n"
                 f"<b>Доступные команды:</b>\n"
                 f"👤 /stats - информация о вашей стране\n"
-                f"📝 /post - отправить пост с действием\n"
-                f"🌍 /world - информация о других странах",
-                parse_mode="HTML"
+                f"🌍 /world - информация о других странах\n\n"
+                f"напиши свое, задай вопрос или начни проект! Например: <code>{random_example}</code>",
+                parse_mode="HTML",
+            )
+    elif is_admin_user:
+        # Admin user but no games exist
+        if not existing_games:
+            await message.answer(
+                "🎯 Добро пожаловать, <b>Администратор</b>!\n\n"
+                "❌ В данный момент нет активных игр.\n\n"
+                "Используйте команду /create_game для создания новой игры.\n"
+                "Формат: <code>/create_game Название игры | Сеттинг | Лет за сутки</code>\n\n"
+                "Пример: <code>/create_game Древний мир | Античность | 10</code>",
+                parse_mode="HTML",
+            )
+        else:
+            await message.answer(
+                "🎯 Добро пожаловать, <b>Администратор</b>!\n\n"
+                "Для участия в игре используйте команду /register для регистрации.",
+                parse_mode="HTML",
             )
     else:
         await message.answer(
@@ -73,7 +121,7 @@ async def start_command(message: Message) -> None:
             "Военно-политическая игра - это стратегическая ролевая игра, "
             "где игроки управляют странами, развивают их по 10 аспектам "
             "и взаимодействуют друг с другом через дипломатию, торговлю и конфликты.",
-            parse_mode="HTML"
+            parse_mode="HTML",
         )
 
 
@@ -83,7 +131,7 @@ async def help_command(message: Message) -> None:
 
     async for db in get_db():
         game_engine = GameEngine(db)
-        
+
         # Check if user is registered
         result = await game_engine.db.execute(
             select(Player)
@@ -99,7 +147,7 @@ async def help_command(message: Message) -> None:
             "/start - начать работу с ботом\n"
             "/register - зарегистрироваться в игре\n"
             "/help - показать эту справку",
-            parse_mode="HTML"
+            parse_mode="HTML",
         )
     elif player.role == PlayerRole.ADMIN:
         await message.answer(
@@ -107,25 +155,27 @@ async def help_command(message: Message) -> None:
             "<b>Общие команды:</b>\n"
             "/start - главное меню\n"
             "/stats - информация о вашей стране\n"
-            "/post - отправить пост с действием\n"
             "/help - показать эту справку\n\n"
             "<b>Команды администратора:</b>\n"
             "/admin - панель администратора\n"
-            "/pending - заявки на регистрацию\n"
             "/game_stats - статистика игры\n"
+            "/create_game - создать новую игру\n"
             "/approve &lt;user_id&gt; - одобрить регистрацию\n"
-            "/reject &lt;user_id&gt; - отклонить регистрацию",
-            parse_mode="HTML"
+            "/reject &lt;user_id&gt; - отклонить регистрацию\n\n"
+            "<b>Отправка сообщений:</b>\n"
+            "Просто напишите сообщение - оно будет отправлено администратору",
+            parse_mode="HTML",
         )
     else:
         await message.answer(
             "<b>Справка по командам (Игрок):</b>\n\n"
             "/start - главное меню\n"
             "/stats - информация о вашей стране\n"
-            "/post - отправить пост с действием\n"
             "/world - информация о других странах\n"
-            "/help - показать эту справку",
-            parse_mode="HTML"
+            "/help - показать эту справку\n\n"
+            "<b>Отправка сообщений:</b>\n"
+            "Просто напишите сообщение - оно будет отправлено администратору",
+            parse_mode="HTML",
         )
 
 

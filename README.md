@@ -43,31 +43,47 @@ cp .env.example .env
 Обязательно укажите:
 - `TG_TOKEN` - токен Telegram бота от @BotFather
 
-### 3. Инициализация игры
+### 3. Запуск бота
 ```bash
-python init_game.py
+python main.py
 ```
 
-### 4. Запуск бота
-```bash
-python run_bot.py
-```
+Главный скрипт автоматически:
+- Инициализирует базу данных, если её нет
+- Создаёт начальную игру, если игр нет
+- Останавливает старые процессы бота
+- Запускает новый экземпляр бота
 
-### 5. Тестирование движка (опционально)
+### 4. Тестирование (опционально)
 ```bash
-python test_engine.py
+# Тест движка
+python tests/test_engine.py
+
+# Тест админской системы
+python tests/test_admin_system.py
+
+# Тест настроек
+python tests/test_settings.py
 ```
 
 ## Структура проекта
 
 ```
-wpg_engine/
-├── core/           # Основная логика
-├── models/         # Модели данных
-├── adapters/       # Адаптеры для внешних сервисов
-│   └── telegram/   # Telegram бот
-├── config/         # Конфигурация
-└── migrations/     # Миграции базы данных
+reload-wpg-engine/
+├── main.py                 # Главный скрипт запуска
+├── wpg_engine/            # Основной пакет движка
+│   ├── core/              # Основная логика
+│   ├── models/            # Модели данных
+│   ├── adapters/          # Адаптеры для внешних сервисов
+│   │   └── telegram/      # Telegram бот
+│   └── config/            # Конфигурация
+├── tests/                 # Тесты
+│   ├── test_engine.py     # Тест движка
+│   ├── test_admin_system.py # Тест админской системы
+│   └── test_settings.py   # Тест настроек
+├── .env                   # Переменные окружения
+├── requirements.txt       # Зависимости
+└── README.md             # Документация
 ```
 
 ## Telegram бот
