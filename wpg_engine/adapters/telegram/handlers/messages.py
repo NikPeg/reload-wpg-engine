@@ -42,10 +42,18 @@ async def handle_text_message(message: Message) -> None:
         await message.answer("❌ Вы не зарегистрированы в игре. Используйте /start для начала работы с ботом.")
         return
 
-    # Check if this is an admin replying to a message
-    if await is_admin(user_id, game_engine.db) and message.reply_to_message:
-        await handle_admin_reply(message, player, game_engine)
-        return
+    # Check if this is an admin replying to a message or sending a message with ID
+    if await is_admin(user_id, game_engine.db):
+        # Check if this is a reply to a message (for registration decisions)
+        if message.reply_to_message:
+            await handle_admin_reply(message, player, game_engine)
+            return
+        # Check if message contains message ID for direct reply
+        import re
+
+        if re.search(r"(?:ID сообщения|msg|message):\s*\d+|^\d+\s+", content, re.IGNORECASE):
+            await handle_admin_reply(message, player, game_engine)
+            return
 
     # Regular player message - send to admin
     await handle_player_message(message, player, game_engine)
@@ -54,15 +62,6 @@ async def handle_text_message(message: Message) -> None:
 async def handle_player_message(message: Message, player: Player, game_engine: GameEngine) -> None:
     """Handle message from player - save and forward to admin"""
     content = message.text.strip()
-
-    # Save message to database
-    saved_message = await game_engine.create_message(
-        player_id=player.id,
-        game_id=player.game_id,
-        content=content,
-        telegram_message_id=message.message_id,
-        is_admin_reply=False,
-    )
 
     # Confirm to player
     await message.answer("✅ Сообщение отправлено администратору!")
@@ -75,51 +74,56 @@ async def handle_player_message(message: Message, player: Player, game_engine: G
 
     if admin and admin.telegram_id:
         try:
-            # Format message for admin
+            # Format message for admin (no ID needed)
             country_name = player.country.name if player.country else "без страны"
             admin_message = (
                 f"💬 <b>Новое сообщение от игрока</b>\n\n"
                 f"<b>От:</b> {player.display_name} (ID: {player.telegram_id})\n"
-                f"<b>Страна:</b> {country_name}\n"
-                f"<b>Игра:</b> {player.game.name}\n\n"
+                f"<b>Страна:</b> {country_name}\n\n"
                 f"<b>Сообщение:</b>\n{content}"
             )
 
-            # Send to admin
+            # Send to admin first
             bot = message.bot
             sent_message = await bot.send_message(admin.telegram_id, admin_message, parse_mode="HTML")
 
-            # Update saved message with admin's telegram message ID for reply functionality
-            saved_message.telegram_message_id = sent_message.message_id
-            await game_engine.db.commit()
+            # Now save message to database with admin's telegram message ID
+            await game_engine.create_message(
+                player_id=player.id,
+                game_id=player.game_id,
+                content=content,
+                telegram_message_id=message.message_id,
+                admin_telegram_message_id=sent_message.message_id,
+                is_admin_reply=False,
+            )
 
         except Exception as e:
             print(f"Failed to send message to admin: {e}")
-            await message.answer("⚠️ Сообщение сохранено, но не удалось отправить администратору. Попробуйте позже.")
+            await message.answer("⚠️ Не удалось отправить сообщение администратору. Попробуйте позже.")
     else:
-        await message.answer("⚠️ Сообщение сохранено, но администратор не найден в игре.")
+        await message.answer("⚠️ Администратор не найден в игре.")
 
 
 async def handle_admin_reply(message: Message, admin: Player, game_engine: GameEngine) -> None:
     """Handle admin reply to player message or registration"""
+    content = message.text.strip()
+
+    # Check if this is a registration approval/rejection (when replying to registration message)
+    if message.reply_to_message and content.lower() in ["одобрить", "отклонить"]:
+        await handle_registration_decision(message, admin, game_engine, content.lower())
+        return
+
+    # If admin is replying to a message, find the original player message in database
     if not message.reply_to_message:
+        await message.answer("❌ Ответьте на сообщение от игрока для отправки ответа.")
         return
 
-    content = message.text.strip().lower()
-
-    # Check if this is a registration approval/rejection
-    if content in ["одобрить", "отклонить"]:
-        await handle_registration_decision(message, admin, game_engine, content)
-        return
-
-    # Find original message by telegram message ID
-    original_message = await game_engine.get_message_by_telegram_id(message.reply_to_message.message_id)
+    # Find the original player message by the admin message ID that was replied to
+    original_message = await game_engine.get_message_by_admin_telegram_id(message.reply_to_message.message_id)
 
     if not original_message:
-        await message.answer("❌ Не удалось найти исходное сообщение.")
+        await message.answer("❌ Не удалось найти исходное сообщение игрока.")
         return
-
-    content = message.text.strip()
 
     # Save admin reply
     await game_engine.create_message(
@@ -130,16 +134,17 @@ async def handle_admin_reply(message: Message, admin: Player, game_engine: GameE
         is_admin_reply=True,
     )
 
-    # Send reply to original player
+    # Send reply to original player as a reply to their original message
     try:
         bot = message.bot
-        reply_text = (
-            f"📩 <b>Ответ администратора</b>\n\n"
-            f"<b>На ваше сообщение:</b>\n<i>{original_message.content[:100]}{'...' if len(original_message.content) > 100 else ''}</i>\n\n"
-            f"<b>Ответ:</b>\n{content}"
-        )
 
-        await bot.send_message(original_message.player.telegram_id, reply_text, parse_mode="HTML")
+        # Send the admin's response as a reply to the original player's message
+        await bot.send_message(
+            original_message.player.telegram_id,
+            content,
+            reply_to_message_id=original_message.telegram_message_id,
+            parse_mode="HTML",
+        )
 
         await message.answer("✅ Ответ отправлен игроку!")
 

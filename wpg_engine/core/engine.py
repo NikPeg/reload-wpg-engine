@@ -227,6 +227,7 @@ class GameEngine:
         game_id: int,
         content: str,
         telegram_message_id: int | None = None,
+        admin_telegram_message_id: int | None = None,
         reply_to_id: int | None = None,
         is_admin_reply: bool = False,
     ) -> Message:
@@ -236,6 +237,7 @@ class GameEngine:
             game_id=game_id,
             content=content,
             telegram_message_id=telegram_message_id,
+            admin_telegram_message_id=admin_telegram_message_id,
             reply_to_id=reply_to_id,
             is_admin_reply=is_admin_reply,
         )
@@ -261,5 +263,23 @@ class GameEngine:
             select(Message)
             .options(selectinload(Message.player), selectinload(Message.game))
             .where(Message.telegram_message_id == telegram_message_id)
+        )
+        return result.scalar_one_or_none()
+
+    async def get_message_by_id(self, message_id: int) -> Message | None:
+        """Get message by database ID"""
+        result = await self.db.execute(
+            select(Message)
+            .options(selectinload(Message.player), selectinload(Message.game))
+            .where(Message.id == message_id)
+        )
+        return result.scalar_one_or_none()
+
+    async def get_message_by_admin_telegram_id(self, admin_telegram_message_id: int) -> Message | None:
+        """Get message by admin's telegram message ID"""
+        result = await self.db.execute(
+            select(Message)
+            .options(selectinload(Message.player), selectinload(Message.game))
+            .where(Message.admin_telegram_message_id == admin_telegram_message_id)
         )
         return result.scalar_one_or_none()

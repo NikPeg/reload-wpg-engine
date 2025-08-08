@@ -74,10 +74,7 @@ async def register_command(message: Message, state: FSMContext) -> None:
 
         # Check if user is already registered
         result = await game_engine.db.execute(
-            select(Player)
-            .options(selectinload(Player.country))
-            .where(Player.telegram_id == user_id)
-            .limit(1)
+            select(Player).options(selectinload(Player.country)).where(Player.telegram_id == user_id).limit(1)
         )
         existing_player = result.scalar_one_or_none()
 
@@ -100,7 +97,7 @@ async def register_command(message: Message, state: FSMContext) -> None:
             game_id=game.id,
             max_points=game.max_points,
             existing_player_id=existing_player.id,
-            existing_country_id=existing_player.country_id if existing_player.country else None
+            existing_country_id=existing_player.country_id if existing_player.country else None,
         )
 
         country_info = ""
@@ -195,8 +192,8 @@ async def process_aspect(message: Message, state: FSMContext, aspect: str, next_
 
     # Get current data and check points
     data = await state.get_data()
-    current_spent = data.get('spent_points', 0)
-    max_points = data.get('max_points', 30)
+    current_spent = data.get("spent_points", 0)
+    max_points = data.get("max_points", 30)
 
     # Calculate new total if we set this aspect
     new_spent = current_spent + value
@@ -209,13 +206,13 @@ async def process_aspect(message: Message, state: FSMContext, aspect: str, next_
             f"📊 Потрачено: {current_spent} | Доступно: {max_points} | Осталось: {max_points - current_spent}\n"
             f"Вы пытаетесь потратить {value} очков, но у вас осталось только {max_points - current_spent}.\n\n"
             f"Введите значение от 0 до {max_points - current_spent}:",
-            parse_mode="Markdown"
+            parse_mode="Markdown",
         )
         return
 
     # Store aspect value and update spent points
     data[aspect] = value
-    data['spent_points'] = new_spent
+    data["spent_points"] = new_spent
     await state.update_data(**data)
 
     # Get next aspect or finish
@@ -386,10 +383,16 @@ async def process_population(message: Message, state: FSMContext) -> None:
                 try:
                     # Calculate total points spent
                     total_points = (
-                        data['economy'] + data['military'] + data['foreign_policy'] +
-                        data['territory'] + data['technology'] + data['religion_culture'] +
-                        data['governance_law'] + data['construction_infrastructure'] +
-                        data['social_relations'] + data['intelligence']
+                        data["economy"]
+                        + data["military"]
+                        + data["foreign_policy"]
+                        + data["territory"]
+                        + data["technology"]
+                        + data["religion_culture"]
+                        + data["governance_law"]
+                        + data["construction_infrastructure"]
+                        + data["social_relations"]
+                        + data["intelligence"]
                     )
 
                     # Format registration message for admin

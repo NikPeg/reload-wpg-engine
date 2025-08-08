@@ -30,7 +30,7 @@ async def test_point_system():
             setting="Test",
             max_players=5,
             years_per_day=1,
-            max_points=25
+            max_points=25,
         )
 
         print(f"✅ Game created: {game.name} (max_points: {game.max_points})")
@@ -54,7 +54,7 @@ async def test_point_system():
                 "construction_infrastructure": 2,
                 "social_relations": 3,
                 "intelligence": 2,
-            }
+            },
         )
 
         # Calculate total points
@@ -91,7 +91,7 @@ async def test_point_system():
                 "construction_infrastructure": 1,
                 "social_relations": 1,
                 "intelligence": 4,
-            }
+            },
         )
 
         aspects2 = country2.get_aspects_values_only()

@@ -17,8 +17,11 @@ class Message(Base):
 
     content: Mapped[str] = mapped_column(Text, nullable=False)
 
-    # Telegram message ID for reply functionality
+    # Telegram message ID for reply functionality (original player message)
     telegram_message_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+
+    # Admin's telegram message ID (when message is forwarded to admin)
+    admin_telegram_message_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
 
     # Foreign keys
     player_id: Mapped[int] = mapped_column(ForeignKey("players.id"), nullable=False)
