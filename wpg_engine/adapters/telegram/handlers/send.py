@@ -71,12 +71,23 @@ async def send_command(message: Message, state: FSMContext) -> None:
     if len(args) > 1:
         target_country_name = args[1].strip()
         
-        # Find target country (case-insensitive search)
+        # Find target country (case-insensitive search by name and synonyms)
         target_player = None
         for player in all_players:
-            if player.country and player.country.name.lower() == target_country_name.lower():
-                target_player = player
-                break
+            if player.country:
+                # Check official name
+                if player.country.name.lower() == target_country_name.lower():
+                    target_player = player
+                    break
+                
+                # Check synonyms
+                if player.country.synonyms:
+                    for synonym in player.country.synonyms:
+                        if synonym.lower() == target_country_name.lower():
+                            target_player = player
+                            break
+                    if target_player:
+                        break
 
         if not target_player:
             countries_list = "\n".join([f"• {country}" for country in sorted(available_countries)])

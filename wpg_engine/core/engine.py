@@ -169,6 +169,17 @@ class GameEngine:
         await self.db.refresh(country)
         return country
 
+    async def update_country_synonyms(self, country_id: int, synonyms: list[str]) -> Country | None:
+        """Update country synonyms"""
+        country = await self.get_country(country_id)
+        if not country:
+            return None
+
+        country.synonyms = synonyms
+        await self.db.commit()
+        await self.db.refresh(country)
+        return country
+
     # Player management
     async def create_player(
         self,

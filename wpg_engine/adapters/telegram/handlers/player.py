@@ -82,18 +82,24 @@ async def stats_command(message: Message) -> None:
         aspects_text += f"   {rating_bar}\n"
         aspects_text += f"   _{description}_\n\n"
 
-    await message.answer(
-        f"🏛️ *Информация о вашей стране*\n\n"
-        f"*Название:* {country.name}\n"
-        f"*Столица:* {country.capital or 'Не указана'}\n"
-        f"*Население:* {country.population:,} чел.\n\n"
-        f"*Описание:*\n_{country.description}_\n\n"
-        f"*Аспекты развития:*\n\n{aspects_text}"
-        f"*Игра:* {player.game.name}\n"
-        f"*Сеттинг:* {player.game.setting}\n"
-        f"*Темп:* {player.game.years_per_day} лет/день",
-        parse_mode="Markdown",
-    )
+    # Build country info message
+    country_info = f"🏛️ *Информация о вашей стране*\n\n"
+    country_info += f"*Название:* {country.name}\n"
+    
+    # Show synonyms if they exist
+    if country.synonyms:
+        synonyms_text = ", ".join(country.synonyms)
+        country_info += f"*Синонимы:* {synonyms_text}\n"
+    
+    country_info += f"*Столица:* {country.capital or 'Не указана'}\n"
+    country_info += f"*Население:* {country.population:,} чел.\n\n"
+    country_info += f"*Описание:*\n_{country.description}_\n\n"
+    country_info += f"*Аспекты развития:*\n\n{aspects_text}"
+    country_info += f"*Игра:* {player.game.name}\n"
+    country_info += f"*Сеттинг:* {player.game.setting}\n"
+    country_info += f"*Темп:* {player.game.years_per_day} лет/день"
+
+    await message.answer(country_info, parse_mode="Markdown")
 
 
 # Removed post_command and process_post_content functions
@@ -165,6 +171,12 @@ async def world_command(message: Message) -> None:
             continue  # Skip own country for regular players, but show for admins
 
         country_info = f"🏛️ *{country.name}*\n"
+        
+        # Show synonyms if they exist
+        if country.synonyms:
+            synonyms_text = ", ".join(country.synonyms)
+            country_info += f"*Синонимы:* {synonyms_text}\n"
+        
         country_info += f"*Столица:* {country.capital or 'Неизвестна'}\n"
 
         if country.population:

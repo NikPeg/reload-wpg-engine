@@ -143,6 +143,40 @@ async def process_country_name(message: Message, state: FSMContext) -> None:
         await message.answer("❌ Название страны должно быть от 2 до 100 символов.")
         return
 
+    # Check if country name conflicts with existing countries or their synonyms
+    data = await state.get_data()
+    game_id = data["game_id"]
+    
+    async for db in get_db():
+        game_engine = GameEngine(db)
+        
+        # Get all countries in the game
+        result = await game_engine.db.execute(
+            select(Country).where(Country.game_id == game_id)
+        )
+        existing_countries = result.scalars().all()
+        
+        # Check for conflicts
+        for country in existing_countries:
+            # Check official name
+            if country.name.lower() == country_name.lower():
+                await message.answer(
+                    f"❌ Страна с названием '{country_name}' уже существует.\n"
+                    f"Выберите другое название."
+                )
+                return
+            
+            # Check synonyms
+            if country.synonyms:
+                for synonym in country.synonyms:
+                    if synonym.lower() == country_name.lower():
+                        await message.answer(
+                            f"❌ Название '{country_name}' уже используется как синоним страны '{country.name}'.\n"
+                            f"Выберите другое название."
+                        )
+                        return
+        break
+
     await state.update_data(country_name=country_name)
     await message.answer(
         f"✅ Название страны: *{country_name}*\n\n"

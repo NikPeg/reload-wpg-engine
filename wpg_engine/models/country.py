@@ -2,7 +2,7 @@
 Country model with 9 aspects
 """
 
-from sqlalchemy import ForeignKey, Integer, String, Text
+from sqlalchemy import ForeignKey, Integer, String, Text, JSON
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from wpg_engine.models.base import Base
@@ -53,6 +53,9 @@ class Country(Base):
     # Additional country data
     capital: Mapped[str | None] = mapped_column(String(255), nullable=True)
     population: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    
+    # Synonyms for country name (list of strings, editable by admin only)
+    synonyms: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
 
     # Public visibility flags for each aspect
     economy_public: Mapped[bool] = mapped_column(default=True)

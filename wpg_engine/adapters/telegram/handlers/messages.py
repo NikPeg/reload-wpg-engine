@@ -254,6 +254,55 @@ async def handle_country_edit(
                 error_messages.append("❌ Некорректное значение населения")
             continue
 
+        elif line.lower().startswith("синонимы "):
+            synonyms_text = line[9:].strip()
+            if synonyms_text.lower() == "очистить":
+                # Clear all synonyms
+                await game_engine.update_country_synonyms(country_id, [])
+                success_messages.append("✅ Синонимы очищены")
+            else:
+                # Parse synonyms (comma-separated)
+                new_synonyms = [s.strip() for s in synonyms_text.split(",") if s.strip()]
+                if new_synonyms:
+                    # Check for conflicts with existing countries and their synonyms
+                    conflict_found = False
+                    async for db in get_db():
+                        from sqlalchemy import select
+                        from wpg_engine.models import Country
+                        
+                        result = await db.execute(
+                            select(Country).where(Country.game_id == country.game_id).where(Country.id != country_id)
+                        )
+                        other_countries = result.scalars().all()
+                        
+                        for synonym in new_synonyms:
+                            for other_country in other_countries:
+                                # Check against official names
+                                if other_country.name.lower() == synonym.lower():
+                                    error_messages.append(f"❌ Синоним '{synonym}' конфликтует с названием страны '{other_country.name}'")
+                                    conflict_found = True
+                                    break
+                                
+                                # Check against other synonyms
+                                if other_country.synonyms:
+                                    for other_synonym in other_country.synonyms:
+                                        if other_synonym.lower() == synonym.lower():
+                                            error_messages.append(f"❌ Синоним '{synonym}' уже используется страной '{other_country.name}'")
+                                            conflict_found = True
+                                            break
+                                if conflict_found:
+                                    break
+                            if conflict_found:
+                                break
+                        break
+                    
+                    if not conflict_found:
+                        await game_engine.update_country_synonyms(country_id, new_synonyms)
+                        success_messages.append(f"✅ Синонимы обновлены: {', '.join(new_synonyms)}")
+                else:
+                    error_messages.append("❌ Не указаны синонимы")
+            continue
+
         # Parse aspect updates
         found_aspect = None
         for key, aspect in aspect_mappings.items():
@@ -306,6 +355,8 @@ async def handle_country_edit(
     response += "• `описание Новое описание`\n"
     response += "• `столица Новая столица`\n"
     response += "• `население 1000000`\n"
+    response += "• `синонимы ХФ, Хуан` - установить синонимы\n"
+    response += "• `синонимы очистить` - удалить все синонимы\n"
     response += "• `экономика 8` - изменить значение\n"
     response += "• `экономика описание Новое описание` - изменить описание\n"
     response += "• Аналогично для других аспектов: военное, внешняя, территория, технологии, религия, управление, строительство, общество, разведка"
