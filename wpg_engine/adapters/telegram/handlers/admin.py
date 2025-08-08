@@ -63,8 +63,8 @@ async def admin_command(message: Message) -> None:
         f"*Макс население:* {player.game.max_population:,}\n\n"
         f"*Доступные команды:*\n"
         f"• `/game_stats` - статистика игры\n"
-        f"• `/restart_game` - перезапустить игру (полная очистка)\n"
-        f"• `/update_game` - изменить параметры игры",
+        f"• `/update_game` - изменить параметры игры\n"
+        f"• `/restart_game` - перезапустить игру (полная очистка)",
         parse_mode="Markdown",
     )
 
