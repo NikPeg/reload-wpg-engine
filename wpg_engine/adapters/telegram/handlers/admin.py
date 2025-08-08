@@ -22,55 +22,7 @@ class AdminStates(StatesGroup):
     waiting_for_event_message = State()
 
 
-async def admin_command(message: Message) -> None:
-    """Handle /admin command - admin panel"""
-    user_id = message.from_user.id
-
-    async for db in get_db():
-        game_engine = GameEngine(db)
-
-        # Check if user is admin
-        if not await is_admin(user_id, game_engine.db):
-            await message.answer("❌ У вас нет прав администратора.")
-            return
-
-        # Get player info for game details with eager loading - take the first admin player
-        result = await game_engine.db.execute(
-            select(Player)
-            .options(selectinload(Player.game))
-            .where(Player.telegram_id == user_id)
-            .where(Player.role == PlayerRole.ADMIN)
-            .limit(1)
-        )
-        player = result.scalar_one_or_none()
-        break
-
-    if not player:
-        await message.answer(
-            "⚙️ *Панель администратора*\n\n"
-            "❌ Вы не зарегистрированы в игре.\n"
-            "Используйте /register для регистрации.",
-            parse_mode="Markdown",
-        )
-        return
-
-    await message.answer(
-        f"⚙️ *Панель администратора*\n\n"
-        f"*Игра:* {player.game.name}\n"
-        f"*Сеттинг:* {player.game.setting}\n"
-        f"*Статус:* {player.game.status}\n"
-        f"*Макс игроков:* {player.game.max_players}\n"
-        f"*Лет за сутки:* {player.game.years_per_day}\n"
-        f"*Макс очков:* {player.game.max_points}\n"
-        f"*Макс население:* {player.game.max_population:,}\n\n"
-        f"*Доступные команды:*\n"
-        f"• `/game_stats` - статистика игры\n"
-        f"• `/update_game` - изменить параметры игры\n"
-        f"• `/restart_game` - перезапустить игру (полная очистка)\n"
-        f"• `/event` - отправить сообщение всем игрокам",
-        parse_mode="Markdown",
-    )
-
+# Removed admin_command - functionality merged into /start command
 
 # Removed pending_command - registrations are now sent directly to admin
 
@@ -634,7 +586,6 @@ async def process_event_message(message: Message, state: FSMContext) -> None:
 
 def register_admin_handlers(dp: Dispatcher) -> None:
     """Register admin handlers"""
-    dp.message.register(admin_command, Command("admin"))
     dp.message.register(game_stats_command, Command("game_stats"))
     dp.message.register(restart_game_command, Command("restart_game"))
     dp.message.register(update_game_command, Command("update_game"))
