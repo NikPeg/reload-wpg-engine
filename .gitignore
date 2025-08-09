@@ -190,3 +190,4 @@ backups/
 exact_secrets_to_add.md
 *secrets*.md
 key.json
+setup_ssh_for_github_actions.md

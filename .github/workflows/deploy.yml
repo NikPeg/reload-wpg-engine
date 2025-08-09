@@ -143,13 +143,19 @@ jobs:
         # Make script executable
         chmod +x deploy.sh
         
+        # Setup SSH
+        mkdir -p ~/.ssh
+        echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
+        chmod 600 ~/.ssh/deploy_key
+        ssh-keyscan -H ${{ secrets.YC_INSTANCE_IP }} >> ~/.ssh/known_hosts
+        
         # Copy and execute deployment script on the server
-        ssh -o StrictHostKeyChecking=no ${{ secrets.YC_INSTANCE_USER }}@${{ secrets.YC_INSTANCE_IP }} \
+        ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no ${{ secrets.YC_INSTANCE_USER }}@${{ secrets.YC_INSTANCE_IP }} \
           "mkdir -p /opt/wpg-engine/data /opt/wpg-engine/logs"
         
-        scp -o StrictHostKeyChecking=no deploy.sh ${{ secrets.YC_INSTANCE_USER }}@${{ secrets.YC_INSTANCE_IP }}:/tmp/
+        scp -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no deploy.sh ${{ secrets.YC_INSTANCE_USER }}@${{ secrets.YC_INSTANCE_IP }}:/tmp/
         
-        ssh -o StrictHostKeyChecking=no ${{ secrets.YC_INSTANCE_USER }}@${{ secrets.YC_INSTANCE_IP }} \
+        ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no ${{ secrets.YC_INSTANCE_USER }}@${{ secrets.YC_INSTANCE_IP }} \
           "chmod +x /tmp/deploy.sh && sudo /tmp/deploy.sh && rm /tmp/deploy.sh"
     
     - name: Verify deployment
