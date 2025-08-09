@@ -32,7 +32,7 @@ services:
     networks:
       - wpg-network
     healthcheck:
-      test: ["CMD", "python", "-c", "import asyncio; from wpg_engine.models import get_db; async def check(): async for db in get_db(): break; asyncio.run(check())"]
+      test: ["CMD", "python", "-c", "import asyncio; from wpg_engine.models import get_db; asyncio.run(get_db().__anext__())"]
       interval: 30s
       timeout: 10s
       retries: 3
