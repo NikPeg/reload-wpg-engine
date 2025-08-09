@@ -125,9 +125,9 @@ jobs:
         docker run -d \
           --name $CONTAINER_NAME \
           --restart unless-stopped \
-          -e TG_TOKEN="${{ secrets.TG_TOKEN }}" \
-          -e TG_ADMIN_ID="${{ secrets.TG_ADMIN_ID }}" \
-          -e AI_OPENROUTER_API_KEY="${{ secrets.AI_OPENROUTER_API_KEY }}" \
+          -e TG_TOKEN="${{ secrets.TG_TOKEN || '' }}" \
+          -e TG_ADMIN_ID="${{ secrets.TG_ADMIN_ID || '' }}" \
+          -e AI_OPENROUTER_API_KEY="${{ secrets.AI_OPENROUTER_API_KEY || '' }}" \
           -e DB_URL="sqlite:///./data/wpg_engine.db" \
           -e LOG_LEVEL="INFO" \
           -v /opt/wpg-engine/data:/app/data \
@@ -146,7 +146,6 @@ jobs:
         # Copy and execute deployment script on the server
         yc compute ssh \
           --name ${{ secrets.YC_INSTANCE_NAME }} \
-          --ssh-key ~/.ssh/id_rsa \
           --command "mkdir -p /opt/wpg-engine/data /opt/wpg-engine/logs"
         
         scp -o StrictHostKeyChecking=no deploy.sh ${{ secrets.YC_INSTANCE_USER }}@${{ secrets.YC_INSTANCE_IP }}:/tmp/
