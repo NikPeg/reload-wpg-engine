@@ -1,5 +1,5 @@
-# Multi-stage build for optimized production image
-FROM python:3.11-slim as builder
+# Single-stage build for better compatibility
+FROM python:3.11-slim
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1 \
@@ -10,27 +10,6 @@ ENV PYTHONUNBUFFERED=1 \
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
     build-essential \
-    && rm -rf /var/lib/apt/lists/*
-
-# Create and activate virtual environment
-RUN python -m venv /opt/venv
-ENV PATH="/opt/venv/bin:$PATH"
-
-# Copy requirements and install Python dependencies
-COPY requirements.txt .
-RUN pip install --upgrade pip && \
-    pip install -r requirements.txt
-
-# Production stage
-FROM python:3.11-slim as production
-
-# Set environment variables
-ENV PYTHONUNBUFFERED=1 \
-    PYTHONDONTWRITEBYTECODE=1 \
-    PATH="/opt/venv/bin:$PATH"
-
-# Install runtime dependencies
-RUN apt-get update && apt-get install -y \
     sqlite3 \
     && rm -rf /var/lib/apt/lists/* \
     && apt-get clean
@@ -38,12 +17,14 @@ RUN apt-get update && apt-get install -y \
 # Create non-root user for security
 RUN groupadd -r wpgbot && useradd -r -g wpgbot wpgbot
 
-# Copy virtual environment from builder stage
-COPY --from=builder /opt/venv /opt/venv
-
 # Create app directory and set ownership
 WORKDIR /app
 RUN chown -R wpgbot:wpgbot /app
+
+# Copy requirements and install Python dependencies
+COPY requirements.txt .
+RUN pip install --upgrade pip && \
+    pip install -r requirements.txt
 
 # Copy application code
 COPY --chown=wpgbot:wpgbot . .

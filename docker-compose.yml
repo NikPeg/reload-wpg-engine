@@ -5,7 +5,6 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-      target: production
     container_name: wpg-engine-bot
     restart: unless-stopped
     environment:
