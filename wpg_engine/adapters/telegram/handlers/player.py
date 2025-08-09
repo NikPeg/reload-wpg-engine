@@ -8,6 +8,7 @@ from aiogram.types import Message
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
+from wpg_engine.adapters.telegram.utils import escape_html
 from wpg_engine.core.engine import GameEngine
 from wpg_engine.models import Player, get_db
 
@@ -78,28 +79,28 @@ async def stats_command(message: Message) -> None:
         # Add rating bar
         rating_bar = "█" * value + "░" * (10 - value)
 
-        aspects_text += f"{emoji} *{name}*: {value}/10\n"
+        aspects_text += f"{emoji} <b>{name}</b>: {value}/10\n"
         aspects_text += f"   {rating_bar}\n"
-        aspects_text += f"   _{description}_\n\n"
+        aspects_text += f"   <i>{escape_html(description)}</i>\n\n"
 
     # Build country info message
-    country_info = "🏛️ *Информация о вашей стране*\n\n"
-    country_info += f"*Название:* {country.name}\n"
+    country_info = "🏛️ <b>Информация о вашей стране</b>\n\n"
+    country_info += f"<b>Название:</b> {escape_html(country.name)}\n"
 
     # Show synonyms if they exist
     if country.synonyms:
-        synonyms_text = ", ".join(country.synonyms)
-        country_info += f"*Синонимы:* {synonyms_text}\n"
+        synonyms_text = ", ".join([escape_html(syn) for syn in country.synonyms])
+        country_info += f"<b>Синонимы:</b> {synonyms_text}\n"
 
-    country_info += f"*Столица:* {country.capital or 'Не указана'}\n"
-    country_info += f"*Население:* {country.population:,} чел.\n\n"
-    country_info += f"*Описание:*\n_{country.description}_\n\n"
-    country_info += f"*Аспекты развития:*\n\n{aspects_text}"
-    country_info += f"*Игра:* {player.game.name}\n"
-    country_info += f"*Сеттинг:* {player.game.setting}\n"
-    country_info += f"*Темп:* {player.game.years_per_day} лет/день"
+    country_info += f"<b>Столица:</b> {escape_html(country.capital or 'Не указана')}\n"
+    country_info += f"<b>Население:</b> {country.population:,} чел.\n\n"
+    country_info += f"<b>Описание:</b>\n<i>{escape_html(country.description)}</i>\n\n"
+    country_info += f"<b>Аспекты развития:</b>\n\n{aspects_text}"
+    country_info += f"<b>Игра:</b> {escape_html(player.game.name)}\n"
+    country_info += f"<b>Сеттинг:</b> {escape_html(player.game.setting)}\n"
+    country_info += f"<b>Темп:</b> {player.game.years_per_day} лет/день"
 
-    await message.answer(country_info, parse_mode="Markdown")
+    await message.answer(country_info, parse_mode="HTML")
 
 
 # Removed post_command and process_post_content functions
@@ -136,7 +137,7 @@ async def world_command(message: Message) -> None:
         break
 
     # Send header message
-    await message.answer("🌍 *Информация о странах мира*", parse_mode="Markdown")
+    await message.answer("🌍 <b>Информация о странах мира</b>", parse_mode="HTML")
 
     # Aspect emojis and names
     aspect_emojis = {
@@ -170,27 +171,27 @@ async def world_command(message: Message) -> None:
         if not user_is_admin and country.id == player.country_id:
             continue  # Skip own country for regular players, but show for admins
 
-        country_info = f"🏛️ *{country.name}*\n"
+        country_info = f"🏛️ <b>{escape_html(country.name)}</b>\n"
 
         # Show synonyms if they exist
         if country.synonyms:
-            synonyms_text = ", ".join(country.synonyms)
-            country_info += f"*Синонимы:* {synonyms_text}\n"
+            synonyms_text = ", ".join([escape_html(syn) for syn in country.synonyms])
+            country_info += f"<b>Синонимы:</b> {synonyms_text}\n"
 
-        country_info += f"*Столица:* {country.capital or 'Неизвестна'}\n"
+        country_info += f"<b>Столица:</b> {escape_html(country.capital or 'Неизвестна')}\n"
 
         if country.population:
-            country_info += f"*Население:* {country.population:,} чел.\n"
+            country_info += f"<b>Население:</b> {country.population:,} чел.\n"
 
         if country.description and user_is_admin:
-            country_info += f"*Описание:* _{country.description}_\n"
+            country_info += f"<b>Описание:</b> <i>{escape_html(country.description)}</i>\n"
 
         country_info += "\n"
 
         if user_is_admin:
             # Admin sees all aspects with descriptions
             aspects = country.get_aspects()
-            country_info += "*Все аспекты развития:*\n\n"
+            country_info += "<b>Все аспекты развития:</b>\n\n"
 
             for aspect, data in aspects.items():
                 emoji = aspect_emojis.get(aspect, "📊")
@@ -201,18 +202,18 @@ async def world_command(message: Message) -> None:
                 # Add rating bar
                 rating_bar = "█" * value + "░" * (10 - value)
 
-                country_info += f"{emoji} *{name}*: {value}/10\n"
+                country_info += f"{emoji} <b>{name}</b>: {value}/10\n"
                 country_info += f"   {rating_bar}\n"
-                country_info += f"   _{description}_\n\n"
+                country_info += f"   <i>{escape_html(description)}</i>\n\n"
 
             # Add hidden marker for admin editing (invisible to user)
-            country_info += f"\n`[EDIT_COUNTRY:{country.id}]`"
+            country_info += f"\n<code>[EDIT_COUNTRY:{country.id}]</code>"
         else:
             # Regular players see only public aspects (values only)
             public_aspects = country.get_public_aspects()
 
             if public_aspects:
-                country_info += "*Известная информация:*\n"
+                country_info += "<b>Известная информация:</b>\n"
 
                 for aspect, data in public_aspects.items():
                     emoji = aspect_emojis.get(aspect, "📊")
@@ -220,10 +221,10 @@ async def world_command(message: Message) -> None:
                     value = data["value"]
                     country_info += f"  {emoji} {name}: {value}/10\n"
             else:
-                country_info += "_Публичная информация недоступна_\n"
+                country_info += "<i>Публичная информация недоступна</i>\n"
 
         # Send country info as separate message
-        await message.answer(country_info, parse_mode="Markdown")
+        await message.answer(country_info, parse_mode="HTML")
 
 
 def register_player_handlers(dp: Dispatcher) -> None:

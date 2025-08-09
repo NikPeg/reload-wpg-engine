@@ -8,6 +8,7 @@ from aiogram.types import Message, ReplyKeyboardRemove
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
+from wpg_engine.adapters.telegram.utils import escape_html, escape_markdown
 from wpg_engine.core.engine import GameEngine
 from wpg_engine.models import Player, PlayerRole, get_db
 
@@ -46,9 +47,9 @@ async def start_command(message: Message) -> None:
             # Show admin panel (merged from /admin command)
             await message.answer(
                 f"⚙️ *Панель администратора*\n\n"
-                f"*Игра:* {player.game.name}\n"
-                f"*Сеттинг:* {player.game.setting}\n"
-                f"*Статус:* {player.game.status}\n"
+                f"*Игра:* {escape_markdown(player.game.name)}\n"
+                f"*Сеттинг:* {escape_markdown(player.game.setting)}\n"
+                f"*Статус:* {escape_markdown(player.game.status)}\n"
                 f"*Макс игроков:* {player.game.max_players}\n"
                 f"*Лет за сутки:* {player.game.years_per_day}\n"
                 f"*Макс очков:* {player.game.max_points}\n"
@@ -102,7 +103,7 @@ async def start_command(message: Message) -> None:
                 f"🌍 /world - информация о других странах\n"
                 f"📨 /send - отправить сообщение другой стране\n"
                 f"🔄 /register - перерегистрироваться (создать новую страну)\n\n"
-                f"Напиши свой приказ, задай вопрос или начни проект! Например: <code>{random_example}</code>",
+                f"Напиши свой приказ, задай вопрос или начни проект! Например: <code>{escape_html(random_example)}</code>",
                 parse_mode="HTML",
                 reply_markup=ReplyKeyboardRemove(),
             )

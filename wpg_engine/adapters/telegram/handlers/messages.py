@@ -7,6 +7,7 @@ from aiogram.types import Message
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
+from wpg_engine.adapters.telegram.utils import escape_html, escape_markdown
 from wpg_engine.core.admin_utils import is_admin
 from wpg_engine.core.engine import GameEngine
 from wpg_engine.models import Player, PlayerRole, get_db
@@ -78,9 +79,9 @@ async def handle_player_message(message: Message, player: Player, game_engine: G
             country_name = player.country.name if player.country else "без страны"
             admin_message = (
                 f"💬 <b>Новое сообщение от игрока</b>\n\n"
-                f"<b>От:</b> {player.display_name} (ID: {player.telegram_id})\n"
-                f"<b>Страна:</b> {country_name}\n\n"
-                f"<b>Сообщение:</b>\n{content}"
+                f"<b>От:</b> {escape_html(player.display_name)} (ID: {player.telegram_id})\n"
+                f"<b>Страна:</b> {escape_html(country_name)}\n\n"
+                f"<b>Сообщение:</b>\n{escape_html(content)}"
             )
 
             # Send to admin first
@@ -154,7 +155,7 @@ async def handle_admin_reply(message: Message, admin: Player, game_engine: GameE
         # Send the admin's response as a reply to the original player's message
         await bot.send_message(
             original_message.player.telegram_id,
-            content,
+            escape_html(content),
             reply_to_message_id=original_message.telegram_message_id,
             parse_mode="HTML",
         )
@@ -228,7 +229,7 @@ async def handle_country_edit(
             new_name = line[9:].strip()
             if new_name:
                 await game_engine.update_country_basic_info(country_id, name=new_name)
-                success_messages.append(f"✅ Название изменено на: {new_name}")
+                success_messages.append(f"✅ Название изменено на: {escape_html(new_name)}")
             else:
                 error_messages.append("❌ Название не может быть пустым")
             continue
@@ -242,7 +243,7 @@ async def handle_country_edit(
         elif line.lower().startswith("столица "):
             new_capital = line[8:].strip()
             await game_engine.update_country_basic_info(country_id, capital=new_capital)
-            success_messages.append(f"✅ Столица изменена на: {new_capital}")
+            success_messages.append(f"✅ Столица изменена на: {escape_html(new_capital)}")
             continue
 
         elif line.lower().startswith("население "):
@@ -299,7 +300,8 @@ async def handle_country_edit(
 
                     if not conflict_found:
                         await game_engine.update_country_synonyms(country_id, new_synonyms)
-                        success_messages.append(f"✅ Синонимы обновлены: {', '.join(new_synonyms)}")
+                        escaped_synonyms = [escape_html(syn) for syn in new_synonyms]
+                        success_messages.append(f"✅ Синонимы обновлены: {', '.join(escaped_synonyms)}")
                 else:
                     error_messages.append("❌ Не указаны синонимы")
             continue
@@ -340,7 +342,7 @@ async def handle_country_edit(
                 error_messages.append(f"❌ Некорректное значение для {key}: {remaining}")
 
     # Send response
-    response = f"🏛️ *Редактирование страны {country.name}*\n\n"
+    response = f"🏛️ *Редактирование страны {escape_markdown(country.name)}*\n\n"
 
     if success_messages:
         response += "*Успешно обновлено:*\n" + "\n".join(success_messages) + "\n\n"
@@ -402,15 +404,15 @@ async def handle_registration_decision(message: Message, admin: Player, game_eng
                 player_telegram_id,
                 f"🎉 <b>Поздравляем!</b>\n\n"
                 f"Ваша регистрация в игре одобрена!\n"
-                f"Вы управляете страной <b>{player.country.name}</b>.\n\n"
+                f"Вы управляете страной <b>{escape_html(player.country.name)}</b>.\n\n"
                 f"Используйте /start для просмотра доступных команд.",
                 parse_mode="HTML",
             )
 
             await message.answer(
                 f"✅ <b>Регистрация одобрена!</b>\n\n"
-                f"Игрок <b>{player.display_name}</b> теперь может участвовать в игре "
-                f"за страну <b>{player.country.name}</b>.",
+                f"Игрок <b>{escape_html(player.display_name)}</b> теперь может участвовать в игре "
+                f"за страну <b>{escape_html(player.country.name)}</b>.",
                 parse_mode="HTML",
             )
 
@@ -438,7 +440,7 @@ async def handle_registration_decision(message: Message, admin: Player, game_eng
             )
 
             if rejection_reason:
-                rejection_message += f"\n\n<b>Причина отклонения:</b>\n{rejection_reason}"
+                rejection_message += f"\n\n<b>Причина отклонения:</b>\n{escape_html(rejection_reason)}"
 
             rejection_message += "\n\nВы можете попробовать зарегистрироваться снова с помощью команды /register."
 
@@ -451,11 +453,11 @@ async def handle_registration_decision(message: Message, admin: Player, game_eng
             # Prepare confirmation message for admin
             admin_message = (
                 f"❌ <b>Регистрация отклонена</b>\n\n"
-                f"Заявка игрока <b>{player_name}</b> ({country_name}) отклонена и удалена."
+                f"Заявка игрока <b>{escape_html(player_name)}</b> ({escape_html(country_name)}) отклонена и удалена."
             )
 
             if rejection_reason:
-                admin_message += f"\n\n<b>Указанная причина:</b>\n{rejection_reason}"
+                admin_message += f"\n\n<b>Указанная причина:</b>\n{escape_html(rejection_reason)}"
 
             await message.answer(admin_message, parse_mode="HTML")
 

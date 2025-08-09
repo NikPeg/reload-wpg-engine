@@ -10,6 +10,7 @@ from aiogram.types import Message
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
+from wpg_engine.adapters.telegram.utils import escape_html
 from wpg_engine.core.admin_utils import determine_player_role
 from wpg_engine.core.engine import GameEngine
 from wpg_engine.models import Country, Game, GameStatus, Player, get_db
@@ -102,19 +103,19 @@ async def register_command(message: Message, state: FSMContext) -> None:
 
         country_info = ""
         if existing_player.country:
-            country_info = f"Ваша текущая страна: *{existing_player.country.name}*\n"
+            country_info = f"Ваша текущая страна: <b>{escape_html(existing_player.country.name)}</b>\n"
 
         await message.answer(
-            f"⚠️ *ВНИМАНИЕ! ОПАСНАЯ ОПЕРАЦИЯ!*\n\n"
+            f"⚠️ <b>ВНИМАНИЕ! ОПАСНАЯ ОПЕРАЦИЯ!</b>\n\n"
             f"Вы уже зарегистрированы в игре.\n"
             f"{country_info}\n"
-            f"Регистрация новой страны *ПОЛНОСТЬЮ УДАЛИТ* всю информацию о текущей регистрации:\n\n"
+            f"Регистрация новой страны <b>ПОЛНОСТЬЮ УДАЛИТ</b> всю информацию о текущей регистрации:\n\n"
             f"• Все данные о стране будут потеряны\n"
             f"• История сообщений останется, но связь со страной пропадет\n"
-            f"• Это действие *НЕОБРАТИМО*\n\n"
-            f"Вы *ДЕЙСТВИТЕЛЬНО* хотите зарегистрировать новую страну?\n\n"
-            f"Напишите *ПОДТВЕРЖДАЮ* (заглавными буквами), чтобы продолжить, или любое другое сообщение для отмены.",
-            parse_mode="Markdown",
+            f"• Это действие <b>НЕОБРАТИМО</b>\n\n"
+            f"Вы <b>ДЕЙСТВИТЕЛЬНО</b> хотите зарегистрировать новую страну?\n\n"
+            f"Напишите <b>ПОДТВЕРЖДАЮ</b> (заглавными буквами), чтобы продолжить, или любое другое сообщение для отмены.",
+            parse_mode="HTML",
         )
         await state.set_state(RegistrationStates.waiting_for_reregistration_confirmation)
         return
@@ -125,14 +126,14 @@ async def register_command(message: Message, state: FSMContext) -> None:
     )
 
     await message.answer(
-        f"🎮 *Регистрация в игре '{game.name}'*\n\n"
+        f"🎮 <b>Регистрация в игре '{escape_html(game.name)}'</b>\n\n"
         f"Для участия в игре вам необходимо создать свою страну.\n"
-        f"Вы будете управлять страной по *10 аспектам* развития.\n\n"
-        f"📊 *У вас есть {game.max_points} очков* для распределения между аспектами.\n"
+        f"Вы будете управлять страной по <b>10 аспектам</b> развития.\n\n"
+        f"📊 <b>У вас есть {game.max_points} очков</b> для распределения между аспектами.\n"
         f"Каждый аспект можно развить от 0 до 10 уровня.\n\n"
-        f"*Начнем с основной информации:*\n\n"
+        f"<b>Начнем с основной информации:</b>\n\n"
         f"Как будет называться ваша страна?",
-        parse_mode="Markdown",
+        parse_mode="HTML",
     )
     await state.set_state(RegistrationStates.waiting_for_country_name)
 
@@ -161,7 +162,8 @@ async def process_country_name(message: Message, state: FSMContext) -> None:
             # Check official name
             if country.name.lower() == country_name.lower():
                 await message.answer(
-                    f"❌ Страна с названием '{country_name}' уже существует.\n" f"Выберите другое название."
+                    f"❌ Страна с названием '{escape_html(country_name)}' уже существует.\n"
+                    f"Выберите другое название."
                 )
                 return
 
@@ -170,7 +172,7 @@ async def process_country_name(message: Message, state: FSMContext) -> None:
                 for synonym in country.synonyms:
                     if synonym.lower() == country_name.lower():
                         await message.answer(
-                            f"❌ Название '{country_name}' уже используется как синоним страны '{country.name}'.\n"
+                            f"❌ Название '{escape_html(country_name)}' уже используется как синоним страны '{escape_html(country.name)}'.\n"
                             f"Выберите другое название."
                         )
                         return
@@ -178,10 +180,10 @@ async def process_country_name(message: Message, state: FSMContext) -> None:
 
     await state.update_data(country_name=country_name)
     await message.answer(
-        f"✅ Название страны: *{country_name}*\n\n"
+        f"✅ Название страны: <b>{escape_html(country_name)}</b>\n\n"
         f"Теперь дайте краткое описание вашей страны "
         f"(история, особенности, культура):",
-        parse_mode="Markdown",
+        parse_mode="HTML",
     )
     await state.set_state(RegistrationStates.waiting_for_country_description)
 
@@ -341,10 +343,10 @@ async def process_capital(message: Message, state: FSMContext) -> None:
 
     await state.update_data(capital=capital)
     await message.answer(
-        f"✅ Столица: *{capital}*\n\n"
+        f"✅ Столица: <b>{escape_html(capital)}</b>\n\n"
         f"Какова примерная численность населения вашей страны? "
         f"(введите число, например: 5000000)",
-        parse_mode="Markdown",
+        parse_mode="HTML",
     )
     await state.set_state(RegistrationStates.waiting_for_population)
 
@@ -435,13 +437,13 @@ async def process_population(message: Message, state: FSMContext) -> None:
                     # Format registration message for admin
                     registration_message = (
                         f"📋 <b>Новая заявка на регистрацию</b>\n\n"
-                        f"<b>Игрок:</b> {message.from_user.full_name}\n"
-                        f"<b>Username:</b> @{message.from_user.username or 'не указан'}\n"
+                        f"<b>Игрок:</b> {escape_html(message.from_user.full_name or 'Не указано')}\n"
+                        f"<b>Username:</b> @{escape_html(message.from_user.username or 'не указан')}\n"
                         f"<b>Telegram ID:</b> <code>{data['user_id']}</code>\n\n"
-                        f"<b>Страна:</b> {data['country_name']}\n"
-                        f"<b>Столица:</b> {data['capital']}\n"
+                        f"<b>Страна:</b> {escape_html(data['country_name'])}\n"
+                        f"<b>Столица:</b> {escape_html(data['capital'])}\n"
                         f"<b>Население:</b> {population:,}\n\n"
-                        f"<b>Описание:</b>\n{data['country_description']}\n\n"
+                        f"<b>Описание:</b>\n{escape_html(data['country_description'])}\n\n"
                         f"📊 <b>Очки: {total_points}/{data['max_points']} (осталось: {data['max_points'] - total_points})</b>\n\n"
                         f"<b>Аспекты развития:</b>\n"
                         f"💰 Экономика: {data['economy']}/10\n"
@@ -482,11 +484,11 @@ async def process_population(message: Message, state: FSMContext) -> None:
         )
 
     await message.answer(
-        f"🎉 *Регистрация завершена!*\n\n"
-        f"*Ваша страна:* {data['country_name']}\n"
-        f"*Столица:* {data['capital']}\n"
-        f"*Население:* {population:,}\n\n"
-        f"*Аспекты развития:*\n"
+        f"🎉 <b>Регистрация завершена!</b>\n\n"
+        f"<b>Ваша страна:</b> {escape_html(data['country_name'])}\n"
+        f"<b>Столица:</b> {escape_html(data['capital'])}\n"
+        f"<b>Население:</b> {population:,}\n\n"
+        f"<b>Аспекты развития:</b>\n"
         f"💰 Экономика: {data['economy']}\n"
         f"⚔️ Военное дело: {data['military']}\n"
         f"🤝 Внешняя политика: {data['foreign_policy']}\n"
@@ -499,7 +501,7 @@ async def process_population(message: Message, state: FSMContext) -> None:
         f"🕵️ Разведка: {data['intelligence']}\n\n"
         f"{role_message}"
         f"Используйте /start для просмотра доступных команд.",
-        parse_mode="Markdown",
+        parse_mode="HTML",
     )
 
     await state.clear()
@@ -558,15 +560,15 @@ async def process_reregistration_confirmation(message: Message, state: FSMContex
     )
 
     await message.answer(
-        f"✅ *Предыдущая регистрация удалена.*\n\n"
-        f"🎮 *Регистрация в игре '{game.name}'*\n\n"
+        f"✅ <b>Предыдущая регистрация удалена.</b>\n\n"
+        f"🎮 <b>Регистрация в игре '{escape_html(game.name)}'</b>\n\n"
         f"Для участия в игре вам необходимо создать свою страну.\n"
         f"Вы будете управлять страной по 10 аспектам развития.\n\n"
-        f"📊 *У вас есть {game.max_points} очков* для распределения между аспектами.\n"
+        f"📊 <b>У вас есть {game.max_points} очков</b> для распределения между аспектами.\n"
         f"Каждый аспект можно развить от 0 до 10 уровня.\n\n"
-        f"*Начнем с основной информации:*\n\n"
+        f"<b>Начнем с основной информации:</b>\n\n"
         f"Как будет называться ваша страна?",
-        parse_mode="Markdown",
+        parse_mode="HTML",
     )
     await state.set_state(RegistrationStates.waiting_for_country_name)
 

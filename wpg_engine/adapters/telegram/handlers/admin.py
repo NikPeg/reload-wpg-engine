@@ -10,6 +10,7 @@ from aiogram.types import Message
 from sqlalchemy import select, text
 from sqlalchemy.orm import selectinload
 
+from wpg_engine.adapters.telegram.utils import escape_html, escape_markdown
 from wpg_engine.core.admin_utils import is_admin
 from wpg_engine.core.engine import GameEngine
 from wpg_engine.models import Player, PlayerRole, get_db
@@ -49,8 +50,8 @@ async def game_stats_command(message: Message) -> None:
 
         await message.answer(
             f"📊 *Статистика игры*\n\n"
-            f"*Название:* {stats['game_name']}\n"
-            f"*Статус:* {stats['status']}\n"
+            f"*Название:* {escape_markdown(stats['game_name'])}\n"
+            f"*Статус:* {escape_markdown(stats['status'])}\n"
             f"*Стран:* {stats['countries_count']}\n"
             f"*Игроков:* {stats['players_count']}\n"
             f"*Постов:* {stats['posts_count']}\n"
@@ -136,8 +137,8 @@ async def restart_game_command(message: Message, state: FSMContext) -> None:
         await message.answer(
             f"⚠️ *ВНИМАНИЕ! ОПАСНАЯ ОПЕРАЦИЯ!*\n\n"
             f"Вы собираетесь *ПОЛНОСТЬЮ ОЧИСТИТЬ* всю базу данных и создать новую игру:\n\n"
-            f"*Название:* {game_name}\n"
-            f"*Сеттинг:* {setting}\n"
+            f"*Название:* {escape_markdown(game_name)}\n"
+            f"*Сеттинг:* {escape_markdown(setting)}\n"
             f"*Лет за сутки:* {years_per_day}\n"
             f"*Макс очков:* {max_points}\n"
             f"*Макс население:* {max_population:,}\n\n"
@@ -236,13 +237,13 @@ async def process_restart_confirmation(message: Message, state: FSMContext) -> N
 
         await message.answer(
             f"✅ <b>Игра успешно перезапущена!</b>\n\n"
-            f"<b>Название:</b> {game_name}\n"
-            f"<b>Сеттинг:</b> {setting}\n"
+            f"<b>Название:</b> {escape_html(game_name)}\n"
+            f"<b>Сеттинг:</b> {escape_html(setting)}\n"
             f"<b>Лет за сутки:</b> {years_per_day}\n"
             f"<b>Макс очков для стран:</b> {max_points}\n"
             f"<b>Макс население стран:</b> {max_population:,}\n"
             f"<b>ID игры:</b> {game.id}\n\n"
-            f"Вы назначены администратором игры и получили страну '{admin_country.name}'.\n\n"
+            f"Вы назначены администратором игры и получили страну '{escape_html(admin_country.name)}'.\n\n"
             f"Теперь игроки могут регистрироваться в игре командой /register",
             parse_mode="HTML",
         )
@@ -372,8 +373,8 @@ async def update_game_command(message: Message) -> None:
             f"✅ <b>Настройки игры обновлены!</b>\n\n"
             f"<b>Обновленные параметры:</b>\n{changes_text}\n\n"
             f"<b>Текущие настройки игры:</b>\n"
-            f"• <b>Название:</b> {updated_game.name}\n"
-            f"• <b>Сеттинг:</b> {updated_game.setting}\n"
+            f"• <b>Название:</b> {escape_html(updated_game.name)}\n"
+            f"• <b>Сеттинг:</b> {escape_html(updated_game.setting)}\n"
             f"• <b>Макс игроков:</b> {updated_game.max_players}\n"
             f"• <b>Лет за сутки:</b> {updated_game.years_per_day}\n"
             f"• <b>Макс очков:</b> {updated_game.max_points}\n"
@@ -456,7 +457,7 @@ async def event_command(message: Message, state: FSMContext) -> None:
         if not target_player:
             countries_list = "\n".join([f"• {country}" for country in sorted(available_countries)])
             await message.answer(
-                f"❌ Страна '{target_country_name}' не найдена.\n\n"
+                f"❌ Страна '{escape_html(target_country_name)}' не найдена.\n\n"
                 f"Доступные страны:\n{countries_list}\n\n"
                 f"Используйте: <code>/event название_страны</code> или <code>/event</code> для всех",
                 parse_mode="HTML",
@@ -466,7 +467,7 @@ async def event_command(message: Message, state: FSMContext) -> None:
         # Store target country and ask for message
         await state.update_data(target_player_id=target_player.id, target_country_name=target_player.country.name)
         await message.answer(
-            f"📢 <b>Отправка события в страну {target_player.country.name}</b>\n\n"
+            f"📢 <b>Отправка события в страну {escape_html(target_player.country.name)}</b>\n\n"
             f"Введите текст события или напишите <code>cancel</code> для отмены:",
             parse_mode="HTML",
         )
@@ -545,7 +546,7 @@ async def process_event_message(message: Message, state: FSMContext) -> None:
 
             if target_player:
                 try:
-                    await bot.send_message(target_player.telegram_id, message_content)
+                    await bot.send_message(target_player.telegram_id, escape_html(message_content), parse_mode="HTML")
                     sent_count = 1
                 except Exception as e:
                     print(f"Failed to send event message to player {target_player.telegram_id}: {e}")
@@ -559,7 +560,7 @@ async def process_event_message(message: Message, state: FSMContext) -> None:
 
             for player in players:
                 try:
-                    await bot.send_message(player.telegram_id, message_content)
+                    await bot.send_message(player.telegram_id, escape_html(message_content), parse_mode="HTML")
                     sent_count += 1
                 except Exception as e:
                     print(f"Failed to send event message to player {player.telegram_id}: {e}")
@@ -568,9 +569,9 @@ async def process_event_message(message: Message, state: FSMContext) -> None:
         # Send confirmation to admin
         if target_player_id:
             if failed_count == 0:
-                await message.answer(f"✅ Событие отправлено в страну {target_country_name}!")
+                await message.answer(f"✅ Событие отправлено в страну {escape_html(target_country_name)}!")
             else:
-                await message.answer(f"❌ Не удалось отправить событие в страну {target_country_name}.")
+                await message.answer(f"❌ Не удалось отправить событие в страну {escape_html(target_country_name)}.")
         else:
             if failed_count == 0:
                 await message.answer(f"✅ Событие отправлено всем странам ({sent_count} получателей)!")

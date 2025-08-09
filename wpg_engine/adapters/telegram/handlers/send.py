@@ -10,6 +10,7 @@ from aiogram.types import Message
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
+from wpg_engine.adapters.telegram.utils import escape_html
 from wpg_engine.core.engine import GameEngine
 from wpg_engine.models import Player, get_db
 
@@ -93,7 +94,7 @@ async def send_command(message: Message, state: FSMContext) -> None:
         if not target_player:
             countries_list = "\n".join([f"• {country}" for country in sorted(available_countries)])
             await message.answer(
-                f"❌ Страна '{target_country_name}' не найдена.\n\n"
+                f"❌ Страна '{escape_html(target_country_name)}' не найдена.\n\n"
                 f"Доступные страны для отправки сообщений:\n{countries_list}\n\n"
                 f"Используйте: <code>/send название_страны</code>",
                 parse_mode="HTML",
@@ -108,7 +109,8 @@ async def send_command(message: Message, state: FSMContext) -> None:
         # Store target country and ask for message
         await state.update_data(target_player_id=target_player.id, target_country_name=target_player.country.name)
         await message.answer(
-            f"📨 <b>Отправка сообщения в страну {target_player.country.name}</b>\n\n" f"Введите ваше сообщение:",
+            f"📨 <b>Отправка сообщения в страну {escape_html(target_player.country.name)}</b>\n\n"
+            f"Введите ваше сообщение:",
             parse_mode="HTML",
         )
         await state.set_state(SendStates.waiting_for_message)
@@ -178,9 +180,9 @@ async def process_message_content(message: Message, state: FSMContext) -> None:
 
         # Format message for recipient
         recipient_message = (
-            f"📨 <b>Вам пришло послание из страны {sender.country.name}</b>\n\n"
-            f"<b>Сообщение:</b>\n{message_content}\n\n"
-            f"<i>Для ответа используйте:</i> <code>/send {sender.country.name}</code>"
+            f"📨 <b>Вам пришло послание из страны {escape_html(sender.country.name)}</b>\n\n"
+            f"<b>Сообщение:</b>\n{escape_html(message_content)}\n\n"
+            f"<i>Для ответа используйте:</i> <code>/send {escape_html(sender.country.name)}</code>"
         )
 
         await bot.send_message(
@@ -192,8 +194,8 @@ async def process_message_content(message: Message, state: FSMContext) -> None:
         # Confirm to sender
         await message.answer(
             f"✅ <b>Сообщение отправлено!</b>\n\n"
-            f"<b>Получатель:</b> {target_country_name}\n"
-            f"<b>Ваше сообщение:</b>\n{message_content}",
+            f"<b>Получатель:</b> {escape_html(target_country_name)}\n"
+            f"<b>Ваше сообщение:</b>\n{escape_html(message_content)}",
             parse_mode="HTML",
         )
 
@@ -214,7 +216,7 @@ async def process_message_content(message: Message, state: FSMContext) -> None:
     except Exception as e:
         print(f"Failed to send inter-country message: {e}")
         await message.answer(
-            f"❌ Не удалось доставить сообщение в страну {target_country_name}. "
+            f"❌ Не удалось доставить сообщение в страну {escape_html(target_country_name)}. "
             f"Возможно, игрок не начинал диалог с ботом."
         )
 
