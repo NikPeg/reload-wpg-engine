@@ -118,19 +118,19 @@ nano scripts/setup-server.template.sh
 
 ### Прямое подключение:
 ```bash
-yc compute ssh --id epducvokks3etcr82gsu
+yc compute ssh --id YOUR_SERVER_ID
 ```
 
 ### Быстрые команды:
 ```bash
 # Статус контейнера
-yc compute ssh --id epducvokks3etcr82gsu --command "docker ps"
+yc compute ssh --id YOUR_SERVER_ID --command "docker ps"
 
 # Логи бота
-yc compute ssh --id epducvokks3etcr82gsu --command "docker logs wpg-engine-bot"
+yc compute ssh --id YOUR_SERVER_ID --command "docker logs wpg-engine-bot"
 
 # Перезапуск бота
-yc compute ssh --id epducvokks3etcr82gsu --command "docker restart wpg-engine-bot"
+yc compute ssh --id YOUR_SERVER_ID --command "docker restart wpg-engine-bot"
 ```
 
 ## 🚨 Устранение неполадок
@@ -166,7 +166,7 @@ yc container registry list
 
 ```bash
 # Подключитесь к серверу
-yc compute ssh --id epducvokks3etcr82gsu
+yc compute ssh --id YOUR_SERVER_ID
 
 # Проверьте логи
 docker logs wpg-engine-bot

@@ -14,7 +14,7 @@ docker stop wpg-engine-bot || true
 docker rm wpg-engine-bot || true
 
 # Загрузить новый исправленный образ
-docker pull cr.yandex/crpm61oupllu9hhtlklk/wpg-engine-bot:latest
+docker pull cr.yandex/YOUR_REGISTRY_ID/wpg-engine-bot:latest
 
 # Запустить новый контейнер
 docker run -d \
@@ -26,7 +26,7 @@ docker run -d \
   -e LOG_LEVEL="INFO" \
   -v /opt/wpg-engine/data:/app/data \
   -v /opt/wpg-engine/logs:/app/logs \
-  cr.yandex/crpm61oupllu9hhtlklk/wpg-engine-bot:latest
+  cr.yandex/YOUR_REGISTRY_ID/wpg-engine-bot:latest
 
 # Проверить статус
 docker ps | grep wpg-engine-bot

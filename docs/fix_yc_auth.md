@@ -20,7 +20,7 @@ cat key.json
 
 ### 2. Обновить GitHub Secret
 
-1. Перейдите в настройки репозитория: https://github.com/NikPeg/reload-wpg-engine/settings/secrets/actions
+1. Перейдите в настройки репозитория: https://github.com/YOUR_USERNAME/YOUR_REPO_NAME/settings/secrets/actions
 2. Найдите секрет `YC_SA_JSON_CREDENTIALS`
 3. Нажмите "Update" 
 4. Вставьте содержимое файла `key.json`
@@ -59,13 +59,13 @@ git push origin main
 docker build -t wpg-engine-bot .
 
 # Тегировать для Yandex Registry
-docker tag wpg-engine-bot cr.yandex/crpm61oupllu9hhtlklk/wpg-engine-bot:latest
+docker tag wpg-engine-bot cr.yandex/YOUR_REGISTRY_ID/wpg-engine-bot:latest
 
 # Войти в registry
 yc container registry configure-docker
 
 # Загрузить образ
-docker push cr.yandex/crpm61oupllu9hhtlklk/wpg-engine-bot:latest
+docker push cr.yandex/YOUR_REGISTRY_ID/wpg-engine-bot:latest
 ```
 
 Затем на сервере:
@@ -76,7 +76,7 @@ docker stop wpg-engine-bot
 docker rm wpg-engine-bot
 
 # Загрузить новый образ
-docker pull cr.yandex/crpm61oupllu9hhtlklk/wpg-engine-bot:latest
+docker pull cr.yandex/YOUR_REGISTRY_ID/wpg-engine-bot:latest
 
 # Запустить новый контейнер
 docker run -d \
@@ -89,4 +89,4 @@ docker run -d \
   -e LOG_LEVEL="INFO" \
   -v /opt/wpg-engine/data:/app/data \
   -v /opt/wpg-engine/logs:/app/logs \
-  cr.yandex/crpm61oupllu9hhtlklk/wpg-engine-bot:latest
+  cr.yandex/YOUR_REGISTRY_ID/wpg-engine-bot:latest

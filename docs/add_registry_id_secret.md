@@ -6,21 +6,21 @@ GitHub Actions не может собрать Docker образ из-за отс
 ## Решение
 
 ### 1. Перейдите в настройки GitHub Secrets
-https://github.com/NikPeg/reload-wpg-engine/settings/secrets/actions
+https://github.com/YOUR_USERNAME/YOUR_REPO_NAME/settings/secrets/actions
 
 ### 2. Добавьте новый секрет
 1. Нажмите кнопку "New repository secret"
 2. В поле "Name" введите: `YC_REGISTRY_ID`
-3. В поле "Secret" введите: `crpm61oupllu9hhtlklk`
+3. В поле "Secret" введите: `YOUR_REGISTRY_ID`
 4. Нажмите "Add secret"
 
 ### 3. Проверьте другие необходимые секреты
 Убедитесь, что у вас есть все необходимые секреты:
 
 - ✅ `YC_SA_JSON_CREDENTIALS` (уже обновлен)
-- ❓ `YC_REGISTRY_ID` (нужно добавить: `crpm61oupllu9hhtlklk`)
-- ❓ `YC_CLOUD_ID` (должен быть: `b1gvm2e65krn1h4liroe`)
-- ❓ `YC_FOLDER_ID` (должен быть: `b1gkdecthbtj8p2n5r4r`)
+- ❓ `YC_REGISTRY_ID` (нужно добавить: `YOUR_REGISTRY_ID`)
+- ❓ `YC_CLOUD_ID` (должен быть: `YOUR_CLOUD_ID`)
+- ❓ `YC_FOLDER_ID` (должен быть: `YOUR_FOLDER_ID`)
 - ❓ `YC_INSTANCE_IP` (IP адрес вашего сервера)
 - ❓ `YC_INSTANCE_USER` (пользователь на сервере, обычно `ubuntu`)
 - ❓ `YC_INSTANCE_NAME` (имя инстанса в Yandex Cloud)

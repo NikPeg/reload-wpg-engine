@@ -1,4 +1,4 @@
-# 🚀 Деплой на ваш сервер (epducvokks3etcr82gsu)
+# 🚀 Деплой на ваш сервер
 
 Пошаговая инструкция для деплоя WPG Engine на ваш сервер Yandex Cloud.
 
@@ -58,7 +58,7 @@ docker tag wpg-engine cr.yandex/$REGISTRY_ID/wpg-engine-bot:latest
 docker push cr.yandex/$REGISTRY_ID/wpg-engine-bot:latest
 
 # 4. Деплой на сервер
-yc compute ssh --id epducvokks3etcr82gsu --command "
+yc compute ssh --id YOUR_SERVER_ID --command "
 docker stop wpg-engine-bot || true
 docker rm wpg-engine-bot || true
 docker pull cr.yandex/$REGISTRY_ID/wpg-engine-bot:latest
@@ -76,37 +76,37 @@ docker run -d --name wpg-engine-bot --restart unless-stopped \
 ### Проверить статус бота:
 
 ```bash
-yc compute ssh --id epducvokks3etcr82gsu --command "docker ps"
+yc compute ssh --id YOUR_SERVER_ID --command "docker ps"
 ```
 
 ### Посмотреть логи:
 
 ```bash
-yc compute ssh --id epducvokks3etcr82gsu --command "docker logs wpg-engine-bot"
+yc compute ssh --id YOUR_SERVER_ID --command "docker logs wpg-engine-bot"
 
 # Последние 50 строк
-yc compute ssh --id epducvokks3etcr82gsu --command "docker logs --tail 50 wpg-engine-bot"
+yc compute ssh --id YOUR_SERVER_ID --command "docker logs --tail 50 wpg-engine-bot"
 
 # Следить за логами в реальном времени
-yc compute ssh --id epducvokks3etcr82gsu --command "docker logs -f wpg-engine-bot"
+yc compute ssh --id YOUR_SERVER_ID --command "docker logs -f wpg-engine-bot"
 ```
 
 ### Перезапустить бота:
 
 ```bash
-yc compute ssh --id epducvokks3etcr82gsu --command "docker restart wpg-engine-bot"
+yc compute ssh --id YOUR_SERVER_ID --command "docker restart wpg-engine-bot"
 ```
 
 ### Остановить бота:
 
 ```bash
-yc compute ssh --id epducvokks3etcr82gsu --command "docker stop wpg-engine-bot"
+yc compute ssh --id YOUR_SERVER_ID --command "docker stop wpg-engine-bot"
 ```
 
 ### Создать бэкап базы данных:
 
 ```bash
-yc compute ssh --id epducvokks3etcr82gsu --command "
+yc compute ssh --id YOUR_SERVER_ID --command "
 docker cp wpg-engine-bot:/app/data/wpg_engine.db /opt/wpg-engine/backups/backup_$(date +%Y%m%d_%H%M%S).db
 "
 ```
@@ -116,19 +116,19 @@ docker cp wpg-engine-bot:/app/data/wpg_engine.db /opt/wpg-engine/backups/backup_
 ### Подключиться к серверу:
 
 ```bash
-yc compute ssh --id epducvokks3etcr82gsu
+yc compute ssh --id YOUR_SERVER_ID
 ```
 
 ### Зайти внутрь контейнера:
 
 ```bash
-yc compute ssh --id epducvokks3etcr82gsu --command "docker exec -it wpg-engine-bot /bin/bash"
+yc compute ssh --id YOUR_SERVER_ID --command "docker exec -it wpg-engine-bot /bin/bash"
 ```
 
 ### Проверить использование ресурсов:
 
 ```bash
-yc compute ssh --id epducvokks3etcr82gsu --command "
+yc compute ssh --id YOUR_SERVER_ID --command "
 echo 'Docker containers:'
 docker ps
 echo ''
@@ -143,23 +143,23 @@ df -h /opt/wpg-engine
 ### Очистить старые образы:
 
 ```bash
-yc compute ssh --id epducvokks3etcr82gsu --command "docker image prune -f"
+yc compute ssh --id YOUR_SERVER_ID --command "docker image prune -f"
 ```
 
 ## 🚨 Если что-то пошло не так
 
 ### Бот не отвечает:
 
-1. Проверьте логи: `yc compute ssh --id epducvokks3etcr82gsu --command "docker logs wpg-engine-bot"`
-2. Проверьте статус: `yc compute ssh --id epducvokks3etcr82gsu --command "docker ps"`
-3. Перезапустите: `yc compute ssh --id epducvokks3etcr82gsu --command "docker restart wpg-engine-bot"`
+1. Проверьте логи: `yc compute ssh --id YOUR_SERVER_ID --command "docker logs wpg-engine-bot"`
+2. Проверьте статус: `yc compute ssh --id YOUR_SERVER_ID --command "docker ps"`
+3. Перезапустите: `yc compute ssh --id YOUR_SERVER_ID --command "docker restart wpg-engine-bot"`
 
 ### Контейнер не запускается:
 
-1. Проверьте образ: `yc compute ssh --id epducvokks3etcr82gsu --command "docker images"`
+1. Проверьте образ: `yc compute ssh --id YOUR_SERVER_ID --command "docker images"`
 2. Попробуйте запустить интерактивно: 
    ```bash
-   yc compute ssh --id epducvokks3etcr82gsu --command "
+   yc compute ssh --id YOUR_SERVER_ID --command "
    docker run -it --rm cr.yandex/REGISTRY_ID/wpg-engine-bot:latest /bin/bash
    "
    ```
@@ -168,7 +168,7 @@ yc compute ssh --id epducvokks3etcr82gsu --command "docker image prune -f"
 
 ```bash
 # Пересоздать базу данных
-yc compute ssh --id epducvokks3etcr82gsu --command "
+yc compute ssh --id YOUR_SERVER_ID --command "
 docker exec wpg-engine-bot python recreate_database.py
 "
 ```
@@ -188,13 +188,13 @@ docker exec wpg-engine-bot python recreate_database.py
 
 3. **Проверка работы:**
    ```bash
-   yc compute ssh --id epducvokks3etcr82gsu --command "docker logs --tail 20 wpg-engine-bot"
+   yc compute ssh --id YOUR_SERVER_ID --command "docker logs --tail 20 wpg-engine-bot"
    ```
 
 4. **Если нужно откатиться:**
    ```bash
    # Запустить предыдущую версию образа
-   yc compute ssh --id epducvokks3etcr82gsu --command "docker run -d --name wpg-engine-bot-old previous_image"
+   yc compute ssh --id YOUR_SERVER_ID --command "docker run -d --name wpg-engine-bot-old previous_image"
    ```
 
 ---

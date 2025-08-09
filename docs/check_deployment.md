@@ -19,7 +19,7 @@ docker stop wpg-engine-bot
 docker rm wpg-engine-bot
 
 # Принудительно загрузить новый образ
-docker pull cr.yandex/crpm61oupllu9hhtlklk/wpg-engine-bot:latest --platform linux/amd64
+docker pull cr.yandex/YOUR_REGISTRY_ID/wpg-engine-bot:latest --platform linux/amd64
 
 # Запустить новый контейнер
 docker run -d \
@@ -32,12 +32,12 @@ docker run -d \
   -e LOG_LEVEL="INFO" \
   -v /opt/wpg-engine/data:/app/data \
   -v /opt/wpg-engine/logs:/app/logs \
-  cr.yandex/crpm61oupllu9hhtlklk/wpg-engine-bot:latest
+  cr.yandex/YOUR_REGISTRY_ID/wpg-engine-bot:latest
 ```
 
 ## 4. Проверить архитектуру образа
 ```bash
-docker inspect cr.yandex/crpm61oupllu9hhtlklk/wpg-engine-bot:latest | grep Architecture
+docker inspect cr.yandex/YOUR_REGISTRY_ID/wpg-engine-bot:latest | grep Architecture
 ```
 
 ## 5. Проверить архитектуру сервера
@@ -47,7 +47,7 @@ uname -m
 
 ## 6. Если проблема все еще есть, проверить содержимое контейнера
 ```bash
-docker run --rm -it cr.yandex/crpm61oupllu9hhtlklk/wpg-engine-bot:latest /bin/bash
+docker run --rm -it cr.yandex/YOUR_REGISTRY_ID/wpg-engine-bot:latest /bin/bash
 # Внутри контейнера:
 which python
 python --version

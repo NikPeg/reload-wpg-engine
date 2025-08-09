@@ -15,7 +15,7 @@
 
 ```bash
 # Подключение к серверу
-yc compute ssh --id epducvokks3etcr82gsu
+yc compute ssh --id YOUR_SERVER_ID
 
 # На сервере выполните:
 # 1. Установите jq (если нет)
@@ -78,7 +78,7 @@ docker ps
 ```bash
 # Сделать образ публичным
 yc container image add-access-binding \
-  --id crp79nj4q3enrjnuvfpv \
+  --id YOUR_REGISTRY_ID \
   --role container-registry.images.puller \
   --all-users
 

@@ -11,7 +11,7 @@ cat key.json
 
 ## Шаг 2: Откройте настройки GitHub
 
-1. Перейдите по ссылке: https://github.com/NikPeg/reload-wpg-engine/settings/secrets/actions
+1. Перейдите по ссылке: https://github.com/YOUR_USERNAME/YOUR_REPO_NAME/settings/secrets/actions
 2. Если потребуется, войдите в свой аккаунт GitHub
 
 ## Шаг 3: Найдите секрет YC_SA_JSON_CREDENTIALS
