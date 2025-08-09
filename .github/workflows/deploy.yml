@@ -144,9 +144,8 @@ jobs:
         chmod +x deploy.sh
         
         # Copy and execute deployment script on the server
-        yc compute ssh \
-          --name ${{ secrets.YC_INSTANCE_NAME }} \
-          --command "mkdir -p /opt/wpg-engine/data /opt/wpg-engine/logs"
+        ssh -o StrictHostKeyChecking=no ${{ secrets.YC_INSTANCE_USER }}@${{ secrets.YC_INSTANCE_IP }} \
+          "mkdir -p /opt/wpg-engine/data /opt/wpg-engine/logs"
         
         scp -o StrictHostKeyChecking=no deploy.sh ${{ secrets.YC_INSTANCE_USER }}@${{ secrets.YC_INSTANCE_IP }}:/tmp/
         
