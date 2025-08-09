@@ -41,7 +41,7 @@ def escape_markdown(text: str) -> str:
 
     # Escape only the most critical Markdown special characters for Telegram
     # Telegram uses a simplified Markdown parser, so we only need to escape these
-    special_chars = ["*", "_", "`", "["]
+    special_chars = ["*", "_", "`", "[", "]"]
     text = str(text)
 
     for char in special_chars:

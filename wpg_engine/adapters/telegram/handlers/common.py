@@ -46,35 +46,33 @@ async def start_command(message: Message) -> None:
         if player.role == PlayerRole.ADMIN:
             # Show admin panel (merged from /admin command)
             await message.answer(
-                f"⚙️ *Панель администратора*\n\n"
-                f"*Игра:* {escape_markdown(player.game.name)}\n"
-                f"*Сеттинг:* {escape_markdown(player.game.setting)}\n"
-                f"*Статус:* {escape_markdown(player.game.status)}\n"
-                f"*Макс игроков:* {player.game.max_players}\n"
-                f"*Лет за сутки:* {player.game.years_per_day}\n"
-                f"*Макс очков:* {player.game.max_points}\n"
-                f"*Макс население:* {player.game.max_population:,}\n\n"
-                f"*Доступные команды:*\n\n"
-                f"*Обычные команды:*\n"
+                f"⚙️ <b>Панель администратора</b>\n\n"
+                f"<b>Игра:</b> {escape_html(player.game.name)}\n"
+                f"<b>Сеттинг:</b> {escape_html(player.game.setting)}\n"
+                f"<b>Статус:</b> {escape_html(player.game.status)}\n"
+                f"<b>Макс игроков:</b> {player.game.max_players}\n"
+                f"<b>Лет за сутки:</b> {player.game.years_per_day}\n"
+                f"<b>Макс очков:</b> {player.game.max_points}\n"
+                f"<b>Макс население:</b> {player.game.max_population:,}\n\n"
+                f"<b>Доступные команды:</b>\n\n"
+                f"<b>Обычные команды:</b>\n"
                 f"• /stats - информация о вашей стране\n"
                 f"• /world - информация о других странах\n"
                 f"• /send - отправить сообщение другой стране\n"
                 f"• /register - перерегистрироваться (создать новую страну)\n\n"
-                f"*Команды администратора:*\n"
+                f"<b>Команды администратора:</b>\n"
                 f"• /game_stats - статистика игры\n"
                 f"• /update_game - изменить параметры игры\n"
                 f"• /restart_game - перезапустить игру (полная очистка)\n"
                 f"• /event - отправить сообщение всем игрокам",
-                parse_mode="Markdown",
+                parse_mode="HTML",
                 reply_markup=ReplyKeyboardRemove(),
             )
         else:
             # Use HTML parsing to avoid markdown issues
-            from html import escape
-
-            display_name = escape(player.display_name)
-            country_name = escape(player.country.name if player.country else "страну не назначена")
-            game_name = escape(player.game.name)
+            display_name = escape_html(player.display_name)
+            country_name = escape_html(player.country.name if player.country else "страну не назначена")
+            game_name = escape_html(player.game.name)
 
             # List of example messages for random selection
             examples = [
