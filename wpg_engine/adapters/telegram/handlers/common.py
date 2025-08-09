@@ -8,7 +8,7 @@ from aiogram.types import Message, ReplyKeyboardRemove
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
-from wpg_engine.adapters.telegram.utils import escape_html, escape_markdown
+from wpg_engine.adapters.telegram.utils import escape_html
 from wpg_engine.core.engine import GameEngine
 from wpg_engine.models import Player, PlayerRole, get_db
 

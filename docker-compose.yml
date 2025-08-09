@@ -1,0 +1,82 @@
+version: '3.8'
+
+services:
+  wpg-bot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    container_name: wpg-engine-bot
+    restart: unless-stopped
+    environment:
+      # Database settings
+      - DB_URL=sqlite:///./data/wpg_engine.db
+      - DB_ECHO=false
+      
+      # Telegram bot settings (override in .env)
+      - TG_TOKEN=${TG_TOKEN}
+      - TG_ADMIN_ID=${TG_ADMIN_ID}
+      
+      # VK bot settings (optional)
+      - VK_TOKEN=${VK_TOKEN:-}
+      - VK_GROUP_ID=${VK_GROUP_ID:-}
+      
+      # AI settings (optional)
+      - AI_OPENROUTER_API_KEY=${AI_OPENROUTER_API_KEY:-}
+      - AI_DEFAULT_MODEL=${AI_DEFAULT_MODEL:-anthropic/claude-3-haiku}
+      
+      # Application settings
+      - DEBUG=${DEBUG:-false}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    volumes:
+      # Persistent data storage
+      - ./data:/app/data
+      - ./logs:/app/logs
+    networks:
+      - wpg-network
+    healthcheck:
+      test: ["CMD", "python", "-c", "import asyncio; from wpg_engine.models import get_db; asyncio.run(next(get_db()).__anext__())"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Optional: PostgreSQL for production-like setup
+  postgres:
+    image: postgres:15-alpine
+    container_name: wpg-postgres
+    restart: unless-stopped
+    environment:
+      - POSTGRES_DB=${POSTGRES_DB:-wpg_engine}
+      - POSTGRES_USER=${POSTGRES_USER:-wpguser}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-wpgpass}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - wpg-network
+    ports:
+      - "5432:5432"
+    profiles:
+      - postgres
+
+  # Optional: Redis for caching (future use)
+  redis:
+    image: redis:7-alpine
+    container_name: wpg-redis
+    restart: unless-stopped
+    volumes:
+      - redis_data:/data
+    networks:
+      - wpg-network
+    ports:
+      - "6379:6379"
+    profiles:
+      - redis
+
+networks:
+  wpg-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  redis_data:

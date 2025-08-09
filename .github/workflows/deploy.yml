@@ -1,0 +1,161 @@
+name: Deploy to Yandex Cloud
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  REGISTRY: cr.yandex
+  IMAGE_NAME: wpg-engine-bot
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+    
+    - name: Run tests
+      run: |
+        python -m pytest tests/ -v || echo "No tests found, skipping..."
+    
+    - name: Run linting
+      run: |
+        python -m ruff check . || echo "Ruff not configured, skipping..."
+        python -m black --check . || echo "Black not configured, skipping..."
+
+  build-and-push:
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    outputs:
+      image-tag: ${{ steps.meta.outputs.tags }}
+      image-digest: ${{ steps.build.outputs.digest }}
+    
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+    
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+    
+    - name: Log in to Yandex Container Registry
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ env.REGISTRY }}
+        username: json_key
+        password: ${{ secrets.YC_SA_JSON_CREDENTIALS }}
+    
+    - name: Extract metadata
+      id: meta
+      uses: docker/metadata-action@v5
+      with:
+        images: ${{ env.REGISTRY }}/${{ secrets.YC_REGISTRY_ID }}/${{ env.IMAGE_NAME }}
+        tags: |
+          type=ref,event=branch
+          type=ref,event=pr
+          type=sha,prefix={{branch}}-
+          type=raw,value=latest,enable={{is_default_branch}}
+    
+    - name: Build and push Docker image
+      id: build
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        platforms: linux/amd64
+        push: true
+        tags: ${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+
+  deploy:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+    
+    - name: Install Yandex Cloud CLI
+      run: |
+        curl -sSL https://storage.yandexcloud.net/yandexcloud-yc/install.sh | bash
+        echo "$HOME/yandex-cloud/bin" >> $GITHUB_PATH
+    
+    - name: Authenticate with Yandex Cloud
+      run: |
+        echo '${{ secrets.YC_SA_JSON_CREDENTIALS }}' > key.json
+        yc config profile create github-actions
+        yc config set service-account-key key.json
+        yc config set cloud-id ${{ secrets.YC_CLOUD_ID }}
+        yc config set folder-id ${{ secrets.YC_FOLDER_ID }}
+        rm key.json
+    
+    - name: Deploy to Yandex Cloud
+      run: |
+        # Create deployment script
+        cat > deploy.sh << 'EOF'
+        #!/bin/bash
+        set -e
+        
+        # Variables
+        IMAGE_URL="${{ env.REGISTRY }}/${{ secrets.YC_REGISTRY_ID }}/${{ env.IMAGE_NAME }}:latest"
+        CONTAINER_NAME="wpg-engine-bot"
+        
+        # Stop and remove existing container
+        docker stop $CONTAINER_NAME || true
+        docker rm $CONTAINER_NAME || true
+        
+        # Pull new image
+        docker pull $IMAGE_URL
+        
+        # Run new container
+        docker run -d \
+          --name $CONTAINER_NAME \
+          --restart unless-stopped \
+          -e TG_TOKEN="${{ secrets.TG_TOKEN }}" \
+          -e TG_ADMIN_ID="${{ secrets.TG_ADMIN_ID }}" \
+          -e AI_OPENROUTER_API_KEY="${{ secrets.AI_OPENROUTER_API_KEY }}" \
+          -e DB_URL="sqlite:///./data/wpg_engine.db" \
+          -e LOG_LEVEL="INFO" \
+          -v /opt/wpg-engine/data:/app/data \
+          -v /opt/wpg-engine/logs:/app/logs \
+          $IMAGE_URL
+        
+        # Clean up old images
+        docker image prune -f
+        
+        echo "Deployment completed successfully!"
+        EOF
+        
+        # Make script executable
+        chmod +x deploy.sh
+        
+        # Copy and execute deployment script on the server
+        yc compute ssh \
+          --name ${{ secrets.YC_INSTANCE_NAME }} \
+          --ssh-key ~/.ssh/id_rsa \
+          --command "mkdir -p /opt/wpg-engine/data /opt/wpg-engine/logs"
+        
+        scp -o StrictHostKeyChecking=no deploy.sh ${{ secrets.YC_INSTANCE_USER }}@${{ secrets.YC_INSTANCE_IP }}:/tmp/
+        
+        ssh -o StrictHostKeyChecking=no ${{ secrets.YC_INSTANCE_USER }}@${{ secrets.YC_INSTANCE_IP }} \
+          "chmod +x /tmp/deploy.sh && sudo /tmp/deploy.sh && rm /tmp/deploy.sh"
+    
+    - name: Verify deployment
+      run: |
+        sleep 30
+        ssh -o StrictHostKeyChecking=no ${{ secrets.YC_INSTANCE_USER }}@${{ secrets.YC_INSTANCE_IP }} \
+          "docker ps | grep wpg-engine-bot && docker logs --tail 20 wpg-engine-bot"

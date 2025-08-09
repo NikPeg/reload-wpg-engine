@@ -1,0 +1,36 @@
+version: '3.8'
+
+services:
+  wpg-bot-dev:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: builder
+    container_name: wpg-engine-bot-dev
+    restart: "no"
+    environment:
+      # Database settings
+      - DB_URL=sqlite:///./data/wpg_engine_dev.db
+      - DB_ECHO=true
+      
+      # Telegram bot settings
+      - TG_TOKEN=${TG_TOKEN_DEV}
+      - TG_ADMIN_ID=${TG_ADMIN_ID}
+      
+      # Application settings
+      - DEBUG=true
+      - LOG_LEVEL=DEBUG
+    volumes:
+      # Mount source code for development
+      - .:/app
+      - ./data:/app/data
+      - ./logs:/app/logs
+    networks:
+      - wpg-dev-network
+    command: ["python", "main.py"]
+    stdin_open: true
+    tty: true
+
+networks:
+  wpg-dev-network:
+    driver: bridge
