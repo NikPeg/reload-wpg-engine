@@ -118,10 +118,8 @@ jobs:
         docker stop $CONTAINER_NAME || true
         docker rm $CONTAINER_NAME || true
         
-        # Create directories and set proper permissions
+        # Create directories
         mkdir -p /opt/wpg-engine/data /opt/wpg-engine/logs
-        chown -R 1000:1000 /opt/wpg-engine/data /opt/wpg-engine/logs
-        chmod -R 755 /opt/wpg-engine/data /opt/wpg-engine/logs
         
         # Login to Yandex Container Registry
         echo "Logging in to Yandex Container Registry..."
@@ -129,6 +127,14 @@ jobs:
         
         # Pull new image
         docker pull $IMAGE_URL
+        
+        # Get the UID/GID of wpgbot user from the container and set proper permissions
+        WPGBOT_UID=$(docker run --rm $IMAGE_URL id -u wpgbot 2>/dev/null || echo "999")
+        WPGBOT_GID=$(docker run --rm $IMAGE_URL id -g wpgbot 2>/dev/null || echo "999")
+        
+        echo "Setting permissions for wpgbot user (UID: $WPGBOT_UID, GID: $WPGBOT_GID)"
+        chown -R $WPGBOT_UID:$WPGBOT_GID /opt/wpg-engine/data /opt/wpg-engine/logs
+        chmod -R 755 /opt/wpg-engine/data /opt/wpg-engine/logs
         
         # Run new container
         docker run -d \
