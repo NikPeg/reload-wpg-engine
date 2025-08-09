@@ -67,14 +67,31 @@ docker push cr.yandex/$REGISTRY_ID/wpg-engine-bot:latest
 # Deploy to server
 echo_info "🚀 Деплой на сервер..."
 
-# Create deployment script with environment variables
-cat > /tmp/quick_deploy.sh << EOF
-#!/bin/bash
+# Deployment will be done directly via yc compute ssh
+
+# Deploy to server using yc compute ssh
+echo_info "🚀 Деплой на сервер..."
+
+echo_info "📁 Создание директорий на сервере..."
+yc compute ssh --id $SERVER_ID "mkdir -p /opt/wpg-engine/{data,logs,backups}"
+
+echo_info "🎯 Выполнение деплоя на сервере..."
+yc compute ssh --id $SERVER_ID << EOF
 set -e
 
 # Variables
 IMAGE_URL="cr.yandex/$REGISTRY_ID/wpg-engine-bot:latest"
 CONTAINER_NAME="wpg-engine-bot"
+
+echo "🔐 Настройка аутентификации Docker..."
+# Create OAuth token for Docker authentication
+OAUTH_TOKEN="\$(curl -s -H "Metadata-Flavor: Google" http://169.254.169.254/computeMetadata/v1/instance/service-accounts/default/token | jq -r .access_token)"
+if [ -n "\$OAUTH_TOKEN" ] && [ "\$OAUTH_TOKEN" != "null" ]; then
+    echo "\$OAUTH_TOKEN" | docker login --username oauth --password-stdin cr.yandex
+    echo "✅ Docker аутентификация настроена"
+else
+    echo "⚠️  Не удалось получить токен, пробуем без аутентификации..."
+fi
 
 echo "🔄 Остановка старого контейнера..."
 docker stop \$CONTAINER_NAME 2>/dev/null || true
@@ -110,18 +127,6 @@ echo "📝 Последние логи:"
 sleep 5
 docker logs --tail 20 \$CONTAINER_NAME
 EOF
-
-# Copy and execute deployment script
-yc compute ssh --id $SERVER_ID --command "mkdir -p /opt/wpg-engine/{data,logs,backups}"
-
-echo_info "📋 Копирование скрипта деплоя..."
-yc compute scp /tmp/quick_deploy.sh $SERVER_ID:/tmp/quick_deploy.sh
-
-echo_info "🎯 Выполнение деплоя на сервере..."
-yc compute ssh --id $SERVER_ID --command "chmod +x /tmp/quick_deploy.sh && /tmp/quick_deploy.sh && rm /tmp/quick_deploy.sh"
-
-# Clean up
-rm /tmp/quick_deploy.sh
 
 echo_success "🎉 Деплой успешно завершен!"
 echo ""
