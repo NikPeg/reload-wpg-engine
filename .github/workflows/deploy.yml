@@ -118,6 +118,11 @@ jobs:
         docker stop $CONTAINER_NAME || true
         docker rm $CONTAINER_NAME || true
         
+        # Create directories and set proper permissions
+        mkdir -p /opt/wpg-engine/data /opt/wpg-engine/logs
+        chown -R 1000:1000 /opt/wpg-engine/data /opt/wpg-engine/logs
+        chmod -R 755 /opt/wpg-engine/data /opt/wpg-engine/logs
+        
         # Login to Yandex Container Registry
         echo "Logging in to Yandex Container Registry..."
         echo '${{ secrets.YC_SA_JSON_CREDENTIALS }}' | docker login --username json_key --password-stdin ${{ env.REGISTRY }}
@@ -157,9 +162,6 @@ jobs:
         ssh-keyscan -H ${{ secrets.YC_INSTANCE_IP }} >> ~/.ssh/known_hosts
         
         # Copy and execute deployment script on the server
-        ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no ${{ secrets.YC_INSTANCE_USER }}@${{ secrets.YC_INSTANCE_IP }} \
-          "mkdir -p /opt/wpg-engine/data /opt/wpg-engine/logs"
-        
         scp -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no deploy.sh ${{ secrets.YC_INSTANCE_USER }}@${{ secrets.YC_INSTANCE_IP }}:/tmp/
         
         ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no ${{ secrets.YC_INSTANCE_USER }}@${{ secrets.YC_INSTANCE_IP }} \
