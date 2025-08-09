@@ -185,3 +185,8 @@ scripts/setup-server.sh
 data/
 logs/
 backups/
+
+# Security-sensitive documentation files
+exact_secrets_to_add.md
+*secrets*.md
+key.json
