@@ -27,7 +27,7 @@ async def test_game(game_engine: GameEngine):
 async def admin_player(game_engine: GameEngine, test_game):
     """Create an admin player"""
     return await game_engine.create_player(
-        game_id=test_game.id, telegram_id=123456789, username="admin", display_name="Test Admin", role=PlayerRole.ADMIN
+        game_id=test_game.id, telegram_id=111111111, username="admin", display_name="Test Admin", role=PlayerRole.ADMIN
     )
 
 
@@ -36,7 +36,7 @@ async def regular_player(game_engine: GameEngine, test_game):
     """Create a regular player"""
     player = await game_engine.create_player(
         game_id=test_game.id,
-        telegram_id=987654321,
+        telegram_id=222222222,
         username="player",
         display_name="Test Player",
         role=PlayerRole.PLAYER,
@@ -96,13 +96,16 @@ class TestMessageSystem:
 
     async def test_get_player_messages(self, game_engine: GameEngine, regular_player: Player, test_game):
         """Test retrieving player messages"""
-        # Create multiple messages
+        import asyncio
+
+        # Create multiple messages with small delays to ensure different timestamps
         messages = []
         for i in range(5):
             message = await game_engine.create_message(
                 player_id=regular_player.id, game_id=test_game.id, content=f"Test message {i+1}", is_admin_reply=False
             )
             messages.append(message)
+            await asyncio.sleep(0.01)  # Small delay to ensure different timestamps
 
         # Get player messages (should return in reverse chronological order)
         retrieved_messages = await game_engine.get_player_messages(regular_player.id, limit=10)
@@ -114,11 +117,14 @@ class TestMessageSystem:
 
     async def test_get_player_messages_limit(self, game_engine: GameEngine, regular_player: Player, test_game):
         """Test retrieving player messages with limit"""
-        # Create 15 messages
+        import asyncio
+
+        # Create 15 messages with small delays to ensure different timestamps
         for i in range(15):
             await game_engine.create_message(
                 player_id=regular_player.id, game_id=test_game.id, content=f"Message {i+1}", is_admin_reply=False
             )
+            await asyncio.sleep(0.01)  # Small delay to ensure different timestamps
 
         # Get only last 10 messages
         retrieved_messages = await game_engine.get_player_messages(regular_player.id, limit=10)

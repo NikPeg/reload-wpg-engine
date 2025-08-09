@@ -344,7 +344,7 @@ class GameEngine:
             select(Message)
             .options(selectinload(Message.player), selectinload(Message.reply_to))
             .where(Message.player_id == player_id)
-            .order_by(Message.created_at.desc())
+            .order_by(Message.created_at.desc(), Message.id.desc())
             .limit(limit)
         )
         return list(result.scalars().all())
