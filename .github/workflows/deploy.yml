@@ -118,6 +118,10 @@ jobs:
         docker stop $CONTAINER_NAME || true
         docker rm $CONTAINER_NAME || true
         
+        # Login to Yandex Container Registry
+        echo "Logging in to Yandex Container Registry..."
+        echo '${{ secrets.YC_SA_JSON_CREDENTIALS }}' | docker login --username json_key --password-stdin ${{ env.REGISTRY }}
+        
         # Pull new image
         docker pull $IMAGE_URL
         
@@ -136,6 +140,9 @@ jobs:
         
         # Clean up old images
         docker image prune -f
+        
+        # Logout from registry for security
+        docker logout ${{ env.REGISTRY }}
         
         echo "Deployment completed successfully!"
         EOF
@@ -161,5 +168,5 @@ jobs:
     - name: Verify deployment
       run: |
         sleep 30
-        ssh -o StrictHostKeyChecking=no ${{ secrets.YC_INSTANCE_USER }}@${{ secrets.YC_INSTANCE_IP }} \
+        ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no ${{ secrets.YC_INSTANCE_USER }}@${{ secrets.YC_INSTANCE_IP }} \
           "docker ps | grep wpg-engine-bot && docker logs --tail 20 wpg-engine-bot"
