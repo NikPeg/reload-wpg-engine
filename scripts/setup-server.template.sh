@@ -1,12 +1,12 @@
 #!/bin/bash
 
-# Server Setup Script for WPG Engine
-# Usage: ./scripts/setup-server.sh
+# Server Setup Script Template for WPG Engine
+# Copy this to setup-server.sh and configure your SERVER_ID
 
 set -e
 
-# Configuration
-SERVER_ID="epducvokks3etcr82gsu"
+# Configuration - CHANGE THIS TO YOUR SERVER ID
+SERVER_ID="your_server_id_here"
 PROJECT_NAME="wpg-engine"
 
 # Colors
@@ -20,6 +20,14 @@ echo_info() { echo -e "${BLUE}ℹ️  $1${NC}"; }
 echo_success() { echo -e "${GREEN}✅ $1${NC}"; }
 echo_warning() { echo -e "${YELLOW}⚠️  $1${NC}"; }
 echo_error() { echo -e "${RED}❌ $1${NC}"; }
+
+# Check if SERVER_ID is configured
+if [[ "$SERVER_ID" == "your_server_id_here" ]]; then
+    echo_error "Пожалуйста, настройте SERVER_ID в скрипте!"
+    echo_info "Откройте scripts/setup-server.sh и замените 'your_server_id_here' на ваш ID сервера"
+    echo_info "Ваш SERVER_ID: epducvokks3etcr82gsu"
+    exit 1
+fi
 
 # Setup server
 setup_server() {
@@ -67,94 +75,6 @@ EOF
     echo_success "Сервер настроен успешно!"
 }
 
-# Deploy application
-deploy_app() {
-    echo_info "Деплой приложения на сервер..."
-    
-    # Get registry ID
-    REGISTRY_ID=$(yc container registry list --format json | jq -r '.[0].id' 2>/dev/null || echo "")
-    
-    if [[ -z "$REGISTRY_ID" ]]; then
-        echo_warning "Container Registry не найден, создаем..."
-        yc container registry create --name wpg-engine-registry
-        REGISTRY_ID=$(yc container registry list --format json | jq -r '.[0].id')
-    fi
-    
-    echo_info "Registry ID: $REGISTRY_ID"
-    
-    # Build and push image
-    echo_info "Сборка Docker образа..."
-    docker build -t cr.yandex/$REGISTRY_ID/wpg-engine-bot:latest .
-    
-    echo_info "Загрузка образа в registry..."
-    docker push cr.yandex/$REGISTRY_ID/wpg-engine-bot:latest
-    
-    # Deploy to server
-    echo_info "Деплой на сервер..."
-    
-    # Create deployment script
-    cat > /tmp/deploy_script.sh << EOF
-#!/bin/bash
-set -e
-
-# Variables
-IMAGE_URL="cr.yandex/$REGISTRY_ID/wpg-engine-bot:latest"
-CONTAINER_NAME="wpg-engine-bot"
-DATA_DIR="/opt/wpg-engine/data"
-LOGS_DIR="/opt/wpg-engine/logs"
-
-echo "🔄 Stopping existing container..."
-docker stop \$CONTAINER_NAME 2>/dev/null || true
-docker rm \$CONTAINER_NAME 2>/dev/null || true
-
-echo "📥 Pulling new image..."
-docker pull \$IMAGE_URL
-
-echo "🚀 Starting new container..."
-docker run -d \\
-  --name \$CONTAINER_NAME \\
-  --restart unless-stopped \\
-  -e TG_TOKEN="\${TG_TOKEN}" \\
-  -e TG_ADMIN_ID="\${TG_ADMIN_ID}" \\
-  -e AI_OPENROUTER_API_KEY="\${AI_OPENROUTER_API_KEY:-}" \\
-  -e DB_URL="sqlite:///./data/wpg_engine.db" \\
-  -e LOG_LEVEL="INFO" \\
-  -v \$DATA_DIR:/app/data \\
-  -v \$LOGS_DIR:/app/logs \\
-  \$IMAGE_URL
-
-echo "🧹 Cleaning up old images..."
-docker image prune -f
-
-echo "✅ Deployment completed!"
-echo "📊 Container status:"
-docker ps | grep \$CONTAINER_NAME || echo "Container not found"
-EOF
-    
-    # Copy script to server and execute
-    scp /tmp/deploy_script.sh $(yc compute instance get $SERVER_ID --format json | jq -r '.network_interfaces[0].primary_v4_address.one_to_one_nat.address'):/tmp/
-    
-    yc compute ssh --id $SERVER_ID << 'EOF'
-        chmod +x /tmp/deploy_script.sh
-        
-        # Set environment variables (you need to set these)
-        export TG_TOKEN="YOUR_BOT_TOKEN_HERE"
-        export TG_ADMIN_ID="YOUR_ADMIN_ID_HERE"
-        export AI_OPENROUTER_API_KEY="YOUR_API_KEY_HERE"
-        
-        # Run deployment
-        /tmp/deploy_script.sh
-        
-        # Clean up
-        rm /tmp/deploy_script.sh
-EOF
-    
-    # Clean up local temp file
-    rm /tmp/deploy_script.sh
-    
-    echo_success "Деплой завершен!"
-}
-
 # Check status
 check_status() {
     echo_info "Проверка статуса на сервере..."
@@ -185,11 +105,12 @@ help() {
     echo ""
     echo "Commands:"
     echo "  setup   - Setup server (install Docker, create directories)"
-    echo "  deploy  - Deploy application to server"
     echo "  status  - Check server and application status"
     echo "  help    - Show this help"
     echo ""
     echo "Server ID: $SERVER_ID"
+    echo ""
+    echo "ВАЖНО: Перед использованием замените SERVER_ID на ваш реальный ID сервера!"
 }
 
 # Main function
@@ -197,9 +118,6 @@ main() {
     case "${1:-help}" in
         "setup")
             setup_server
-            ;;
-        "deploy")
-            deploy_app
             ;;
         "status")
             check_status

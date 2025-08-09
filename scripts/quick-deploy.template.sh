@@ -1,7 +1,7 @@
 #!/bin/bash
 
-# Quick Deploy Script for WPG Engine
-# Специально для сервера epducvokks3etcr82gsu
+# Quick Deploy Script Template for WPG Engine
+# Copy this to quick-deploy.sh and configure your settings
 
 set -e
 
@@ -48,7 +48,7 @@ echo_info "🚀 Быстрый деплой на сервер $SERVER_ID"
 echo_info "📦 Проверка Container Registry..."
 REGISTRY_ID=$(yc container registry list --format json | jq -r '.[0].id' 2>/dev/null || echo "")
 
-if [[ -z "$REGISTRY_ID" ]]; then
+if [[ -z "$REGISTRY_ID" ]] || [[ "$REGISTRY_ID" == "null" ]]; then
     echo_info "Создание Container Registry..."
     yc container registry create --name wpg-engine-registry
     REGISTRY_ID=$(yc container registry list --format json | jq -r '.[0].id')

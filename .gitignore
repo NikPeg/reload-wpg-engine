@@ -158,3 +158,30 @@ logs/
 # Temporary files
 tmp/
 temp/
+
+# Security - sensitive files
+.env.*
+!.env.example
+*.key
+*.pem
+*.crt
+*.p12
+*.pfx
+secrets/
+credentials/
+
+# Deployment scripts with embedded secrets (exclude templates and setup)
+scripts/*deploy*.sh
+!scripts/*.template.sh
+!scripts/setup-deployment.sh
+scripts/setup-server.sh
+
+# Backup files
+*.bak
+*.backup
+*.old
+
+# Runtime data
+data/
+logs/
+backups/
