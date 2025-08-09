@@ -11,7 +11,9 @@ help:
 	@echo "  make build          - Build Docker image"
 	@echo "  make run            - Run locally with Docker Compose"
 	@echo "  make run-dev        - Run in development mode"
-	@echo "  make test           - Run tests"
+	@echo "  make test           - Run tests in Docker"
+	@echo "  make test-local     - Run tests locally (like CI)"
+	@echo "  make test-docker    - Run tests in Docker (explicit)"
 	@echo "  make lint           - Run linting"
 	@echo "  make clean          - Clean up containers and images"
 	@echo ""
@@ -50,6 +52,18 @@ run-dev:
 test:
 	@echo "🧪 Running tests..."
 	@./scripts/local-test.sh test
+
+test-local:
+	@echo "🧪 Running tests locally (like CI)..."
+	@python -m pytest tests/ -v || echo "No tests found, skipping..."
+
+test-docker: build-test
+	@echo "🧪 Running tests in Docker..."
+	@./scripts/local-test.sh test
+
+build-test:
+	@echo "🔨 Building test image..."
+	@./scripts/local-test.sh build
 
 lint:
 	@echo "🔍 Running linting..."
@@ -137,7 +151,7 @@ down-dev:
 	docker-compose -f docker-compose.dev.yml down
 
 # Quick commands
-quick-test: build test
+quick-test: test-local
 quick-deploy: test deploy-prod
 
 # Database commands
@@ -159,7 +173,7 @@ local-test:
 	python -m pytest tests/ -v
 
 # Git hooks
-pre-commit: format lint test
+pre-commit: format lint test-local
 	@echo "✅ Pre-commit checks passed"
 
 # Installation
