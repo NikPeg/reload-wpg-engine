@@ -32,8 +32,8 @@ jobs:
     
     - name: Run linting
       run: |
-        python -m ruff check . || echo "Ruff not configured, skipping..."
-        python -m black --check . || echo "Black not configured, skipping..."
+        python -m ruff check .
+        python -m ruff format --check .
 
   build-and-push:
     needs: test

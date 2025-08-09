@@ -32,7 +32,10 @@ class TestGameEngine:
     async def test_create_game(self, game_engine: GameEngine):
         """Тест создания игры"""
         game = await game_engine.create_game(
-            name="Новая игра", description="Описание игры", setting="Фэнтези", max_players=8
+            name="Новая игра",
+            description="Описание игры",
+            setting="Фэнтези",
+            max_players=8,
         )
 
         assert game.id is not None
@@ -76,7 +79,9 @@ class TestGameEngine:
         assert admin.display_name == "Администратор"
         assert admin.role == PlayerRole.ADMIN
 
-    async def test_create_regular_player_with_country(self, game_engine: GameEngine, test_game: Game):
+    async def test_create_regular_player_with_country(
+        self, game_engine: GameEngine, test_game: Game
+    ):
         """Тест создания обычного игрока и назначения ему страны"""
         # Создаем страну
         country = await game_engine.create_country(
@@ -108,7 +113,11 @@ class TestGameEngine:
         """Тест создания поста"""
         # Создаем игрока
         player = await game_engine.create_player(
-            game_id=test_game.id, telegram_id=111222333, username="author", display_name="Автор", role=PlayerRole.PLAYER
+            game_id=test_game.id,
+            telegram_id=111222333,
+            username="author",
+            display_name="Автор",
+            role=PlayerRole.PLAYER,
         )
 
         # Создаем пост
@@ -125,20 +134,33 @@ class TestGameEngine:
         """Тест создания вердикта"""
         # Создаем администратора
         admin = await game_engine.create_player(
-            game_id=test_game.id, telegram_id=444555666, username="admin", display_name="Админ", role=PlayerRole.ADMIN
+            game_id=test_game.id,
+            telegram_id=444555666,
+            username="admin",
+            display_name="Админ",
+            role=PlayerRole.ADMIN,
         )
 
         # Создаем игрока
         player = await game_engine.create_player(
-            game_id=test_game.id, telegram_id=777888999, username="player", display_name="Игрок", role=PlayerRole.PLAYER
+            game_id=test_game.id,
+            telegram_id=777888999,
+            username="player",
+            display_name="Игрок",
+            role=PlayerRole.PLAYER,
         )
 
         # Создаем пост
-        post = await game_engine.create_post(author_id=player.id, game_id=test_game.id, content="Пост для вердикта")
+        post = await game_engine.create_post(
+            author_id=player.id, game_id=test_game.id, content="Пост для вердикта"
+        )
 
         # Создаем вердикт
         verdict = await game_engine.create_verdict(
-            post_id=post.id, admin_id=admin.id, result="Одобрено", reasoning="Пост соответствует правилам"
+            post_id=post.id,
+            admin_id=admin.id,
+            result="Одобрено",
+            reasoning="Пост соответствует правилам",
         )
 
         assert verdict.id is not None
@@ -159,7 +181,9 @@ class TestGameEngine:
     async def test_game_statistics(self, game_engine: GameEngine, test_game: Game):
         """Тест получения статистики игры"""
         # Создаем некоторые данные
-        await game_engine.create_country(game_id=test_game.id, name="Страна 1", description="Первая страна")
+        await game_engine.create_country(
+            game_id=test_game.id, name="Страна 1", description="Первая страна"
+        )
 
         await game_engine.create_player(
             game_id=test_game.id,
@@ -179,7 +203,9 @@ class TestGameEngine:
         assert "created_at" in stats
         assert "updated_at" in stats
 
-    async def test_update_country_aspects(self, game_engine: GameEngine, test_game: Game):
+    async def test_update_country_aspects(
+        self, game_engine: GameEngine, test_game: Game
+    ):
         """Тест обновления аспектов страны"""
         # Создаем страну
         country = await game_engine.create_country(

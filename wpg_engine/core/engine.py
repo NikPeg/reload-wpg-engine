@@ -144,11 +144,15 @@ class GameEngine:
     async def get_country(self, country_id: int) -> Country | None:
         """Get country by ID"""
         result = await self.db.execute(
-            select(Country).options(selectinload(Country.players)).where(Country.id == country_id)
+            select(Country)
+            .options(selectinload(Country.players))
+            .where(Country.id == country_id)
         )
         return result.scalar_one_or_none()
 
-    async def update_country_aspects(self, country_id: int, aspects: dict) -> Country | None:
+    async def update_country_aspects(
+        self, country_id: int, aspects: dict
+    ) -> Country | None:
         """Update country aspects"""
         country = await self.get_country(country_id)
         if not country:
@@ -162,7 +166,9 @@ class GameEngine:
         await self.db.refresh(country)
         return country
 
-    async def update_country_aspect_description(self, country_id: int, aspect: str, description: str) -> Country | None:
+    async def update_country_aspect_description(
+        self, country_id: int, aspect: str, description: str
+    ) -> Country | None:
         """Update specific aspect description"""
         country = await self.get_country(country_id)
         if not country:
@@ -177,7 +183,9 @@ class GameEngine:
 
         return None
 
-    async def update_country_aspect_value(self, country_id: int, aspect: str, value: int) -> Country | None:
+    async def update_country_aspect_value(
+        self, country_id: int, aspect: str, value: int
+    ) -> Country | None:
         """Update specific aspect value"""
         country = await self.get_country(country_id)
         if not country:
@@ -191,7 +199,9 @@ class GameEngine:
 
         return None
 
-    async def update_country_basic_info(self, country_id: int, **kwargs) -> Country | None:
+    async def update_country_basic_info(
+        self, country_id: int, **kwargs
+    ) -> Country | None:
         """Update country basic information (name, description, capital, population)"""
         country = await self.get_country(country_id)
         if not country:
@@ -206,7 +216,9 @@ class GameEngine:
         await self.db.refresh(country)
         return country
 
-    async def update_country_synonyms(self, country_id: int, synonyms: list[str]) -> Country | None:
+    async def update_country_synonyms(
+        self, country_id: int, synonyms: list[str]
+    ) -> Country | None:
         """Update country synonyms"""
         country = await self.get_country(country_id)
         if not country:
@@ -286,9 +298,13 @@ class GameEngine:
         return list(result.scalars().all())
 
     # Verdict management
-    async def create_verdict(self, post_id: int, admin_id: int, result: str, reasoning: str | None = None) -> Verdict:
+    async def create_verdict(
+        self, post_id: int, admin_id: int, result: str, reasoning: str | None = None
+    ) -> Verdict:
         """Create a verdict for a post"""
-        verdict = Verdict(post_id=post_id, admin_id=admin_id, result=result, reasoning=reasoning)
+        verdict = Verdict(
+            post_id=post_id, admin_id=admin_id, result=result, reasoning=reasoning
+        )
         self.db.add(verdict)
         await self.db.commit()
         await self.db.refresh(verdict)
@@ -338,7 +354,9 @@ class GameEngine:
         await self.db.refresh(message)
         return message
 
-    async def get_player_messages(self, player_id: int, limit: int = 10) -> list[Message]:
+    async def get_player_messages(
+        self, player_id: int, limit: int = 10
+    ) -> list[Message]:
         """Get recent messages for a player (last 10 by default)"""
         result = await self.db.execute(
             select(Message)
@@ -349,7 +367,9 @@ class GameEngine:
         )
         return list(result.scalars().all())
 
-    async def get_message_by_telegram_id(self, telegram_message_id: int) -> Message | None:
+    async def get_message_by_telegram_id(
+        self, telegram_message_id: int
+    ) -> Message | None:
         """Get message by telegram message ID"""
         result = await self.db.execute(
             select(Message)
@@ -367,7 +387,9 @@ class GameEngine:
         )
         return result.scalar_one_or_none()
 
-    async def get_message_by_admin_telegram_id(self, admin_telegram_message_id: int) -> Message | None:
+    async def get_message_by_admin_telegram_id(
+        self, admin_telegram_message_id: int
+    ) -> Message | None:
         """Get message by admin's telegram message ID"""
         result = await self.db.execute(
             select(Message)

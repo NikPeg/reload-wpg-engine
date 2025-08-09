@@ -42,7 +42,10 @@ async def game_stats_command(message: Message) -> None:
 
         # Get admin info - take the first admin player
         result = await game_engine.db.execute(
-            select(Player).where(Player.telegram_id == user_id).where(Player.role == PlayerRole.ADMIN).limit(1)
+            select(Player)
+            .where(Player.telegram_id == user_id)
+            .where(Player.role == PlayerRole.ADMIN)
+            .limit(1)
         )
         admin = result.scalar_one_or_none()
 
@@ -110,10 +113,14 @@ async def restart_game_command(message: Message, state: FSMContext) -> None:
                 raise ValueError("Количество лет за сутки должно быть от 1 до 365")
 
             if max_points < 10 or max_points > 100:
-                raise ValueError("Максимальное количество очков должно быть от 10 до 100")
+                raise ValueError(
+                    "Максимальное количество очков должно быть от 10 до 100"
+                )
 
             if max_population < 1000 or max_population > 1_000_000_000:
-                raise ValueError("Максимальное население должно быть от 1,000 до 1 млрд")
+                raise ValueError(
+                    "Максимальное население должно быть от 1,000 до 1 млрд"
+                )
 
         except ValueError as e:
             await message.answer(
@@ -208,7 +215,11 @@ async def process_restart_confirmation(message: Message, state: FSMContext) -> N
         display_name = message.from_user.full_name or f"Admin_{user_id}"
 
         admin_player = await game_engine.create_player(
-            game_id=game.id, telegram_id=user_id, username=username, display_name=display_name, role=PlayerRole.ADMIN
+            game_id=game.id,
+            telegram_id=user_id,
+            username=username,
+            display_name=display_name,
+            role=PlayerRole.ADMIN,
         )
 
         # Create admin country
@@ -267,7 +278,10 @@ async def update_game_command(message: Message) -> None:
 
         # Get admin info - take the first admin player for this user
         result = await game_engine.db.execute(
-            select(Player).where(Player.telegram_id == user_id).where(Player.role == PlayerRole.ADMIN).limit(1)
+            select(Player)
+            .where(Player.telegram_id == user_id)
+            .where(Player.role == PlayerRole.ADMIN)
+            .limit(1)
         )
         admin = result.scalar_one_or_none()
 
@@ -317,7 +331,9 @@ async def update_game_command(message: Message) -> None:
             elif param == "max_players":
                 max_players = int(value)
                 if max_players < 1 or max_players > 1000:
-                    raise ValueError("Максимальное количество игроков должно быть от 1 до 1000")
+                    raise ValueError(
+                        "Максимальное количество игроков должно быть от 1 до 1000"
+                    )
                 updates["max_players"] = max_players
             elif param == "years_per_day":
                 years_per_day = int(value)
@@ -332,7 +348,9 @@ async def update_game_command(message: Message) -> None:
             elif param == "max_population":
                 max_population = int(value)
                 if max_population < 1000 or max_population > 1_000_000_000:
-                    raise ValueError("Максимальное население должно быть от 1,000 до 1 млрд")
+                    raise ValueError(
+                        "Максимальное население должно быть от 1,000 до 1 млрд"
+                    )
                 updates["max_population"] = max_population
             else:
                 raise ValueError(f"Неизвестный параметр: {param}")
@@ -455,7 +473,9 @@ async def event_command(message: Message, state: FSMContext) -> None:
                         break
 
         if not target_player:
-            countries_list = "\n".join([f"• {country}" for country in sorted(available_countries)])
+            countries_list = "\n".join(
+                [f"• {country}" for country in sorted(available_countries)]
+            )
             await message.answer(
                 f"❌ Страна '{escape_html(target_country_name)}' не найдена.\n\n"
                 f"Доступные страны:\n{countries_list}\n\n"
@@ -465,7 +485,10 @@ async def event_command(message: Message, state: FSMContext) -> None:
             return
 
         # Store target country and ask for message
-        await state.update_data(target_player_id=target_player.id, target_country_name=target_player.country.name)
+        await state.update_data(
+            target_player_id=target_player.id,
+            target_country_name=target_player.country.name,
+        )
         await message.answer(
             f"📢 <b>Отправка события в страну {escape_html(target_player.country.name)}</b>\n\n"
             f"Введите текст события или напишите <code>cancel</code> для отмены:",
@@ -540,44 +563,67 @@ async def process_event_message(message: Message, state: FSMContext) -> None:
         if target_player_id:
             # Send to specific country
             result = await game_engine.db.execute(
-                select(Player).options(selectinload(Player.country)).where(Player.id == target_player_id)
+                select(Player)
+                .options(selectinload(Player.country))
+                .where(Player.id == target_player_id)
             )
             target_player = result.scalar_one_or_none()
 
             if target_player:
                 try:
-                    await bot.send_message(target_player.telegram_id, escape_html(message_content), parse_mode="HTML")
+                    await bot.send_message(
+                        target_player.telegram_id,
+                        escape_html(message_content),
+                        parse_mode="HTML",
+                    )
                     sent_count = 1
                 except Exception as e:
-                    print(f"Failed to send event message to player {target_player.telegram_id}: {e}")
+                    print(
+                        f"Failed to send event message to player {target_player.telegram_id}: {e}"
+                    )
                     failed_count = 1
         else:
             # Send to all countries
             result = await game_engine.db.execute(
-                select(Player).where(Player.game_id == admin.game_id).where(Player.role == PlayerRole.PLAYER)
+                select(Player)
+                .where(Player.game_id == admin.game_id)
+                .where(Player.role == PlayerRole.PLAYER)
             )
             players = result.scalars().all()
 
             for player in players:
                 try:
-                    await bot.send_message(player.telegram_id, escape_html(message_content), parse_mode="HTML")
+                    await bot.send_message(
+                        player.telegram_id,
+                        escape_html(message_content),
+                        parse_mode="HTML",
+                    )
                     sent_count += 1
                 except Exception as e:
-                    print(f"Failed to send event message to player {player.telegram_id}: {e}")
+                    print(
+                        f"Failed to send event message to player {player.telegram_id}: {e}"
+                    )
                     failed_count += 1
 
         # Send confirmation to admin
         if target_player_id:
             if failed_count == 0:
-                await message.answer(f"✅ Событие отправлено в страну {escape_html(target_country_name)}!")
-            else:
-                await message.answer(f"❌ Не удалось отправить событие в страну {escape_html(target_country_name)}.")
-        else:
-            if failed_count == 0:
-                await message.answer(f"✅ Событие отправлено всем странам ({sent_count} получателей)!")
+                await message.answer(
+                    f"✅ Событие отправлено в страну {escape_html(target_country_name)}!"
+                )
             else:
                 await message.answer(
-                    f"⚠️ Событие отправлено {sent_count} странам. " f"Не удалось отправить {failed_count} странам."
+                    f"❌ Не удалось отправить событие в страну {escape_html(target_country_name)}."
+                )
+        else:
+            if failed_count == 0:
+                await message.answer(
+                    f"✅ Событие отправлено всем странам ({sent_count} получателей)!"
+                )
+            else:
+                await message.answer(
+                    f"⚠️ Событие отправлено {sent_count} странам. "
+                    f"Не удалось отправить {failed_count} странам."
                 )
         break
 
@@ -591,5 +637,7 @@ def register_admin_handlers(dp: Dispatcher) -> None:
     dp.message.register(restart_game_command, Command("restart_game"))
     dp.message.register(update_game_command, Command("update_game"))
     dp.message.register(event_command, Command("event"))
-    dp.message.register(process_restart_confirmation, AdminStates.waiting_for_restart_confirmation)
+    dp.message.register(
+        process_restart_confirmation, AdminStates.waiting_for_restart_confirmation
+    )
     dp.message.register(process_event_message, AdminStates.waiting_for_event_message)

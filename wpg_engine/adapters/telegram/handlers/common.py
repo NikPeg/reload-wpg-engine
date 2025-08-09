@@ -32,7 +32,9 @@ async def start_command(message: Message) -> None:
         # Check if user is admin (from .env)
         from wpg_engine.config.settings import settings
 
-        is_admin_user = settings.telegram.admin_id and user_id == settings.telegram.admin_id
+        is_admin_user = (
+            settings.telegram.admin_id and user_id == settings.telegram.admin_id
+        )
 
         # Check if any games exist
         from wpg_engine.models import Game
@@ -71,7 +73,9 @@ async def start_command(message: Message) -> None:
         else:
             # Use HTML parsing to avoid markdown issues
             display_name = escape_html(player.display_name)
-            country_name = escape_html(player.country.name if player.country else "страну не назначена")
+            country_name = escape_html(
+                player.country.name if player.country else "страну не назначена"
+            )
             game_name = escape_html(player.game.name)
 
             # List of example messages for random selection

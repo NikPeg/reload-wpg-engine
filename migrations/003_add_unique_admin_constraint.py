@@ -12,7 +12,9 @@ class AddUniqueAdminConstraintMigration(Migration):
     """Add unique constraint to prevent multiple admins with same telegram_id"""
 
     def __init__(self):
-        super().__init__(version="003", description="Add unique constraint for admin players")
+        super().__init__(
+            version="003", description="Add unique constraint for admin players"
+        )
 
     async def up(self, session: AsyncSession) -> None:
         """Add unique constraint for telegram_id + role combination"""

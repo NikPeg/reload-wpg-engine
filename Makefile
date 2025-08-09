@@ -54,14 +54,17 @@ test:
 lint:
 	@echo "🔍 Running linting..."
 	@if command -v ruff >/dev/null 2>&1; then \
-		ruff check .; \
+		ruff check . && ruff format --check .; \
 	else \
 		echo "⚠️  Ruff not installed, skipping..."; \
 	fi
-	@if command -v black >/dev/null 2>&1; then \
-		black --check .; \
+
+format:
+	@echo "🎨 Formatting code..."
+	@if command -v ruff >/dev/null 2>&1; then \
+		ruff format .; \
 	else \
-		echo "⚠️  Black not installed, skipping..."; \
+		echo "⚠️  Ruff not installed, skipping..."; \
 	fi
 
 clean:
@@ -156,7 +159,7 @@ local-test:
 	python -m pytest tests/ -v
 
 # Git hooks
-pre-commit: lint test
+pre-commit: format lint test
 	@echo "✅ Pre-commit checks passed"
 
 # Installation
@@ -166,7 +169,7 @@ install:
 
 install-dev: install
 	@echo "📦 Installing development dependencies..."
-	pip install pytest black ruff mypy
+	pip install pytest ruff mypy
 
 # Help for specific environments
 help-prod:

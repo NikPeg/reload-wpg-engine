@@ -34,7 +34,9 @@ async def test_admin_system():
 
         # Create a test game
         game = await game_engine.create_game(
-            name="Test Game", description="Test game for admin system", setting="Древний мир"
+            name="Test Game",
+            description="Test game for admin system",
+            setting="Древний мир",
         )
 
         # Start the game
@@ -50,7 +52,11 @@ async def test_admin_system():
 
         # Create first player
         player1 = await game_engine.create_player(
-            game_id=game.id, telegram_id=123456789, username="first_player", display_name="First Player", role=role1
+            game_id=game.id,
+            telegram_id=123456789,
+            username="first_player",
+            display_name="First Player",
+            role=role1,
         )
         print(f"Created player: {player1.display_name} with role {player1.role}")
 

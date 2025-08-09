@@ -116,12 +116,16 @@ async def world_command(message: Message) -> None:
 
         # Get player
         result = await game_engine.db.execute(
-            select(Player).options(selectinload(Player.country)).where(Player.telegram_id == user_id)
+            select(Player)
+            .options(selectinload(Player.country))
+            .where(Player.telegram_id == user_id)
         )
         player = result.scalar_one_or_none()
 
         if not player:
-            await message.answer("❌ Вы не зарегистрированы в игре. Используйте /register")
+            await message.answer(
+                "❌ Вы не зарегистрированы в игре. Используйте /register"
+            )
             return
 
         # Check if user is admin
@@ -178,13 +182,17 @@ async def world_command(message: Message) -> None:
             synonyms_text = ", ".join([escape_html(syn) for syn in country.synonyms])
             country_info += f"<b>Синонимы:</b> {synonyms_text}\n"
 
-        country_info += f"<b>Столица:</b> {escape_html(country.capital or 'Неизвестна')}\n"
+        country_info += (
+            f"<b>Столица:</b> {escape_html(country.capital or 'Неизвестна')}\n"
+        )
 
         if country.population:
             country_info += f"<b>Население:</b> {country.population:,} чел.\n"
 
         if country.description and user_is_admin:
-            country_info += f"<b>Описание:</b> <i>{escape_html(country.description)}</i>\n"
+            country_info += (
+                f"<b>Описание:</b> <i>{escape_html(country.description)}</i>\n"
+            )
 
         country_info += "\n"
 

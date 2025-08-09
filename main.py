@@ -21,7 +21,11 @@ def kill_bot_processes():
     """Kill all running bot processes"""
     try:
         # Find and kill Python processes running the bot
-        result = subprocess.run(["pgrep", "-f", "wpg_engine.adapters.telegram.bot"], capture_output=True, text=True)
+        result = subprocess.run(
+            ["pgrep", "-f", "wpg_engine.adapters.telegram.bot"],
+            capture_output=True,
+            text=True,
+        )
 
         if result.stdout.strip():
             pids = result.stdout.strip().split("\n")
@@ -126,7 +130,9 @@ async def create_initial_game_if_needed():
         await engine.start_game(game.id)
         print("✅ Game started")
 
-        print("ℹ️  Game is ready! Admin will be auto-assigned to the first player who registers.")
+        print(
+            "ℹ️  Game is ready! Admin will be auto-assigned to the first player who registers."
+        )
         break
 
 

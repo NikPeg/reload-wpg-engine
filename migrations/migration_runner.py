@@ -52,10 +52,14 @@ class MigrationRunner:
 
     async def get_applied_migrations(self, session: AsyncSession) -> list[str]:
         """Get list of applied migration versions"""
-        result = await session.execute(text("SELECT version FROM migrations ORDER BY version"))
+        result = await session.execute(
+            text("SELECT version FROM migrations ORDER BY version")
+        )
         return [row[0] for row in result.fetchall()]
 
-    async def mark_migration_applied(self, session: AsyncSession, migration: Migration) -> None:
+    async def mark_migration_applied(
+        self, session: AsyncSession, migration: Migration
+    ) -> None:
         """Mark migration as applied"""
         await session.execute(
             text(
@@ -75,7 +79,9 @@ class MigrationRunner:
 
             for migration in self.migrations:
                 if migration.version not in applied_migrations:
-                    print(f"Applying migration {migration.version}: {migration.description}")
+                    print(
+                        f"Applying migration {migration.version}: {migration.description}"
+                    )
                     await migration.up(session)
                     await self.mark_migration_applied(session, migration)
                     print(f"Migration {migration.version} applied successfully")
