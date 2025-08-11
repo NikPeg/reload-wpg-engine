@@ -32,29 +32,15 @@ class Game(Base):
 
     # Game configuration
     max_players: Mapped[int] = mapped_column(default=10)
-    years_per_day: Mapped[int] = mapped_column(
-        default=1
-    )  # Сколько игровых лет проходит за один реальный день
-    max_points: Mapped[int] = mapped_column(
-        default=30
-    )  # Максимальная сумма очков для аспектов страны
-    max_population: Mapped[int] = mapped_column(
-        default=10_000_000
-    )  # Максимальное население страны
+    years_per_day: Mapped[int] = mapped_column(default=1)  # Сколько игровых лет проходит за один реальный день
+    max_points: Mapped[int] = mapped_column(default=30)  # Максимальная сумма очков для аспектов страны
+    max_population: Mapped[int] = mapped_column(default=10_000_000)  # Максимальное население страны
 
     # Relationships
-    countries: Mapped[list["Country"]] = relationship(
-        "Country", back_populates="game", cascade="all, delete-orphan"
-    )
-    players: Mapped[list["Player"]] = relationship(
-        "Player", back_populates="game", cascade="all, delete-orphan"
-    )
-    posts: Mapped[list["Post"]] = relationship(
-        "Post", back_populates="game", cascade="all, delete-orphan"
-    )
-    messages: Mapped[list["Message"]] = relationship(
-        "Message", back_populates="game", cascade="all, delete-orphan"
-    )
+    countries: Mapped[list["Country"]] = relationship("Country", back_populates="game", cascade="all, delete-orphan")
+    players: Mapped[list["Player"]] = relationship("Player", back_populates="game", cascade="all, delete-orphan")
+    posts: Mapped[list["Post"]] = relationship("Post", back_populates="game", cascade="all, delete-orphan")
+    messages: Mapped[list["Message"]] = relationship("Message", back_populates="game", cascade="all, delete-orphan")
 
     def __repr__(self) -> str:
         return f"<Game(id={self.id}, name='{self.name}', status='{self.status}')>"

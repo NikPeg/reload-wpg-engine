@@ -39,9 +39,7 @@ async def send_command(message: Message, state: FSMContext) -> None:
         break
 
     if not sender:
-        await message.answer(
-            "❌ Вы не зарегистрированы в игре. Используйте /register для регистрации."
-        )
+        await message.answer("❌ Вы не зарегистрированы в игре. Используйте /register для регистрации.")
         return
 
     if not sender.country:
@@ -94,9 +92,7 @@ async def send_command(message: Message, state: FSMContext) -> None:
                         break
 
         if not target_player:
-            countries_list = "\n".join(
-                [f"• {country}" for country in sorted(available_countries)]
-            )
+            countries_list = "\n".join([f"• {country}" for country in sorted(available_countries)])
             await message.answer(
                 f"❌ Страна '{escape_html(target_country_name)}' не найдена.\n\n"
                 f"Доступные страны для отправки сообщений:\n{countries_list}\n\n"
@@ -123,9 +119,7 @@ async def send_command(message: Message, state: FSMContext) -> None:
         await state.set_state(SendStates.waiting_for_message)
     else:
         # Show available countries
-        countries_list = "\n".join(
-            [f"• {country}" for country in sorted(available_countries)]
-        )
+        countries_list = "\n".join([f"• {country}" for country in sorted(available_countries)])
         await message.answer(
             f"📨 <b>Отправка сообщения другой стране</b>\n\n"
             f"Доступные страны для отправки сообщений:\n{countries_list}\n\n"
@@ -141,15 +135,11 @@ async def process_message_content(message: Message, state: FSMContext) -> None:
 
     # Validate message content
     if len(message_content) < 3:
-        await message.answer(
-            "❌ Сообщение слишком короткое (минимум 3 символа). Попробуйте еще раз:"
-        )
+        await message.answer("❌ Сообщение слишком короткое (минимум 3 символа). Попробуйте еще раз:")
         return
 
     if len(message_content) > 1000:
-        await message.answer(
-            "❌ Сообщение слишком длинное (максимум 1000 символов). Попробуйте еще раз:"
-        )
+        await message.answer("❌ Сообщение слишком длинное (максимум 1000 символов). Попробуйте еще раз:")
         return
 
     # Get stored data
@@ -158,9 +148,7 @@ async def process_message_content(message: Message, state: FSMContext) -> None:
     target_country_name = data.get("target_country_name")
 
     if not target_player_id:
-        await message.answer(
-            "❌ Ошибка: не найдена информация о получателе. Начните заново с /send"
-        )
+        await message.answer("❌ Ошибка: не найдена информация о получателе. Начните заново с /send")
         await state.clear()
         return
 
@@ -179,17 +167,13 @@ async def process_message_content(message: Message, state: FSMContext) -> None:
 
         # Get target player
         result = await game_engine.db.execute(
-            select(Player)
-            .options(selectinload(Player.country))
-            .where(Player.id == target_player_id)
+            select(Player).options(selectinload(Player.country)).where(Player.id == target_player_id)
         )
         target_player = result.scalar_one_or_none()
         break
 
     if not sender or not target_player:
-        await message.answer(
-            "❌ Ошибка: не найдена информация об отправителе или получателе."
-        )
+        await message.answer("❌ Ошибка: не найдена информация об отправителе или получателе.")
         await state.clear()
         return
 

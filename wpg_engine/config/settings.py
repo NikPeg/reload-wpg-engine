@@ -24,15 +24,9 @@ class DatabaseSettings(BaseSettings):
 class TelegramSettings(BaseSettings):
     """Telegram bot configuration"""
 
-    token: str | None = Field(
-        default_factory=lambda: os.getenv("TG_TOKEN"), description="Telegram bot token"
-    )
-    webhook_url: str | None = Field(
-        default_factory=lambda: os.getenv("TG_WEBHOOK_URL"), description="Webhook URL"
-    )
-    admin_id: int | None = Field(
-        default=None, alias="TG_ADMIN_ID", description="Admin Telegram ID"
-    )
+    token: str | None = Field(default_factory=lambda: os.getenv("TG_TOKEN"), description="Telegram bot token")
+    webhook_url: str | None = Field(default_factory=lambda: os.getenv("TG_WEBHOOK_URL"), description="Webhook URL")
+    admin_id: int | None = Field(default=None, alias="TG_ADMIN_ID", description="Admin Telegram ID")
 
     model_config = SettingsConfigDict(env_prefix="TG_", extra="allow")
 
@@ -56,12 +50,8 @@ class VKSettings(BaseSettings):
 class AISettings(BaseSettings):
     """AI service configuration"""
 
-    openrouter_api_key: str | None = Field(
-        default=None, description="OpenRouter API key"
-    )
-    default_model: str = Field(
-        default="anthropic/claude-3-haiku", description="Default AI model"
-    )
+    openrouter_api_key: str | None = Field(default=None, description="OpenRouter API key")
+    default_model: str = Field(default="anthropic/claude-3-haiku", description="Default AI model")
 
     model_config = SettingsConfigDict(env_prefix="AI_", extra="allow")
 

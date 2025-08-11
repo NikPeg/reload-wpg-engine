@@ -36,22 +36,16 @@ class Country(Base):
     technology_description: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     religion_culture: Mapped[int] = mapped_column(Integer, default=5)
-    religion_culture_description: Mapped[str | None] = mapped_column(
-        Text, nullable=True
-    )
+    religion_culture_description: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     governance_law: Mapped[int] = mapped_column(Integer, default=5)
     governance_law_description: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     construction_infrastructure: Mapped[int] = mapped_column(Integer, default=5)
-    construction_infrastructure_description: Mapped[str | None] = mapped_column(
-        Text, nullable=True
-    )
+    construction_infrastructure_description: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     social_relations: Mapped[int] = mapped_column(Integer, default=5)
-    social_relations_description: Mapped[str | None] = mapped_column(
-        Text, nullable=True
-    )
+    social_relations_description: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     intelligence: Mapped[int] = mapped_column(Integer, default=5)
     intelligence_description: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -65,7 +59,7 @@ class Country(Base):
 
     # Public visibility flags for each aspect
     economy_public: Mapped[bool] = mapped_column(default=True)
-    military_public: Mapped[bool] = mapped_column(default=False)
+    military_public: Mapped[bool] = mapped_column(default=True)
     foreign_policy_public: Mapped[bool] = mapped_column(default=True)
     territory_public: Mapped[bool] = mapped_column(default=True)
     technology_public: Mapped[bool] = mapped_column(default=True)
@@ -73,9 +67,7 @@ class Country(Base):
     governance_law_public: Mapped[bool] = mapped_column(default=True)
     construction_infrastructure_public: Mapped[bool] = mapped_column(default=True)
     social_relations_public: Mapped[bool] = mapped_column(default=True)
-    intelligence_public: Mapped[bool] = mapped_column(
-        default=False
-    )  # Разведка по умолчанию скрыта
+    intelligence_public: Mapped[bool] = mapped_column(default=False)  # Разведка по умолчанию скрыта
 
     # Relationships
     game: Mapped["Game"] = relationship("Game", back_populates="countries")
@@ -154,9 +146,7 @@ class Country(Base):
             "intelligence": self.intelligence_public,
         }
 
-        return {
-            aspect: data for aspect, data in aspects.items() if public_flags[aspect]
-        }
+        return {aspect: data for aspect, data in aspects.items() if public_flags[aspect]}
 
     def __repr__(self) -> str:
         return f"<Country(id={self.id}, name='{self.name}', game_id={self.game_id})>"

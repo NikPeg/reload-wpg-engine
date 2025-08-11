@@ -35,15 +35,11 @@ class Player(Base):
 
     # Foreign keys
     game_id: Mapped[int] = mapped_column(ForeignKey("games.id"), nullable=False)
-    country_id: Mapped[int | None] = mapped_column(
-        ForeignKey("countries.id"), nullable=True
-    )
+    country_id: Mapped[int | None] = mapped_column(ForeignKey("countries.id"), nullable=True)
 
     # Relationships
     game: Mapped["Game"] = relationship("Game", back_populates="players")
-    country: Mapped[Optional["Country"]] = relationship(
-        "Country", back_populates="players"
-    )
+    country: Mapped[Optional["Country"]] = relationship("Country", back_populates="players")
     posts: Mapped[list["Post"]] = relationship("Post", back_populates="author")
     verdicts: Mapped[list["Verdict"]] = relationship("Verdict", back_populates="admin")
     messages: Mapped[list["Message"]] = relationship("Message", back_populates="player")

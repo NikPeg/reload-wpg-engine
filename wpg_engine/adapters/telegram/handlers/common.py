@@ -32,9 +32,7 @@ async def start_command(message: Message) -> None:
         # Check if user is admin (from .env)
         from wpg_engine.config.settings import settings
 
-        is_admin_user = (
-            settings.telegram.admin_id and user_id == settings.telegram.admin_id
-        )
+        is_admin_user = settings.telegram.admin_id and user_id == settings.telegram.admin_id
 
         # Check if any games exist
         from wpg_engine.models import Game
@@ -60,6 +58,7 @@ async def start_command(message: Message) -> None:
                 f"<b>Обычные команды:</b>\n"
                 f"• /stats - информация о вашей стране\n"
                 f"• /world - информация о других странах\n"
+                f"• /world название_страны - подробная информация о конкретной стране\n"
                 f"• /send - отправить сообщение другой стране\n"
                 f"• /register - перерегистрироваться (создать новую страну)\n\n"
                 f"<b>Команды администратора:</b>\n"
@@ -73,9 +72,7 @@ async def start_command(message: Message) -> None:
         else:
             # Use HTML parsing to avoid markdown issues
             display_name = escape_html(player.display_name)
-            country_name = escape_html(
-                player.country.name if player.country else "страну не назначена"
-            )
+            country_name = escape_html(player.country.name if player.country else "страну не назначена")
             game_name = escape_html(player.game.name)
 
             # List of example messages for random selection
@@ -103,6 +100,7 @@ async def start_command(message: Message) -> None:
                 f"<b>Доступные команды:</b>\n"
                 f"👤 /stats - информация о вашей стране\n"
                 f"🌍 /world - информация о других странах\n"
+                f"🌍 /world название_страны - подробная информация о конкретной стране\n"
                 f"📨 /send - отправить сообщение другой стране\n"
                 f"🔄 /register - перерегистрироваться (создать новую страну)\n\n"
                 f"Напиши свой приказ, задай вопрос или начни проект! Например: <code>{escape_html(random_example)}</code>",
@@ -175,6 +173,7 @@ async def help_command(message: Message) -> None:
             "/start - главное меню и панель администратора\n"
             "/stats - информация о вашей стране\n"
             "/world - информация о других странах\n"
+            "/world название_страны - подробная информация о конкретной стране\n"
             "/send - отправить сообщение другой стране\n"
             "/register - перерегистрироваться (создать новую страну)\n"
             "/help - показать эту справку\n\n"
@@ -194,6 +193,7 @@ async def help_command(message: Message) -> None:
             "/start - главное меню\n"
             "/stats - информация о вашей стране\n"
             "/world - информация о других странах\n"
+            "/world название_страны - подробная информация о конкретной стране\n"
             "/send - отправить сообщение другой стране\n"
             "/register - перерегистрироваться (создать новую страну)\n"
             "/help - показать эту справку\n\n"
