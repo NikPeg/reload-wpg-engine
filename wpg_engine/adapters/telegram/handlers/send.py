@@ -12,7 +12,7 @@ from sqlalchemy.orm import selectinload
 
 from wpg_engine.adapters.telegram.utils import escape_html
 from wpg_engine.core.engine import GameEngine
-from wpg_engine.models import Player, get_db
+from wpg_engine.models import Player, PlayerRole, get_db
 
 
 class SendStates(StatesGroup):
@@ -170,6 +170,16 @@ async def process_message_content(message: Message, state: FSMContext) -> None:
             select(Player).options(selectinload(Player.country)).where(Player.id == target_player_id)
         )
         target_player = result.scalar_one_or_none()
+
+        # Get admin player for this game
+        result = await game_engine.db.execute(
+            select(Player)
+            .options(selectinload(Player.country))
+            .where(Player.game_id == sender.game_id if sender else None)
+            .where(Player.role == PlayerRole.ADMIN)
+            .limit(1)
+        )
+        admin_player = result.scalar_one_or_none()
         break
 
     if not sender or not target_player:
@@ -193,6 +203,28 @@ async def process_message_content(message: Message, state: FSMContext) -> None:
             recipient_message,
             parse_mode="HTML",
         )
+
+        # Send copy to admin if admin exists and is not the sender or recipient
+        if (
+            admin_player
+            and admin_player.telegram_id != sender.telegram_id
+            and admin_player.telegram_id != target_player.telegram_id
+        ):
+            try:
+                admin_message = (
+                    f"📋 <b>Копия сообщения между странами</b>\n\n"
+                    f"<b>От:</b> {escape_html(sender.country.name)}\n"
+                    f"<b>Кому:</b> {escape_html(target_player.country.name)}\n\n"
+                    f"<b>Сообщение:</b>\n{escape_html(message_content)}"
+                )
+
+                await bot.send_message(
+                    admin_player.telegram_id,
+                    admin_message,
+                    parse_mode="HTML",
+                )
+            except Exception as e:
+                print(f"Failed to send message copy to admin: {e}")
 
         # Confirm to sender
         await message.answer(
