@@ -21,6 +21,8 @@ class RegistrationStates(StatesGroup):
     """Registration states"""
 
     waiting_for_country_name = State()
+    waiting_for_capital = State()
+    waiting_for_population = State()
     waiting_for_country_description = State()
     waiting_for_economy = State()
     waiting_for_military = State()
@@ -32,8 +34,6 @@ class RegistrationStates(StatesGroup):
     waiting_for_construction_infrastructure = State()
     waiting_for_social_relations = State()
     waiting_for_intelligence = State()
-    waiting_for_capital = State()
-    waiting_for_population = State()
 
     # Re-registration confirmation state
     waiting_for_reregistration_confirmation = State()
@@ -184,12 +184,10 @@ async def process_country_name(message: Message, state: FSMContext) -> None:
 
     await state.update_data(country_name=country_name)
     await message.answer(
-        f"✅ Название страны: <b>{escape_html(country_name)}</b>\n\n"
-        f"Теперь дайте краткое описание вашей страны "
-        f"(история, особенности, культура):",
+        f"✅ Название страны: <b>{escape_html(country_name)}</b>\n\n" f"Как называется столица вашей страны?",
         parse_mode="HTML",
     )
-    await state.set_state(RegistrationStates.waiting_for_country_description)
+    await state.set_state(RegistrationStates.waiting_for_capital)
 
 
 async def process_country_description(message: Message, state: FSMContext) -> None:
@@ -202,19 +200,27 @@ async def process_country_description(message: Message, state: FSMContext) -> No
 
     data = await state.get_data()
     await state.update_data(country_description=description)
+
+    # Create aspects list for display
+    aspects_list = []
+    for i, (aspect_key, aspect_name) in enumerate(ASPECT_NAMES.items(), 1):
+        aspects_list.append(f"{i}. <b>{aspect_name}</b> - {ASPECT_DESCRIPTIONS[aspect_key]}")
+
+    aspects_text = "\n".join(aspects_list)
+
     await message.answer(
         f"✅ Описание сохранено.\n\n"
-        f"*Теперь настроим аспекты развития вашей страны.*\n\n"
-        f"📊 *Доступно очков: {data['max_points']} | Потрачено: {data['spent_points']} | Осталось: {data['max_points'] - data['spent_points']}*\n\n"
+        f"📊 <b>Теперь нужно будет распределить {data['max_points']} очков между 10 аспектами развития:</b>\n\n"
+        f"{aspects_text}\n\n"
         f"Каждый аспект оценивается по шкале от 0 до 10:\n"
         f"• 0: отсутствует\n"
         f"• 1-3: слабый уровень\n"
         f"• 4-6: средний уровень\n"
         f"• 7-8: высокий уровень\n"
         f"• 9-10: выдающийся уровень\n\n"
-        f"*{ASPECT_NAMES['economy']}* ({ASPECT_DESCRIPTIONS['economy']})\n"
+        f"<b>{ASPECT_NAMES['economy']}</b> ({ASPECT_DESCRIPTIONS['economy']})\n"
         f"Введите значение от 0 до 10:",
-        parse_mode="Markdown",
+        parse_mode="HTML",
     )
     await state.set_state(RegistrationStates.waiting_for_economy)
 
@@ -270,16 +276,15 @@ async def process_aspect(message: Message, state: FSMContext, aspect: str, next_
         )
         await state.set_state(next_state)
     else:
-        # All aspects done, ask for capital
+        # All aspects done, complete registration
         await message.answer(
             f"✅ {ASPECT_NAMES[aspect]}: {value}\n\n"
-            f"📊 *Итого потрачено: {new_spent} из {max_points} очков*\n"
-            f"*Осталось неиспользованных: {remaining} очков*\n\n"
-            f"*Дополнительная информация*\n\n"
-            f"Как называется столица вашей страны?",
-            parse_mode="Markdown",
+            f"📊 <b>Итого потрачено: {new_spent} из {max_points} очков</b>\n"
+            f"<b>Осталось неиспользованных: {remaining} очков</b>\n\n"
+            f"🎉 Все аспекты настроены! Завершаем регистрацию...",
+            parse_mode="HTML",
         )
-        await state.set_state(RegistrationStates.waiting_for_capital)
+        await complete_registration(message, state)
 
 
 async def process_economy(message: Message, state: FSMContext) -> None:
@@ -334,7 +339,7 @@ async def process_social_relations(message: Message, state: FSMContext) -> None:
 
 
 async def process_intelligence(message: Message, state: FSMContext) -> None:
-    await process_aspect(message, state, "intelligence", RegistrationStates.waiting_for_capital)
+    await process_aspect(message, state, "intelligence", None)
 
 
 async def process_capital(message: Message, state: FSMContext) -> None:
@@ -356,7 +361,7 @@ async def process_capital(message: Message, state: FSMContext) -> None:
 
 
 async def process_population(message: Message, state: FSMContext) -> None:
-    """Process population and complete registration"""
+    """Process population and move to country description"""
     # Get max population from game settings
     data = await state.get_data()
     max_population = data.get("max_population", 10_000_000)
@@ -369,9 +374,20 @@ async def process_population(message: Message, state: FSMContext) -> None:
         await message.answer(f"❌ Введите корректное число населения (от 1,000 до {max_population:,}).")
         return
 
+    await state.update_data(population=population)
+    await message.answer(
+        f"✅ Население: <b>{population:,}</b>\n\n"
+        f"Теперь дайте краткое описание вашей страны "
+        f"(история, особенности, культура):",
+        parse_mode="HTML",
+    )
+    await state.set_state(RegistrationStates.waiting_for_country_description)
+
+
+async def complete_registration(message: Message, state: FSMContext) -> None:
+    """Complete registration and create country and player"""
     # Get all registration data
     data = await state.get_data()
-    data["population"] = population
 
     async for db in get_db():
         game_engine = GameEngine(db)
@@ -446,7 +462,7 @@ async def process_population(message: Message, state: FSMContext) -> None:
                         f"<b>Telegram ID:</b> <code>{data['user_id']}</code>\n\n"
                         f"<b>Страна:</b> {escape_html(data['country_name'])}\n"
                         f"<b>Столица:</b> {escape_html(data['capital'])}\n"
-                        f"<b>Население:</b> {population:,}\n\n"
+                        f"<b>Население:</b> {data['population']:,}\n\n"
                         f"<b>Описание:</b>\n{escape_html(data['country_description'])}\n\n"
                         f"📊 <b>Очки: {total_points}/{data['max_points']} (осталось: {data['max_points'] - total_points})</b>\n\n"
                         f"<b>Аспекты развития:</b>\n"
@@ -491,7 +507,7 @@ async def process_population(message: Message, state: FSMContext) -> None:
         f"🎉 <b>Регистрация завершена!</b>\n\n"
         f"<b>Ваша страна:</b> {escape_html(data['country_name'])}\n"
         f"<b>Столица:</b> {escape_html(data['capital'])}\n"
-        f"<b>Население:</b> {population:,}\n\n"
+        f"<b>Население:</b> {data['population']:,}\n\n"
         f"<b>Аспекты развития:</b>\n"
         f"💰 Экономика: {data['economy']}\n"
         f"⚔️ Военное дело: {data['military']}\n"
@@ -588,7 +604,10 @@ def register_registration_handlers(dp: Dispatcher) -> None:
         process_reregistration_confirmation,
         RegistrationStates.waiting_for_reregistration_confirmation,
     )
+    # New sequence: country name -> capital -> population -> description -> aspects
     dp.message.register(process_country_name, RegistrationStates.waiting_for_country_name)
+    dp.message.register(process_capital, RegistrationStates.waiting_for_capital)
+    dp.message.register(process_population, RegistrationStates.waiting_for_population)
     dp.message.register(process_country_description, RegistrationStates.waiting_for_country_description)
     dp.message.register(process_economy, RegistrationStates.waiting_for_economy)
     dp.message.register(process_military, RegistrationStates.waiting_for_military)
@@ -603,5 +622,3 @@ def register_registration_handlers(dp: Dispatcher) -> None:
     )
     dp.message.register(process_social_relations, RegistrationStates.waiting_for_social_relations)
     dp.message.register(process_intelligence, RegistrationStates.waiting_for_intelligence)
-    dp.message.register(process_capital, RegistrationStates.waiting_for_capital)
-    dp.message.register(process_population, RegistrationStates.waiting_for_population)
