@@ -15,7 +15,7 @@ from wpg_engine.models import Player, get_db
 # Removed PostStates - no longer needed
 
 
-def truncate_text(text: str, max_length: int = 200) -> str:
+def truncate_text(text: str, max_length: int = 300) -> str:
     """Truncate text to max_length characters, adding ... if truncated"""
     if not text:
         return text
@@ -90,7 +90,7 @@ async def stats_command(message: Message) -> None:
 
         aspects_text += f"{emoji} <b>{name}</b>: {value}/10\n"
         aspects_text += f"   {rating_bar}\n"
-        aspects_text += f"   <i>{escape_html(truncate_text(description, 150))}</i>\n\n"
+        aspects_text += f"   <i>{escape_html(truncate_text(description, 300))}</i>\n\n"
 
     # Build country info message
     country_info = "🏛️ <b>Информация о вашей стране</b>\n\n"
@@ -230,7 +230,7 @@ async def world_command(message: Message) -> None:
             country_info += f"{emoji} <b>{name}</b>: {value}/10\n"
             country_info += f"   {rating_bar}\n"
             country_info += (
-                f"   <i>{escape_html(truncate_text(description, 150))}</i>\n\n"
+                f"   <i>{escape_html(truncate_text(description, 300))}</i>\n\n"
             )
 
         # Add hidden marker for admin editing (invisible to user) only for admins
@@ -265,7 +265,7 @@ async def world_command(message: Message) -> None:
                 country_info += f"<b>Население:</b> {country.population:,} чел.\n"
 
             if country.description and user_is_admin:
-                country_info += f"<b>Описание:</b> <i>{escape_html(truncate_text(country.description, 200))}</i>\n"
+                country_info += f"<b>Описание:</b> <i>{escape_html(truncate_text(country.description, 300))}</i>\n"
 
             country_info += "\n"
 
@@ -286,7 +286,7 @@ async def world_command(message: Message) -> None:
                     country_info += f"{emoji} <b>{name}</b>: {value}/10\n"
                     country_info += f"   {rating_bar}\n"
                     country_info += (
-                        f"   <i>{escape_html(truncate_text(description, 100))}</i>\n\n"
+                        f"   <i>{escape_html(truncate_text(description, 300))}</i>\n\n"
                     )
 
                 # Add hidden marker for admin editing (invisible to user)
