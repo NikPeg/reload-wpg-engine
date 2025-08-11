@@ -15,6 +15,15 @@ from wpg_engine.models import Player, get_db
 # Removed PostStates - no longer needed
 
 
+def truncate_text(text: str, max_length: int = 200) -> str:
+    """Truncate text to max_length characters, adding ... if truncated"""
+    if not text:
+        return text
+    if len(text) <= max_length:
+        return text
+    return text[:max_length].rstrip() + "..."
+
+
 async def stats_command(message: Message) -> None:
     """Handle /stats command - show player's country info"""
     user_id = message.from_user.id
@@ -81,7 +90,7 @@ async def stats_command(message: Message) -> None:
 
         aspects_text += f"{emoji} <b>{name}</b>: {value}/10\n"
         aspects_text += f"   {rating_bar}\n"
-        aspects_text += f"   <i>{escape_html(description)}</i>\n\n"
+        aspects_text += f"   <i>{escape_html(truncate_text(description, 150))}</i>\n\n"
 
     # Build country info message
     country_info = "🏛️ <b>Информация о вашей стране</b>\n\n"
@@ -94,7 +103,7 @@ async def stats_command(message: Message) -> None:
 
     country_info += f"<b>Столица:</b> {escape_html(country.capital or 'Не указана')}\n"
     country_info += f"<b>Население:</b> {country.population:,} чел.\n\n"
-    country_info += f"<b>Описание:</b>\n<i>{escape_html(country.description)}</i>\n\n"
+    country_info += f"<b>Описание:</b>\n<i>{escape_html(truncate_text(country.description, 300))}</i>\n\n"
     country_info += f"<b>Аспекты развития:</b>\n\n{aspects_text}"
     country_info += f"<b>Игра:</b> {escape_html(player.game.name)}\n"
     country_info += f"<b>Сеттинг:</b> {escape_html(player.game.setting)}\n"
@@ -197,9 +206,7 @@ async def world_command(message: Message) -> None:
 
         # Show description for all players when requesting specific country
         if country.description:
-            country_info += (
-                f"<b>Описание:</b> <i>{escape_html(country.description)}</i>\n"
-            )
+            country_info += f"<b>Описание:</b> <i>{escape_html(truncate_text(country.description, 300))}</i>\n"
 
         country_info += "\n"
 
@@ -222,7 +229,9 @@ async def world_command(message: Message) -> None:
 
             country_info += f"{emoji} <b>{name}</b>: {value}/10\n"
             country_info += f"   {rating_bar}\n"
-            country_info += f"   <i>{escape_html(description)}</i>\n\n"
+            country_info += (
+                f"   <i>{escape_html(truncate_text(description, 150))}</i>\n\n"
+            )
 
         # Add hidden marker for admin editing (invisible to user) only for admins
         if user_is_admin:
@@ -256,9 +265,7 @@ async def world_command(message: Message) -> None:
                 country_info += f"<b>Население:</b> {country.population:,} чел.\n"
 
             if country.description and user_is_admin:
-                country_info += (
-                    f"<b>Описание:</b> <i>{escape_html(country.description)}</i>\n"
-                )
+                country_info += f"<b>Описание:</b> <i>{escape_html(truncate_text(country.description, 200))}</i>\n"
 
             country_info += "\n"
 
@@ -278,7 +285,9 @@ async def world_command(message: Message) -> None:
 
                     country_info += f"{emoji} <b>{name}</b>: {value}/10\n"
                     country_info += f"   {rating_bar}\n"
-                    country_info += f"   <i>{escape_html(description)}</i>\n\n"
+                    country_info += (
+                        f"   <i>{escape_html(truncate_text(description, 100))}</i>\n\n"
+                    )
 
                 # Add hidden marker for admin editing (invisible to user)
                 country_info += f"\n<code>[EDIT_COUNTRY:{country.id}]</code>"
