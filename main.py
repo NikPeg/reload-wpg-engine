@@ -83,12 +83,65 @@ async def create_initial_game_if_needed():
         break
 
 
+async def run_migrations():
+    """Run database migrations"""
+    print("🔄 Running database migrations...")
+    try:
+        # Import and run migrations
+        import importlib.util
+        import os
+        from pathlib import Path
+        from migrations.migration_runner import migration_runner
+
+        # Load and add all migrations
+        migrations_dir = Path(__file__).parent / "migrations"
+        migration_files = sorted(
+            [
+                f
+                for f in os.listdir(migrations_dir)
+                if f.endswith(".py") and f[0].isdigit()
+            ]
+        )
+
+        for migration_file in migration_files:
+            migration_path = migrations_dir / migration_file
+            try:
+                # Load migration from file
+                spec = importlib.util.spec_from_file_location(
+                    "migration", migration_path
+                )
+                module = importlib.util.module_from_spec(spec)
+                spec.loader.exec_module(module)
+
+                # Extract migration number from filename
+                migration_number = migration_file.split("_")[0]
+                migration_attr = f"migration_{migration_number}"
+
+                migration = getattr(module, migration_attr)
+                migration_runner.add_migration(migration)
+                print(f"📦 Loaded migration: {migration_file}")
+            except Exception as e:
+                print(f"❌ Failed to load migration {migration_file}: {e}")
+
+        # Run migrations
+        await migration_runner.run_migrations()
+        print("✅ Database migrations completed")
+
+    except Exception as e:
+        print(f"❌ Error running migrations: {e}")
+        # Don't fail startup if migrations fail - log and continue
+        print("⚠️  Continuing startup despite migration errors...")
+
+
 async def initialize_system():
     """Initialize the entire system"""
     print("🚀 Initializing WPG Engine...")
 
     # Check and initialize database
     db_existed = await check_and_init_database()
+
+    # Run migrations after database initialization
+    await run_migrations()
 
     # Create initial game if needed
     if not db_existed:
