@@ -91,6 +91,7 @@ async def run_migrations():
         import importlib.util
         import os
         from pathlib import Path
+
         from migrations.migration_runner import migration_runner
 
         # Load and add all migrations
