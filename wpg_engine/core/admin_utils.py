@@ -9,7 +9,9 @@ from wpg_engine.config.settings import settings
 from wpg_engine.models import Player, PlayerRole
 
 
-async def determine_player_role(telegram_id: int, game_id: int, db: AsyncSession) -> PlayerRole:
+async def determine_player_role(
+    telegram_id: int, game_id: int, db: AsyncSession
+) -> PlayerRole:
     """
     Determine player role based on:
     1. Admin IDs from environment variables
@@ -39,7 +41,9 @@ async def determine_player_role(telegram_id: int, game_id: int, db: AsyncSession
 
 async def is_admin(telegram_id: int, db: AsyncSession) -> bool:
     """Check if user is admin"""
-    result = await db.execute(select(Player).where(Player.telegram_id == telegram_id).limit(1))
+    result = await db.execute(
+        select(Player).where(Player.telegram_id == telegram_id).limit(1)
+    )
     player = result.scalar_one_or_none()
 
     return player is not None and player.role == PlayerRole.ADMIN

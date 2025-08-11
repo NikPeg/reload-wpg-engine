@@ -121,12 +121,16 @@ async def world_command(message: Message) -> None:
 
         # Get player
         result = await game_engine.db.execute(
-            select(Player).options(selectinload(Player.country)).where(Player.telegram_id == user_id)
+            select(Player)
+            .options(selectinload(Player.country))
+            .where(Player.telegram_id == user_id)
         )
         player = result.scalar_one_or_none()
 
         if not player:
-            await message.answer("❌ Вы не зарегистрированы в игре. Используйте /register")
+            await message.answer(
+                "❌ Вы не зарегистрированы в игре. Используйте /register"
+            )
             return
 
         # Check if user is admin
@@ -170,7 +174,9 @@ async def world_command(message: Message) -> None:
 
     if country_name:
         # Show info about specific country
-        country = await game_engine.find_country_by_name_or_synonym(player.game_id, country_name)
+        country = await game_engine.find_country_by_name_or_synonym(
+            player.game_id, country_name
+        )
 
         if not country:
             await message.answer(
@@ -182,14 +188,18 @@ async def world_command(message: Message) -> None:
 
         country_info = f"🏛️ <b>{escape_html(country.name)}</b>\n"
 
-        country_info += f"<b>Столица:</b> {escape_html(country.capital or 'Неизвестна')}\n"
+        country_info += (
+            f"<b>Столица:</b> {escape_html(country.capital or 'Неизвестна')}\n"
+        )
 
         if country.population:
             country_info += f"<b>Население:</b> {country.population:,} чел.\n"
 
         # Show description for all players when requesting specific country
         if country.description:
-            country_info += f"<b>Описание:</b> <i>{escape_html(country.description)}</i>\n"
+            country_info += (
+                f"<b>Описание:</b> <i>{escape_html(country.description)}</i>\n"
+            )
 
         country_info += "\n"
 
@@ -233,16 +243,22 @@ async def world_command(message: Message) -> None:
 
             # Show synonyms if they exist
             if country.synonyms:
-                synonyms_text = ", ".join([escape_html(syn) for syn in country.synonyms])
+                synonyms_text = ", ".join(
+                    [escape_html(syn) for syn in country.synonyms]
+                )
                 country_info += f"<b>Синонимы:</b> {synonyms_text}\n"
 
-            country_info += f"<b>Столица:</b> {escape_html(country.capital or 'Неизвестна')}\n"
+            country_info += (
+                f"<b>Столица:</b> {escape_html(country.capital or 'Неизвестна')}\n"
+            )
 
             if country.population:
                 country_info += f"<b>Население:</b> {country.population:,} чел.\n"
 
             if country.description and user_is_admin:
-                country_info += f"<b>Описание:</b> <i>{escape_html(country.description)}</i>\n"
+                country_info += (
+                    f"<b>Описание:</b> <i>{escape_html(country.description)}</i>\n"
+                )
 
             country_info += "\n"
 

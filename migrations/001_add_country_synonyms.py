@@ -12,7 +12,9 @@ class AddCountrySynonymsMigration(Migration):
     """Add synonyms field to countries table"""
 
     def __init__(self):
-        super().__init__(version="001", description="Add synonyms field to countries table")
+        super().__init__(
+            version="001", description="Add synonyms field to countries table"
+        )
 
     async def up(self, session: AsyncSession) -> None:
         """Add synonyms column to countries table"""

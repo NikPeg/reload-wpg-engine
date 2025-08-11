@@ -22,18 +22,26 @@ class Post(Base):
     game_id: Mapped[int] = mapped_column(ForeignKey("games.id"), nullable=False)
 
     # Optional reply to another post
-    reply_to_id: Mapped[int | None] = mapped_column(ForeignKey("posts.id"), nullable=True)
+    reply_to_id: Mapped[int | None] = mapped_column(
+        ForeignKey("posts.id"), nullable=True
+    )
 
     # Relationships
     author: Mapped["Player"] = relationship("Player", back_populates="posts")
     game: Mapped["Game"] = relationship("Game", back_populates="posts")
 
     # Self-referential relationship for replies
-    reply_to: Mapped[Optional["Post"]] = relationship("Post", remote_side="Post.id", back_populates="replies")
+    reply_to: Mapped[Optional["Post"]] = relationship(
+        "Post", remote_side="Post.id", back_populates="replies"
+    )
     replies: Mapped[list["Post"]] = relationship("Post", back_populates="reply_to")
 
     # Verdicts for this post
-    verdicts: Mapped[list["Verdict"]] = relationship("Verdict", back_populates="post", cascade="all, delete-orphan")
+    verdicts: Mapped[list["Verdict"]] = relationship(
+        "Verdict", back_populates="post", cascade="all, delete-orphan"
+    )
 
     def __repr__(self) -> str:
-        return f"<Post(id={self.id}, author_id={self.author_id}, game_id={self.game_id})>"
+        return (
+            f"<Post(id={self.id}, author_id={self.author_id}, game_id={self.game_id})>"
+        )

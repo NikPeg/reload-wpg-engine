@@ -79,7 +79,9 @@ class TestGameEngine:
         assert admin.display_name == "Администратор"
         assert admin.role == PlayerRole.ADMIN
 
-    async def test_create_regular_player_with_country(self, game_engine: GameEngine, test_game: Game):
+    async def test_create_regular_player_with_country(
+        self, game_engine: GameEngine, test_game: Game
+    ):
         """Тест создания обычного игрока и назначения ему страны"""
         # Создаем страну
         country = await game_engine.create_country(
@@ -149,7 +151,9 @@ class TestGameEngine:
         )
 
         # Создаем пост
-        post = await game_engine.create_post(author_id=player.id, game_id=test_game.id, content="Пост для вердикта")
+        post = await game_engine.create_post(
+            author_id=player.id, game_id=test_game.id, content="Пост для вердикта"
+        )
 
         # Создаем вердикт
         verdict = await game_engine.create_verdict(
@@ -177,7 +181,9 @@ class TestGameEngine:
     async def test_game_statistics(self, game_engine: GameEngine, test_game: Game):
         """Тест получения статистики игры"""
         # Создаем некоторые данные
-        await game_engine.create_country(game_id=test_game.id, name="Страна 1", description="Первая страна")
+        await game_engine.create_country(
+            game_id=test_game.id, name="Страна 1", description="Первая страна"
+        )
 
         await game_engine.create_player(
             game_id=test_game.id,
@@ -197,7 +203,9 @@ class TestGameEngine:
         assert "created_at" in stats
         assert "updated_at" in stats
 
-    async def test_update_country_aspects(self, game_engine: GameEngine, test_game: Game):
+    async def test_update_country_aspects(
+        self, game_engine: GameEngine, test_game: Game
+    ):
         """Тест обновления аспектов страны"""
         # Создаем страну
         country = await game_engine.create_country(

@@ -36,7 +36,9 @@ async def main():
 
     # Load and add all migrations
     migrations_dir = project_root / "migrations"
-    migration_files = sorted([f for f in os.listdir(migrations_dir) if f.endswith(".py") and f[0].isdigit()])
+    migration_files = sorted(
+        [f for f in os.listdir(migrations_dir) if f.endswith(".py") and f[0].isdigit()]
+    )
 
     for migration_file in migration_files:
         migration_path = migrations_dir / migration_file

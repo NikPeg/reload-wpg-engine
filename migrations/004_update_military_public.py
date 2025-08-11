@@ -12,11 +12,18 @@ class UpdateMilitaryPublicMigration(Migration):
     """Update military_public to True for existing countries"""
 
     def __init__(self):
-        super().__init__(version="004", description="Update military_public to True for existing countries")
+        super().__init__(
+            version="004",
+            description="Update military_public to True for existing countries",
+        )
 
     async def up(self, session: AsyncSession) -> None:
         """Update military_public to True for all existing countries"""
-        await session.execute(text("UPDATE countries SET military_public = true WHERE military_public = false"))
+        await session.execute(
+            text(
+                "UPDATE countries SET military_public = true WHERE military_public = false"
+            )
+        )
         await session.commit()
         print("✅ Updated military_public to True for existing countries")
 

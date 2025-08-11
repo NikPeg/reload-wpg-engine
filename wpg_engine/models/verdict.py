@@ -25,4 +25,6 @@ class Verdict(Base):
     admin: Mapped["Player"] = relationship("Player", back_populates="verdicts")
 
     def __repr__(self) -> str:
-        return f"<Verdict(id={self.id}, post_id={self.post_id}, admin_id={self.admin_id})>"
+        return (
+            f"<Verdict(id={self.id}, post_id={self.post_id}, admin_id={self.admin_id})>"
+        )

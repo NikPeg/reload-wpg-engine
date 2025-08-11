@@ -75,18 +75,25 @@ async def register_command(message: Message, state: FSMContext) -> None:
 
         # Check if user is already registered
         result = await game_engine.db.execute(
-            select(Player).options(selectinload(Player.country)).where(Player.telegram_id == user_id).limit(1)
+            select(Player)
+            .options(selectinload(Player.country))
+            .where(Player.telegram_id == user_id)
+            .limit(1)
         )
         existing_player = result.scalar_one_or_none()
 
         # Get available game (created or active) - take the first one
         result = await game_engine.db.execute(
-            select(Game).where(Game.status.in_([GameStatus.CREATED, GameStatus.ACTIVE])).limit(1)
+            select(Game)
+            .where(Game.status.in_([GameStatus.CREATED, GameStatus.ACTIVE]))
+            .limit(1)
         )
         game = result.scalar_one_or_none()
 
         if not game:
-            await message.answer("❌ В данный момент нет доступных игр. Обратитесь к администратору.")
+            await message.answer(
+                "❌ В данный момент нет доступных игр. Обратитесь к администратору."
+            )
             return
         break
 
@@ -98,7 +105,9 @@ async def register_command(message: Message, state: FSMContext) -> None:
             game_id=game.id,
             max_points=game.max_points,
             existing_player_id=existing_player.id,
-            existing_country_id=(existing_player.country_id if existing_player.country else None),
+            existing_country_id=(
+                existing_player.country_id if existing_player.country else None
+            ),
         )
 
         country_info = ""
@@ -117,7 +126,9 @@ async def register_command(message: Message, state: FSMContext) -> None:
             f"Напишите <b>ПОДТВЕРЖДАЮ</b> (заглавными буквами), чтобы продолжить, или любое другое сообщение для отмены.",
             parse_mode="HTML",
         )
-        await state.set_state(RegistrationStates.waiting_for_reregistration_confirmation)
+        await state.set_state(
+            RegistrationStates.waiting_for_reregistration_confirmation
+        )
         return
 
     # New user registration
@@ -158,7 +169,9 @@ async def process_country_name(message: Message, state: FSMContext) -> None:
         game_engine = GameEngine(db)
 
         # Get all countries in the game
-        result = await game_engine.db.execute(select(Country).where(Country.game_id == game_id))
+        result = await game_engine.db.execute(
+            select(Country).where(Country.game_id == game_id)
+        )
         existing_countries = result.scalars().all()
 
         # Check for conflicts
@@ -184,7 +197,8 @@ async def process_country_name(message: Message, state: FSMContext) -> None:
 
     await state.update_data(country_name=country_name)
     await message.answer(
-        f"✅ Название страны: <b>{escape_html(country_name)}</b>\n\n" f"Как называется столица вашей страны?",
+        f"✅ Название страны: <b>{escape_html(country_name)}</b>\n\n"
+        f"Как называется столица вашей страны?",
         parse_mode="HTML",
     )
     await state.set_state(RegistrationStates.waiting_for_capital)
@@ -204,7 +218,9 @@ async def process_country_description(message: Message, state: FSMContext) -> No
     # Create aspects list for display
     aspects_list = []
     for i, (aspect_key, aspect_name) in enumerate(ASPECT_NAMES.items(), 1):
-        aspects_list.append(f"{i}. <b>{aspect_name}</b> - {ASPECT_DESCRIPTIONS[aspect_key]}")
+        aspects_list.append(
+            f"{i}. <b>{aspect_name}</b> - {ASPECT_DESCRIPTIONS[aspect_key]}"
+        )
 
     aspects_text = "\n".join(aspects_list)
 
@@ -225,7 +241,9 @@ async def process_country_description(message: Message, state: FSMContext) -> No
     await state.set_state(RegistrationStates.waiting_for_economy)
 
 
-async def process_aspect(message: Message, state: FSMContext, aspect: str, next_state: State) -> None:
+async def process_aspect(
+    message: Message, state: FSMContext, aspect: str, next_state: State
+) -> None:
     """Process aspect value"""
     try:
         value = int(message.text.strip())
@@ -288,23 +306,33 @@ async def process_aspect(message: Message, state: FSMContext, aspect: str, next_
 
 
 async def process_economy(message: Message, state: FSMContext) -> None:
-    await process_aspect(message, state, "economy", RegistrationStates.waiting_for_military)
+    await process_aspect(
+        message, state, "economy", RegistrationStates.waiting_for_military
+    )
 
 
 async def process_military(message: Message, state: FSMContext) -> None:
-    await process_aspect(message, state, "military", RegistrationStates.waiting_for_foreign_policy)
+    await process_aspect(
+        message, state, "military", RegistrationStates.waiting_for_foreign_policy
+    )
 
 
 async def process_foreign_policy(message: Message, state: FSMContext) -> None:
-    await process_aspect(message, state, "foreign_policy", RegistrationStates.waiting_for_territory)
+    await process_aspect(
+        message, state, "foreign_policy", RegistrationStates.waiting_for_territory
+    )
 
 
 async def process_territory(message: Message, state: FSMContext) -> None:
-    await process_aspect(message, state, "territory", RegistrationStates.waiting_for_technology)
+    await process_aspect(
+        message, state, "territory", RegistrationStates.waiting_for_technology
+    )
 
 
 async def process_technology(message: Message, state: FSMContext) -> None:
-    await process_aspect(message, state, "technology", RegistrationStates.waiting_for_religion_culture)
+    await process_aspect(
+        message, state, "technology", RegistrationStates.waiting_for_religion_culture
+    )
 
 
 async def process_religion_culture(message: Message, state: FSMContext) -> None:
@@ -325,7 +353,9 @@ async def process_governance_law(message: Message, state: FSMContext) -> None:
     )
 
 
-async def process_construction_infrastructure(message: Message, state: FSMContext) -> None:
+async def process_construction_infrastructure(
+    message: Message, state: FSMContext
+) -> None:
     await process_aspect(
         message,
         state,
@@ -335,7 +365,9 @@ async def process_construction_infrastructure(message: Message, state: FSMContex
 
 
 async def process_social_relations(message: Message, state: FSMContext) -> None:
-    await process_aspect(message, state, "social_relations", RegistrationStates.waiting_for_intelligence)
+    await process_aspect(
+        message, state, "social_relations", RegistrationStates.waiting_for_intelligence
+    )
 
 
 async def process_intelligence(message: Message, state: FSMContext) -> None:
@@ -371,7 +403,9 @@ async def process_population(message: Message, state: FSMContext) -> None:
         if population < 1000 or population > max_population:
             raise ValueError()
     except ValueError:
-        await message.answer(f"❌ Введите корректное число населения (от 1,000 до {max_population:,}).")
+        await message.answer(
+            f"❌ Введите корректное число населения (от 1,000 до {max_population:,})."
+        )
         return
 
     await state.update_data(population=population)
@@ -434,7 +468,10 @@ async def complete_registration(message: Message, state: FSMContext) -> None:
             from wpg_engine.models import PlayerRole
 
             result = await game_engine.db.execute(
-                select(Player).where(Player.game_id == data["game_id"]).where(Player.role == PlayerRole.ADMIN).limit(1)
+                select(Player)
+                .where(Player.game_id == data["game_id"])
+                .where(Player.role == PlayerRole.ADMIN)
+                .limit(1)
             )
             admin = result.scalar_one_or_none()
 
@@ -484,7 +521,9 @@ async def complete_registration(message: Message, state: FSMContext) -> None:
 
                     # Send to admin
                     bot = message.bot
-                    await bot.send_message(admin.telegram_id, registration_message, parse_mode="HTML")
+                    await bot.send_message(
+                        admin.telegram_id, registration_message, parse_mode="HTML"
+                    )
 
                 except Exception as e:
                     print(f"Failed to send registration to admin: {e}")
@@ -495,7 +534,8 @@ async def complete_registration(message: Message, state: FSMContext) -> None:
     role_message = ""
     if player_role.value == "admin":
         role_message = (
-            "👑 *Вы назначены администратором игры!*\n" "Используйте /admin для доступа к панели управления.\n\n"
+            "👑 *Вы назначены администратором игры!*\n"
+            "Используйте /admin для доступа к панели управления.\n\n"
         )
     else:
         role_message = (
@@ -527,12 +567,16 @@ async def complete_registration(message: Message, state: FSMContext) -> None:
     await state.clear()
 
 
-async def process_reregistration_confirmation(message: Message, state: FSMContext) -> None:
+async def process_reregistration_confirmation(
+    message: Message, state: FSMContext
+) -> None:
     """Process confirmation for re-registration"""
     confirmation = message.text.strip()
 
     if confirmation != "ПОДТВЕРЖДАЮ":
-        await message.answer("❌ Перерегистрация отменена. Ваша текущая регистрация сохранена.")
+        await message.answer(
+            "❌ Перерегистрация отменена. Ваша текущая регистрация сохранена."
+        )
         await state.clear()
         return
 
@@ -548,20 +592,26 @@ async def process_reregistration_confirmation(message: Message, state: FSMContex
         game_engine = GameEngine(db)
 
         # Delete existing player's messages first to avoid foreign key constraint issues
-        result = await game_engine.db.execute(select(MessageModel).where(MessageModel.player_id == existing_player_id))
+        result = await game_engine.db.execute(
+            select(MessageModel).where(MessageModel.player_id == existing_player_id)
+        )
         messages = result.scalars().all()
         for msg in messages:
             await game_engine.db.delete(msg)
 
         # Delete existing country
         if existing_country_id:
-            result = await game_engine.db.execute(select(Country).where(Country.id == existing_country_id))
+            result = await game_engine.db.execute(
+                select(Country).where(Country.id == existing_country_id)
+            )
             country = result.scalar_one_or_none()
             if country:
                 await game_engine.db.delete(country)
 
         # Delete player
-        result = await game_engine.db.execute(select(Player).where(Player.id == existing_player_id))
+        result = await game_engine.db.execute(
+            select(Player).where(Player.id == existing_player_id)
+        )
         player = result.scalar_one_or_none()
         if player:
             await game_engine.db.delete(player)
@@ -605,20 +655,34 @@ def register_registration_handlers(dp: Dispatcher) -> None:
         RegistrationStates.waiting_for_reregistration_confirmation,
     )
     # New sequence: country name -> capital -> population -> description -> aspects
-    dp.message.register(process_country_name, RegistrationStates.waiting_for_country_name)
+    dp.message.register(
+        process_country_name, RegistrationStates.waiting_for_country_name
+    )
     dp.message.register(process_capital, RegistrationStates.waiting_for_capital)
     dp.message.register(process_population, RegistrationStates.waiting_for_population)
-    dp.message.register(process_country_description, RegistrationStates.waiting_for_country_description)
+    dp.message.register(
+        process_country_description, RegistrationStates.waiting_for_country_description
+    )
     dp.message.register(process_economy, RegistrationStates.waiting_for_economy)
     dp.message.register(process_military, RegistrationStates.waiting_for_military)
-    dp.message.register(process_foreign_policy, RegistrationStates.waiting_for_foreign_policy)
+    dp.message.register(
+        process_foreign_policy, RegistrationStates.waiting_for_foreign_policy
+    )
     dp.message.register(process_territory, RegistrationStates.waiting_for_territory)
     dp.message.register(process_technology, RegistrationStates.waiting_for_technology)
-    dp.message.register(process_religion_culture, RegistrationStates.waiting_for_religion_culture)
-    dp.message.register(process_governance_law, RegistrationStates.waiting_for_governance_law)
+    dp.message.register(
+        process_religion_culture, RegistrationStates.waiting_for_religion_culture
+    )
+    dp.message.register(
+        process_governance_law, RegistrationStates.waiting_for_governance_law
+    )
     dp.message.register(
         process_construction_infrastructure,
         RegistrationStates.waiting_for_construction_infrastructure,
     )
-    dp.message.register(process_social_relations, RegistrationStates.waiting_for_social_relations)
-    dp.message.register(process_intelligence, RegistrationStates.waiting_for_intelligence)
+    dp.message.register(
+        process_social_relations, RegistrationStates.waiting_for_social_relations
+    )
+    dp.message.register(
+        process_intelligence, RegistrationStates.waiting_for_intelligence
+    )

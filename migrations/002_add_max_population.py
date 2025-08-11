@@ -12,7 +12,9 @@ class AddMaxPopulationMigration(Migration):
     """Add max_population field to games table"""
 
     def __init__(self):
-        super().__init__(version="002", description="Add max_population field to games table")
+        super().__init__(
+            version="002", description="Add max_population field to games table"
+        )
 
     async def up(self, session: AsyncSession) -> None:
         """Add max_population column to games table"""
