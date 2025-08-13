@@ -481,7 +481,16 @@ async def handle_registration_decision(
             country_name = player.country.name if player.country else "без страны"
             player_name = player.display_name
 
-            # Delete player and country
+            # First, delete all messages associated with this player to avoid foreign key constraint violations
+            from wpg_engine.models import Message
+            result = await game_engine.db.execute(
+                select(Message).where(Message.player_id == player.id)
+            )
+            messages = result.scalars().all()
+            for message in messages:
+                await game_engine.db.delete(message)
+
+            # Then delete country and player
             if player.country:
                 await game_engine.db.delete(player.country)
             await game_engine.db.delete(player)
