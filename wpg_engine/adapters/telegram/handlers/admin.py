@@ -450,12 +450,58 @@ async def event_command(message: Message, state: FSMContext) -> None:
         await message.answer("❌ В игре нет стран для отправки сообщений.")
         return
 
-    # Check if country name was provided
-    if len(args) > 1:
+    # Check if this is a reply to a message with country information
+    target_player = None
+    target_country_name = None
+
+    if message.reply_to_message and message.reply_to_message.text:
+        # Try to extract country ID from the replied message
+        import re
+        replied_text = message.reply_to_message.text
+
+        # Look for the hidden marker [EDIT_COUNTRY:id]
+        country_id_match = re.search(r'\[EDIT_COUNTRY:(\d+)\]', replied_text)
+        if country_id_match:
+            country_id = int(country_id_match.group(1))
+
+            # Find the player with this country
+            for player in all_players:
+                if player.country and player.country.id == country_id:
+                    target_player = player
+                    target_country_name = player.country.name
+                    break
+
+        # If no hidden marker found, try to extract country name from the message
+        if not target_player:
+            # Look for country name in the format "🏛️ **Country Name**"
+            country_name_match = re.search(r'🏛️\s*<b>([^<]+)</b>', replied_text)
+            if country_name_match:
+                extracted_country_name = country_name_match.group(1).strip()
+
+                # Find target country by name
+                for player in all_players:
+                    if player.country:
+                        # Check official name
+                        if player.country.name.lower() == extracted_country_name.lower():
+                            target_player = player
+                            target_country_name = player.country.name
+                            break
+
+                        # Check synonyms
+                        if player.country.synonyms:
+                            for synonym in player.country.synonyms:
+                                if synonym.lower() == extracted_country_name.lower():
+                                    target_player = player
+                                    target_country_name = player.country.name
+                                    break
+                            if target_player:
+                                break
+
+    # If no country found from reply, check if country name was provided in command
+    if not target_player and len(args) > 1:
         target_country_name = args[1].strip()
 
         # Find target country (case-insensitive search by name and synonyms)
-        target_player = None
         for player in all_players:
             if player.country:
                 # Check official name
@@ -484,16 +530,27 @@ async def event_command(message: Message, state: FSMContext) -> None:
             )
             return
 
+    if target_player:
         # Store target country and ask for message
         await state.update_data(
             target_player_id=target_player.id,
             target_country_name=target_player.country.name,
         )
-        await message.answer(
-            f"📢 <b>Отправка события в страну {escape_html(target_player.country.name)}</b>\n\n"
-            f"Введите текст события или напишите <code>cancel</code> для отмены:",
-            parse_mode="HTML",
-        )
+
+        # Show different message if country was auto-detected from reply
+        if message.reply_to_message:
+            await message.answer(
+                f"📢 <b>Отправка события в страну {escape_html(target_player.country.name)}</b>\n"
+                f"<i>(автоматически определено из сообщения)</i>\n\n"
+                f"Введите текст события или напишите <code>cancel</code> для отмены:",
+                parse_mode="HTML",
+            )
+        else:
+            await message.answer(
+                f"📢 <b>Отправка события в страну {escape_html(target_player.country.name)}</b>\n\n"
+                f"Введите текст события или напишите <code>cancel</code> для отмены:",
+                parse_mode="HTML",
+            )
         await state.set_state(AdminStates.waiting_for_event_message)
     else:
         # Send to all countries
