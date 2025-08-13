@@ -483,6 +483,7 @@ async def handle_registration_decision(
 
             # First, delete all messages associated with this player to avoid foreign key constraint violations
             from wpg_engine.models import Message
+
             result = await game_engine.db.execute(
                 select(Message).where(Message.player_id == player.id)
             )

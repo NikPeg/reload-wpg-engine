@@ -457,10 +457,11 @@ async def event_command(message: Message, state: FSMContext) -> None:
     if message.reply_to_message and message.reply_to_message.text:
         # Try to extract country ID from the replied message
         import re
+
         replied_text = message.reply_to_message.text
 
         # Look for the hidden marker [EDIT_COUNTRY:id]
-        country_id_match = re.search(r'\[EDIT_COUNTRY:(\d+)\]', replied_text)
+        country_id_match = re.search(r"\[EDIT_COUNTRY:(\d+)\]", replied_text)
         if country_id_match:
             country_id = int(country_id_match.group(1))
 
@@ -474,7 +475,7 @@ async def event_command(message: Message, state: FSMContext) -> None:
         # If no hidden marker found, try to extract country name from the message
         if not target_player:
             # Look for country name in the format "🏛️ **Country Name**"
-            country_name_match = re.search(r'🏛️\s*<b>([^<]+)</b>', replied_text)
+            country_name_match = re.search(r"🏛️\s*<b>([^<]+)</b>", replied_text)
             if country_name_match:
                 extracted_country_name = country_name_match.group(1).strip()
 
@@ -482,7 +483,10 @@ async def event_command(message: Message, state: FSMContext) -> None:
                 for player in all_players:
                     if player.country:
                         # Check official name
-                        if player.country.name.lower() == extracted_country_name.lower():
+                        if (
+                            player.country.name.lower()
+                            == extracted_country_name.lower()
+                        ):
                             target_player = player
                             target_country_name = player.country.name
                             break
