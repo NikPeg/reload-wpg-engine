@@ -10,6 +10,7 @@ from sqlalchemy.orm import selectinload
 from wpg_engine.adapters.telegram.utils import escape_html, escape_markdown
 from wpg_engine.core.admin_utils import is_admin
 from wpg_engine.core.engine import GameEngine
+from wpg_engine.core.rag_system import RAGSystem
 from wpg_engine.models import Player, PlayerRole, get_db
 
 
@@ -83,14 +84,29 @@ async def handle_player_message(
 
     if admin and admin.telegram_id:
         try:
-            # Format message for admin (no ID needed)
+            # Generate RAG context for admin
             country_name = player.country.name if player.country else "без страны"
+            rag_context = ""
+            
+            if player.country:
+                rag_system = RAGSystem(game_engine.db)
+                rag_context = await rag_system.generate_admin_context(
+                    content,
+                    country_name,
+                    player.game_id
+                )
+            
+            # Format message for admin with RAG context
             admin_message = (
                 f"💬 <b>Новое сообщение от игрока</b>\n\n"
                 f"<b>От:</b> {escape_html(player.display_name)} (ID: {player.telegram_id})\n"
                 f"<b>Страна:</b> {escape_html(country_name)}\n\n"
                 f"<b>Сообщение:</b>\n{escape_html(content)}"
             )
+            
+            # Add RAG context if available
+            if rag_context:
+                admin_message += f"\n\n{escape_html(rag_context)}"
 
             # Send to admin first
             bot = message.bot
