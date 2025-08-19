@@ -15,6 +15,114 @@ from wpg_engine.core.rag_system import RAGSystem
 from wpg_engine.models import Player, PlayerRole, get_db
 
 
+async def _send_long_message(
+    bot, chat_id: int, text: str, reply_to_message_id: int
+) -> None:
+    """Send long message, splitting if necessary due to Telegram limits"""
+    MAX_MESSAGE_LENGTH = 4096
+
+    if len(text) <= MAX_MESSAGE_LENGTH:
+        # Message fits in one part, try formatted version first
+        try:
+            formatted_text = markdownify(text)
+            await bot.send_message(
+                chat_id,
+                formatted_text,
+                reply_to_message_id=reply_to_message_id,
+                parse_mode="MarkdownV2",
+            )
+        except Exception as e:
+            print(f"Failed to send formatted RAG context: {e}")
+            # Fallback: escape dangerous characters and send as HTML
+            safe_text = (
+                text.replace("&", "&amp;")
+                .replace("<", "&lt;")
+                .replace(">", "&gt;")
+                .replace('"', "&quot;")
+                .replace("'", "&#x27;")
+            )
+            await bot.send_message(
+                chat_id,
+                safe_text,
+                reply_to_message_id=reply_to_message_id,
+                parse_mode="HTML",
+            )
+    else:
+        # Message is too long, split it
+        parts = _split_long_text(text, MAX_MESSAGE_LENGTH)
+
+        for i, part in enumerate(parts):
+            try:
+                formatted_part = markdownify(part)
+                await bot.send_message(
+                    chat_id,
+                    formatted_part,
+                    reply_to_message_id=reply_to_message_id if i == 0 else None,
+                    parse_mode="MarkdownV2",
+                )
+            except Exception as e:
+                print(f"Failed to send formatted RAG context part {i + 1}: {e}")
+                # Fallback: escape dangerous characters and send as HTML
+                safe_part = (
+                    part.replace("&", "&amp;")
+                    .replace("<", "&lt;")
+                    .replace(">", "&gt;")
+                    .replace('"', "&quot;")
+                    .replace("'", "&#x27;")
+                )
+                await bot.send_message(
+                    chat_id,
+                    safe_part,
+                    reply_to_message_id=reply_to_message_id if i == 0 else None,
+                    parse_mode="HTML",
+                )
+
+
+def _split_long_text(text: str, max_length: int) -> list[str]:
+    """Split long text into parts, trying to preserve formatting"""
+    if len(text) <= max_length:
+        return [text]
+
+    parts = []
+    current_part = ""
+
+    # Split by paragraphs first (double newlines)
+    paragraphs = text.split("\n\n")
+
+    for paragraph in paragraphs:
+        # If adding this paragraph would exceed limit
+        if len(current_part) + len(paragraph) + 2 > max_length:
+            if current_part:
+                parts.append(current_part.strip())
+                current_part = ""
+
+            # If single paragraph is too long, split by sentences
+            if len(paragraph) > max_length:
+                sentences = paragraph.split(". ")
+                for sentence in sentences:
+                    if len(current_part) + len(sentence) + 2 > max_length:
+                        if current_part:
+                            parts.append(current_part.strip())
+                            current_part = ""
+
+                    if current_part:
+                        current_part += ". " + sentence
+                    else:
+                        current_part = sentence
+            else:
+                current_part = paragraph
+        else:
+            if current_part:
+                current_part += "\n\n" + paragraph
+            else:
+                current_part = paragraph
+
+    if current_part:
+        parts.append(current_part.strip())
+
+    return parts
+
+
 async def handle_text_message(message: Message) -> None:
     """Handle all text messages that are not commands"""
     user_id = message.from_user.id
@@ -109,33 +217,9 @@ async def handle_player_message(
 
                 # Send RAG context as reply to admin's message if available
                 if rag_context:
-                    try:
-                        # Try to format with telegramify-markdown first
-                        formatted_context = markdownify(rag_context)
-                        await bot.send_message(
-                            admin.telegram_id,
-                            formatted_context,
-                            reply_to_message_id=sent_message.message_id,
-                            parse_mode="MarkdownV2",
-                        )
-                    except Exception as e:
-                        # Fallback: escape dangerous characters and send as HTML
-                        print(f"Failed to send formatted RAG context: {e}")
-                        # Escape dangerous characters for HTML
-                        safe_context = (
-                            rag_context.replace("&", "&amp;")
-                            .replace("<", "&lt;")
-                            .replace(">", "&gt;")
-                            .replace('"', "&quot;")
-                            .replace("'", "&#x27;")
-                        )
-
-                        await bot.send_message(
-                            admin.telegram_id,
-                            safe_context,
-                            reply_to_message_id=sent_message.message_id,
-                            parse_mode="HTML",
-                        )
+                    await _send_long_message(
+                        bot, admin.telegram_id, rag_context, sent_message.message_id
+                    )
 
             # Now save message to database with admin's telegram message ID
             await game_engine.create_message(
