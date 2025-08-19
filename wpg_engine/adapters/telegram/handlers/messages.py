@@ -6,6 +6,7 @@ from aiogram import Dispatcher
 from aiogram.types import Message
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
+from telegramify_markdown import markdownify
 
 from wpg_engine.adapters.telegram.utils import escape_html, escape_markdown
 from wpg_engine.core.admin_utils import is_admin
@@ -99,7 +100,7 @@ async def handle_player_message(
                 admin.telegram_id, admin_message, parse_mode="HTML"
             )
 
-            # Generate and send RAG context as separate message
+            # Generate and send RAG context as reply to the original message
             if player.country:
                 rag_system = RAGSystem(game_engine.db)
                 rag_context = await rag_system.generate_admin_context(
@@ -108,13 +109,34 @@ async def handle_player_message(
                     player.game_id
                 )
 
-                # Send RAG context as separate message if available
+                # Send RAG context as reply to admin's message if available
                 if rag_context:
-                    await bot.send_message(
-                        admin.telegram_id,
-                        escape_html(rag_context),
-                        parse_mode="HTML"
-                    )
+                    try:
+                        # Try to format with telegramify-markdown first
+                        formatted_context = markdownify(rag_context)
+                        await bot.send_message(
+                            admin.telegram_id,
+                            formatted_context,
+                            reply_to_message_id=sent_message.message_id,
+                            parse_mode="MarkdownV2"
+                        )
+                    except Exception as e:
+                        # Fallback: escape dangerous characters and send as HTML
+                        print(f"Failed to send formatted RAG context: {e}")
+                        # Escape dangerous characters for HTML
+                        safe_context = (rag_context
+                                      .replace('&', '&amp;')
+                                      .replace('<', '&lt;')
+                                      .replace('>', '&gt;')
+                                      .replace('"', '&quot;')
+                                      .replace("'", '&#x27;'))
+
+                        await bot.send_message(
+                            admin.telegram_id,
+                            safe_context,
+                            reply_to_message_id=sent_message.message_id,
+                            parse_mode="HTML"
+                        )
 
             # Now save message to database with admin's telegram message ID
             await game_engine.create_message(
