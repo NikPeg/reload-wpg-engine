@@ -39,9 +39,7 @@ async def handle_text_message(message: Message) -> None:
         player = result.scalar_one_or_none()
 
         if not player:
-            await message.answer(
-                "❌ Вы не зарегистрированы в игре. Используйте /start для начала работы с ботом."
-            )
+            await message.answer("❌ Вы не зарегистрированы в игре. Используйте /start для начала работы с ботом.")
             return
 
         # Check if this is an admin replying to a message or sending a message with ID
@@ -53,9 +51,7 @@ async def handle_text_message(message: Message) -> None:
             # Check if message contains message ID for direct reply
             import re
 
-            if re.search(
-                r"(?:ID сообщения|msg|message):\s*\d+|^\d+\s+", content, re.IGNORECASE
-            ):
+            if re.search(r"(?:ID сообщения|msg|message):\s*\d+|^\d+\s+", content, re.IGNORECASE):
                 await handle_admin_reply(message, player, game_engine)
                 return
 
@@ -64,9 +60,7 @@ async def handle_text_message(message: Message) -> None:
         break
 
 
-async def handle_player_message(
-    message: Message, player: Player, game_engine: GameEngine
-) -> None:
+async def handle_player_message(message: Message, player: Player, game_engine: GameEngine) -> None:
     """Handle message from player - save and forward to admin"""
     content = message.text.strip()
 
@@ -75,9 +69,7 @@ async def handle_player_message(
 
     # Find admin to send message to
     result = await game_engine.db.execute(
-        select(Player)
-        .where(Player.game_id == player.game_id)
-        .where(Player.role == PlayerRole.ADMIN)
+        select(Player).where(Player.game_id == player.game_id).where(Player.role == PlayerRole.ADMIN)
     )
     admin = result.scalar_one_or_none()
 
@@ -94,9 +86,7 @@ async def handle_player_message(
 
             # Send to admin first
             bot = message.bot
-            sent_message = await bot.send_message(
-                admin.telegram_id, admin_message, parse_mode="HTML"
-            )
+            sent_message = await bot.send_message(admin.telegram_id, admin_message, parse_mode="HTML")
 
             # Now save message to database with admin's telegram message ID
             await game_engine.create_message(
@@ -110,28 +100,22 @@ async def handle_player_message(
 
         except Exception as e:
             print(f"Failed to send message to admin: {e}")
-            await message.answer(
-                "⚠️ Не удалось отправить сообщение администратору. Попробуйте позже."
-            )
+            await message.answer("⚠️ Не удалось отправить сообщение администратору. Попробуйте позже.")
     else:
         await message.answer("⚠️ Администратор не найден в игре.")
 
 
-async def handle_admin_reply(
-    message: Message, admin: Player, game_engine: GameEngine
-) -> None:
-    """Handle admin reply to player message, registration, or country editing"""
+async def handle_admin_reply(message: Message, admin: Player, game_engine: GameEngine) -> None:
+    """Handle admin reply to player message, registration, country editing, or event sending"""
     content = message.text.strip()
 
     # Check if this is a registration approval/rejection (when replying to registration message)
-    if message.reply_to_message and (
-        content.lower() == "одобрить" or content.lower().startswith("отклонить")
-    ):
+    if message.reply_to_message and (content.lower() == "одобрить" or content.lower().startswith("отклонить")):
         decision = "одобрить" if content.lower() == "одобрить" else "отклонить"
         await handle_registration_decision(message, admin, game_engine, decision)
         return
 
-    # Check if this is a country editing reply (when replying to country info message)
+    # Check if this is a reply to a country info message (for editing or event sending)
     if message.reply_to_message and message.reply_to_message.text:
         replied_text = message.reply_to_message.text
         import re
@@ -140,8 +124,15 @@ async def handle_admin_reply(
         country_match = re.search(r"\[EDIT_COUNTRY:(\d+)\]", replied_text)
         if country_match:
             country_id = int(country_match.group(1))
-            await handle_country_edit(message, admin, game_engine, country_id, content)
-            return
+
+            # Check if this looks like an editing command or an event message
+            if is_country_editing_command(content):
+                await handle_country_edit(message, admin, game_engine, country_id, content)
+                return
+            else:
+                # This is an event message for the country
+                await handle_country_event(message, admin, game_engine, country_id, content)
+                return
 
     # If admin is replying to a message, find the original player message in database
     if not message.reply_to_message:
@@ -149,9 +140,7 @@ async def handle_admin_reply(
         return
 
     # Find the original player message by the admin message ID that was replied to
-    original_message = await game_engine.get_message_by_admin_telegram_id(
-        message.reply_to_message.message_id
-    )
+    original_message = await game_engine.get_message_by_admin_telegram_id(message.reply_to_message.message_id)
 
     if not original_message:
         await message.answer("❌ Не удалось найти исходное сообщение игрока.")
@@ -182,6 +171,123 @@ async def handle_admin_reply(
 
     except Exception as e:
         await message.answer(f"❌ Не удалось отправить ответ игроку: {e}")
+
+
+def is_country_editing_command(content: str) -> bool:
+    """Check if the message content looks like a country editing command"""
+    content_lower = content.lower().strip()
+
+    # List of editing command keywords
+    editing_keywords = [
+        "название ",
+        "описание ",
+        "столица ",
+        "население ",
+        "синонимы ",
+        "экономика ",
+        "военное ",
+        "военное дело ",
+        "армия ",
+        "внешняя ",
+        "внешняя политика ",
+        "дипломатия ",
+        "территория ",
+        "технологии ",
+        "технологичность ",
+        "наука ",
+        "религия ",
+        "культура ",
+        "религия и культура ",
+        "управление ",
+        "право ",
+        "управление и право ",
+        "строительство ",
+        "инфраструктура ",
+        "общество ",
+        "общественные отношения ",
+        "социальные ",
+        "разведка ",
+        "шпионаж ",
+    ]
+
+    # Check if content starts with any editing keyword
+    for keyword in editing_keywords:
+        if content_lower.startswith(keyword):
+            return True
+
+    # Check for aspect value patterns (like "экономика 8")
+    import re
+
+    if re.match(r"^[а-яё\s]+\s+\d+$", content_lower):
+        return True
+
+    # Check for aspect description patterns (like "экономика описание новое описание")
+    if re.search(r"^[а-яё\s]+\s+описание\s+", content_lower):
+        return True
+
+    return False
+
+
+async def handle_country_event(
+    message: Message,
+    admin: Player,
+    game_engine: GameEngine,
+    country_id: int,
+    content: str,
+) -> None:
+    """Handle sending event to a specific country"""
+
+    # Validate message content
+    if len(content) < 3:
+        await message.answer("❌ Сообщение слишком короткое (минимум 3 символа).")
+        return
+
+    if len(content) > 2000:
+        await message.answer("❌ Сообщение слишком длинное (максимум 2000 символов).")
+        return
+
+    # Get the country
+    country = await game_engine.get_country(country_id)
+    if not country:
+        await message.answer("❌ Страна не найдена.")
+        return
+
+    # Find the player who owns this country
+    from sqlalchemy import select
+    from sqlalchemy.orm import selectinload
+
+    result = await game_engine.db.execute(
+        select(Player)
+        .options(selectinload(Player.country))
+        .where(Player.game_id == admin.game_id)
+        .where(Player.country_id == country_id)
+        .where(Player.role == PlayerRole.PLAYER)
+    )
+    target_player = result.scalar_one_or_none()
+
+    if not target_player:
+        await message.answer(f"❌ Не найден игрок для страны {escape_html(country.name)}.")
+        return
+
+    # Send event to the player
+    try:
+        bot = message.bot
+        await bot.send_message(
+            target_player.telegram_id,
+            escape_html(content),
+            parse_mode="HTML",
+        )
+
+        # Confirm to admin
+        await message.answer(
+            f"✅ <b>Событие отправлено в страну {escape_html(country.name)}</b>\n"
+            f"<i>(автоматически определено из ответа на описание страны)</i>",
+            parse_mode="HTML",
+        )
+
+    except Exception as e:
+        print(f"Failed to send event message to player {target_player.telegram_id}: {e}")
+        await message.answer(f"❌ Не удалось отправить событие в страну {escape_html(country.name)}.")
 
 
 async def handle_country_edit(
@@ -251,37 +357,27 @@ async def handle_country_edit(
             new_name = line[9:].strip()
             if new_name:
                 await game_engine.update_country_basic_info(country_id, name=new_name)
-                success_messages.append(
-                    f"✅ Название изменено на: {escape_html(new_name)}"
-                )
+                success_messages.append(f"✅ Название изменено на: {escape_html(new_name)}")
             else:
                 error_messages.append("❌ Название не может быть пустым")
             continue
 
         elif line.lower().startswith("описание "):
             new_description = line[9:].strip()
-            await game_engine.update_country_basic_info(
-                country_id, description=new_description
-            )
+            await game_engine.update_country_basic_info(country_id, description=new_description)
             success_messages.append("✅ Описание страны обновлено")
             continue
 
         elif line.lower().startswith("столица "):
             new_capital = line[8:].strip()
             await game_engine.update_country_basic_info(country_id, capital=new_capital)
-            success_messages.append(
-                f"✅ Столица изменена на: {escape_html(new_capital)}"
-            )
+            success_messages.append(f"✅ Столица изменена на: {escape_html(new_capital)}")
             continue
 
         elif line.lower().startswith("население "):
             try:
-                new_population = int(
-                    line[10:].strip().replace(",", "").replace(" ", "")
-                )
-                await game_engine.update_country_basic_info(
-                    country_id, population=new_population
-                )
+                new_population = int(line[10:].strip().replace(",", "").replace(" ", ""))
+                await game_engine.update_country_basic_info(country_id, population=new_population)
                 success_messages.append(f"✅ Население изменено на: {new_population:,}")
             except ValueError:
                 error_messages.append("❌ Некорректное значение населения")
@@ -295,18 +391,14 @@ async def handle_country_edit(
                 success_messages.append("✅ Синонимы очищены")
             else:
                 # Parse synonyms (comma-separated)
-                new_synonyms = [
-                    s.strip() for s in synonyms_text.split(",") if s.strip()
-                ]
+                new_synonyms = [s.strip() for s in synonyms_text.split(",") if s.strip()]
                 if new_synonyms:
                     # Check for conflicts with existing countries and their synonyms
                     conflict_found = False
                     from wpg_engine.models import Country
 
                     result = await game_engine.db.execute(
-                        select(Country)
-                        .where(Country.game_id == country.game_id)
-                        .where(Country.id != country_id)
+                        select(Country).where(Country.game_id == country.game_id).where(Country.id != country_id)
                     )
                     other_countries = result.scalars().all()
 
@@ -335,13 +427,9 @@ async def handle_country_edit(
                             break
 
                     if not conflict_found:
-                        await game_engine.update_country_synonyms(
-                            country_id, new_synonyms
-                        )
+                        await game_engine.update_country_synonyms(country_id, new_synonyms)
                         escaped_synonyms = [escape_html(syn) for syn in new_synonyms]
-                        success_messages.append(
-                            f"✅ Синонимы обновлены: {', '.join(escaped_synonyms)}"
-                        )
+                        success_messages.append(f"✅ Синонимы обновлены: {', '.join(escaped_synonyms)}")
                 else:
                     error_messages.append("❌ Не указаны синонимы")
             continue
@@ -361,35 +449,25 @@ async def handle_country_edit(
         # Check if it's a description update
         if remaining.lower().startswith("описание "):
             new_description = remaining[9:].strip()
-            result = await game_engine.update_country_aspect_description(
-                country_id, found_aspect, new_description
-            )
+            result = await game_engine.update_country_aspect_description(country_id, found_aspect, new_description)
             if result:
                 success_messages.append(f"✅ Описание аспекта '{key}' обновлено")
             else:
-                error_messages.append(
-                    f"❌ Не удалось обновить описание аспекта '{key}'"
-                )
+                error_messages.append(f"❌ Не удалось обновить описание аспекта '{key}'")
         else:
             # Try to parse as value update
             try:
                 new_value = int(remaining.strip())
                 if 1 <= new_value <= 10:
-                    result = await game_engine.update_country_aspect_value(
-                        country_id, found_aspect, new_value
-                    )
+                    result = await game_engine.update_country_aspect_value(country_id, found_aspect, new_value)
                     if result:
-                        success_messages.append(
-                            f"✅ {key.capitalize()}: {new_value}/10"
-                        )
+                        success_messages.append(f"✅ {key.capitalize()}: {new_value}/10")
                     else:
                         error_messages.append(f"❌ Не удалось обновить {key}")
                 else:
                     error_messages.append(f"❌ Значение {key} должно быть от 1 до 10")
             except ValueError:
-                error_messages.append(
-                    f"❌ Некорректное значение для {key}: {remaining}"
-                )
+                error_messages.append(f"❌ Некорректное значение для {key}: {remaining}")
 
     # Send response
     response = f"🏛️ *Редактирование страны {escape_markdown(country.name)}*\n\n"
@@ -417,9 +495,7 @@ async def handle_country_edit(
     await message.answer(response, parse_mode="Markdown")
 
 
-async def handle_registration_decision(
-    message: Message, admin: Player, game_engine: GameEngine, decision: str
-) -> None:
+async def handle_registration_decision(message: Message, admin: Player, game_engine: GameEngine, decision: str) -> None:
     """Handle admin decision on registration"""
     # Extract player telegram ID from the replied message
     replied_text = message.reply_to_message.text
@@ -473,9 +549,7 @@ async def handle_registration_decision(
             rejection_reason = ""
             message_text = message.text.strip()
             if message_text.lower().startswith("отклонить "):
-                rejection_reason = message_text[
-                    10:
-                ].strip()  # Remove "отклонить " prefix
+                rejection_reason = message_text[10:].strip()  # Remove "отклонить " prefix
 
             # Reject registration - delete player and country
             country_name = player.country.name if player.country else "без страны"
@@ -484,9 +558,7 @@ async def handle_registration_decision(
             # First, delete all messages associated with this player to avoid foreign key constraint violations
             from wpg_engine.models import Message
 
-            result = await game_engine.db.execute(
-                select(Message).where(Message.player_id == player.id)
-            )
+            result = await game_engine.db.execute(select(Message).where(Message.player_id == player.id))
             messages = result.scalars().all()
             for message in messages:
                 await game_engine.db.delete(message)
@@ -504,9 +576,7 @@ async def handle_registration_decision(
             )
 
             if rejection_reason:
-                rejection_message += (
-                    f"\n\n<b>Причина отклонения:</b>\n{escape_html(rejection_reason)}"
-                )
+                rejection_message += f"\n\n<b>Причина отклонения:</b>\n{escape_html(rejection_reason)}"
 
             rejection_message += "\n\nВы можете попробовать зарегистрироваться снова с помощью команды /register."
 
@@ -523,9 +593,7 @@ async def handle_registration_decision(
             )
 
             if rejection_reason:
-                admin_message += (
-                    f"\n\n<b>Указанная причина:</b>\n{escape_html(rejection_reason)}"
-                )
+                admin_message += f"\n\n<b>Указанная причина:</b>\n{escape_html(rejection_reason)}"
 
             await message.answer(admin_message, parse_mode="HTML")
 
