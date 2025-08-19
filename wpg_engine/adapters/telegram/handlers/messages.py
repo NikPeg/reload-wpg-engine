@@ -84,10 +84,22 @@ async def handle_player_message(
 
     if admin and admin.telegram_id:
         try:
-            # Generate RAG context for admin
+            # Format message for admin (without RAG context)
             country_name = player.country.name if player.country else "без страны"
-            rag_context = ""
-            
+            admin_message = (
+                f"💬 <b>Новое сообщение от игрока</b>\n\n"
+                f"<b>От:</b> {escape_html(player.display_name)} (ID: {player.telegram_id})\n"
+                f"<b>Страна:</b> {escape_html(country_name)}\n\n"
+                f"<b>Сообщение:</b>\n{escape_html(content)}"
+            )
+
+            # Send original message to admin first
+            bot = message.bot
+            sent_message = await bot.send_message(
+                admin.telegram_id, admin_message, parse_mode="HTML"
+            )
+
+            # Generate and send RAG context as separate message
             if player.country:
                 rag_system = RAGSystem(game_engine.db)
                 rag_context = await rag_system.generate_admin_context(
@@ -95,24 +107,14 @@ async def handle_player_message(
                     country_name,
                     player.game_id
                 )
-            
-            # Format message for admin with RAG context
-            admin_message = (
-                f"💬 <b>Новое сообщение от игрока</b>\n\n"
-                f"<b>От:</b> {escape_html(player.display_name)} (ID: {player.telegram_id})\n"
-                f"<b>Страна:</b> {escape_html(country_name)}\n\n"
-                f"<b>Сообщение:</b>\n{escape_html(content)}"
-            )
-            
-            # Add RAG context if available
-            if rag_context:
-                admin_message += f"\n\n{escape_html(rag_context)}"
 
-            # Send to admin first
-            bot = message.bot
-            sent_message = await bot.send_message(
-                admin.telegram_id, admin_message, parse_mode="HTML"
-            )
+                # Send RAG context as separate message if available
+                if rag_context:
+                    await bot.send_message(
+                        admin.telegram_id,
+                        escape_html(rag_context),
+                        parse_mode="HTML"
+                    )
 
             # Now save message to database with admin's telegram message ID
             await game_engine.create_message(
