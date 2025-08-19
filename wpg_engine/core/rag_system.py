@@ -22,10 +22,7 @@ class RAGSystem:
         self.model = settings.ai.default_model
 
     async def generate_admin_context(
-        self,
-        message_content: str,
-        sender_country_name: str,
-        game_id: int
+        self, message_content: str, sender_country_name: str, game_id: int
     ) -> str:
         """
         Generate context for admin based on player message
@@ -48,7 +45,9 @@ class RAGSystem:
             return ""
 
         # Create prompt for LLM analysis
-        prompt = self._create_analysis_prompt(message_content, sender_country_name, countries_data)
+        prompt = self._create_analysis_prompt(
+            message_content, sender_country_name, countries_data
+        )
 
         try:
             # Get analysis from LLM
@@ -61,8 +60,7 @@ class RAGSystem:
     async def _get_all_countries_data(self, game_id: int) -> list[dict[str, Any]]:
         """Get data for all countries in the game"""
         result = await self.db.execute(
-            select(Country)
-            .where(Country.game_id == game_id)
+            select(Country).where(Country.game_id == game_id)
         )
         countries = result.scalars().all()
 
@@ -71,67 +69,72 @@ class RAGSystem:
             aspects = country.get_aspects()
 
             country_info = {
-                'name': country.name,
-                'capital': country.capital or 'Не указана',
-                'population': country.population or 0,
-                'synonyms': country.synonyms or [],
-                'aspects': {
-                    'economy': aspects['economy']['value'],
-                    'military': aspects['military']['value'],
-                    'foreign_policy': aspects['foreign_policy']['value'],
-                    'territory': aspects['territory']['value'],
-                    'technology': aspects['technology']['value'],
-                    'religion_culture': aspects['religion_culture']['value'],
-                    'governance_law': aspects['governance_law']['value'],
-                    'construction_infrastructure': aspects['construction_infrastructure']['value'],
-                    'social_relations': aspects['social_relations']['value'],
-                    'intelligence': aspects['intelligence']['value'],
+                "name": country.name,
+                "capital": country.capital or "Не указана",
+                "population": country.population or 0,
+                "synonyms": country.synonyms or [],
+                "aspects": {
+                    "economy": aspects["economy"]["value"],
+                    "military": aspects["military"]["value"],
+                    "foreign_policy": aspects["foreign_policy"]["value"],
+                    "territory": aspects["territory"]["value"],
+                    "technology": aspects["technology"]["value"],
+                    "religion_culture": aspects["religion_culture"]["value"],
+                    "governance_law": aspects["governance_law"]["value"],
+                    "construction_infrastructure": aspects[
+                        "construction_infrastructure"
+                    ]["value"],
+                    "social_relations": aspects["social_relations"]["value"],
+                    "intelligence": aspects["intelligence"]["value"],
                 },
-                'descriptions': {
-                    'economy': aspects['economy']['description'],
-                    'military': aspects['military']['description'],
-                    'foreign_policy': aspects['foreign_policy']['description'],
-                    'territory': aspects['territory']['description'],
-                    'technology': aspects['technology']['description'],
-                    'religion_culture': aspects['religion_culture']['description'],
-                    'governance_law': aspects['governance_law']['description'],
-                    'construction_infrastructure': aspects['construction_infrastructure']['description'],
-                    'social_relations': aspects['social_relations']['description'],
-                    'intelligence': aspects['intelligence']['description'],
-                }
+                "descriptions": {
+                    "economy": aspects["economy"]["description"],
+                    "military": aspects["military"]["description"],
+                    "foreign_policy": aspects["foreign_policy"]["description"],
+                    "territory": aspects["territory"]["description"],
+                    "technology": aspects["technology"]["description"],
+                    "religion_culture": aspects["religion_culture"]["description"],
+                    "governance_law": aspects["governance_law"]["description"],
+                    "construction_infrastructure": aspects[
+                        "construction_infrastructure"
+                    ]["description"],
+                    "social_relations": aspects["social_relations"]["description"],
+                    "intelligence": aspects["intelligence"]["description"],
+                },
             }
             countries_data.append(country_info)
 
         return countries_data
 
     def _create_analysis_prompt(
-        self,
-        message: str,
-        sender_country: str,
-        countries_data: list[dict[str, Any]]
+        self, message: str, sender_country: str, countries_data: list[dict[str, Any]]
     ) -> str:
         """Create prompt for LLM analysis"""
 
         # Format countries data for the prompt
         countries_info = ""
         for country in countries_data:
-            synonyms_str = f" (синонимы: {', '.join(country['synonyms'])})" if country['synonyms'] else ""
+            synonyms_str = (
+                f" (синонимы: {', '.join(country['synonyms'])})"
+                if country["synonyms"]
+                else ""
+            )
 
             countries_info += f"""
-{country['name']}{synonyms_str}
-Столица: {country['capital']}
-Население: {country['population']:,}
+{country["name"]}{synonyms_str}
+Столица: {country["capital"]}
+Население: {country["population"]:,}
 Аспекты (1-10):
-- Экономика: {country['aspects']['economy']}
-- Военное дело: {country['aspects']['military']}
-- Внешняя политика: {country['aspects']['foreign_policy']}
-- Территория: {country['aspects']['territory']}
-- Технологии: {country['aspects']['technology']}
-- Религия и культура: {country['aspects']['religion_culture']}
-- Управление и право: {country['aspects']['governance_law']}
-- Строительство и инфраструктура: {country['aspects']['construction_infrastructure']}
-- Общественные отношения: {country['aspects']['social_relations']}
-- Разведка: {country['aspects']['intelligence']}
+- Экономика: {country["aspects"]["economy"]}
+- Военное дело: {country["aspects"]["military"]}
+- Внешняя политика: {country["aspects"]["foreign_policy"]}
+- Территория: {country["aspects"]["territory"]}
+- Технологии: {country["aspects"]["technology"]}
+- Религия и культура: {country["aspects"]["religion_culture"]}
+- Управление и право: {country["aspects"]["governance_law"]}
+- Строительство и инфраструктура: {country["aspects"]["construction_infrastructure"]}
+- Общественные отношения: {country["aspects"]["social_relations"]}
+- Разведка: {country["aspects"]["intelligence"]}
 """
 
         prompt = f"""Ты помощник администратора многопользовательской стратегической игры.
@@ -170,11 +173,9 @@ class RAGSystem:
 
         data = {
             "model": self.model,
-            "messages": [
-                {"role": "user", "content": prompt}
-            ],
+            "messages": [{"role": "user", "content": prompt}],
             "max_tokens": 400,
-            "temperature": 0.3  # Низкая температура для более точных ответов
+            "temperature": 0.3,  # Низкая температура для более точных ответов
         }
 
         async with httpx.AsyncClient(timeout=30.0) as client:

@@ -98,11 +98,11 @@ async def test_get_all_countries_data(rag_system, mock_db, sample_countries):
 
     # Assertions
     assert len(countries_data) == 3
-    assert countries_data[0]['name'] == "Солярия"
-    assert countries_data[0]['synonyms'] == ["Солнечная Империя", "СИ"]
-    assert countries_data[0]['aspects']['military'] == 8
-    assert countries_data[1]['name'] == "Вирджиния"
-    assert countries_data[2]['name'] == "Абобистан"
+    assert countries_data[0]["name"] == "Солярия"
+    assert countries_data[0]["synonyms"] == ["Солнечная Империя", "СИ"]
+    assert countries_data[0]["aspects"]["military"] == 8
+    assert countries_data[1]["name"] == "Вирджиния"
+    assert countries_data[2]["name"] == "Абобистан"
 
 
 @pytest.mark.asyncio
@@ -112,34 +112,34 @@ async def test_create_analysis_prompt(rag_system):
     sender_country = "Солярия"
     countries_data = [
         {
-            'name': 'Солярия',
-            'capital': 'Солнечный Город',
-            'population': 5000000,
-            'synonyms': ['Солнечная Империя', 'СИ'],
-            'aspects': {
-                'economy': 7,
-                'military': 8,
-                'foreign_policy': 6,
-                'territory': 7,
-                'technology': 9,
-                'religion_culture': 5,
-                'governance_law': 8,
-                'construction_infrastructure': 7,
-                'social_relations': 6,
-                'intelligence': 7,
+            "name": "Солярия",
+            "capital": "Солнечный Город",
+            "population": 5000000,
+            "synonyms": ["Солнечная Империя", "СИ"],
+            "aspects": {
+                "economy": 7,
+                "military": 8,
+                "foreign_policy": 6,
+                "territory": 7,
+                "technology": 9,
+                "religion_culture": 5,
+                "governance_law": 8,
+                "construction_infrastructure": 7,
+                "social_relations": 6,
+                "intelligence": 7,
             },
-            'descriptions': {
-                'economy': None,
-                'military': None,
-                'foreign_policy': None,
-                'territory': None,
-                'technology': None,
-                'religion_culture': None,
-                'governance_law': None,
-                'construction_infrastructure': None,
-                'social_relations': None,
-                'intelligence': None,
-            }
+            "descriptions": {
+                "economy": None,
+                "military": None,
+                "foreign_policy": None,
+                "territory": None,
+                "technology": None,
+                "religion_culture": None,
+                "governance_law": None,
+                "construction_infrastructure": None,
+                "social_relations": None,
+                "intelligence": None,
+            },
         }
     ]
 
@@ -157,17 +157,15 @@ async def test_generate_admin_context_no_api_key(rag_system, mock_db):
     """Test generate_admin_context when no API key is available"""
     rag_system.api_key = None
 
-    result = await rag_system.generate_admin_context(
-        "Тестовое сообщение",
-        "Солярия",
-        1
-    )
+    result = await rag_system.generate_admin_context("Тестовое сообщение", "Солярия", 1)
 
     assert result == ""
 
 
 @pytest.mark.asyncio
-async def test_generate_admin_context_with_api_key(rag_system, mock_db, sample_countries):
+async def test_generate_admin_context_with_api_key(
+    rag_system, mock_db, sample_countries
+):
     """Test generate_admin_context with API key"""
     rag_system.api_key = "test-key"
 
@@ -179,13 +177,11 @@ async def test_generate_admin_context_with_api_key(rag_system, mock_db, sample_c
     mock_db.execute = AsyncMock(return_value=mock_result)
 
     # Mock API call
-    with patch.object(rag_system, '_call_openrouter_api') as mock_api:
+    with patch.object(rag_system, "_call_openrouter_api") as mock_api:
         mock_api.return_value = "📊 RAG-справка: Тестовый ответ от AI"
 
         result = await rag_system.generate_admin_context(
-            "Хочу напасть на Вирджинию",
-            "Солярия",
-            1
+            "Хочу напасть на Вирджинию", "Солярия", 1
         )
 
         assert result == "📊 RAG-справка: Тестовый ответ от AI"
@@ -205,13 +201,11 @@ async def test_generate_admin_context_api_error(rag_system, mock_db, sample_coun
     mock_db.execute = AsyncMock(return_value=mock_result)
 
     # Mock API call to raise exception
-    with patch.object(rag_system, '_call_openrouter_api') as mock_api:
+    with patch.object(rag_system, "_call_openrouter_api") as mock_api:
         mock_api.side_effect = Exception("API Error")
 
         result = await rag_system.generate_admin_context(
-            "Тестовое сообщение",
-            "Солярия",
-            1
+            "Тестовое сообщение", "Солярия", 1
         )
 
         assert result == ""

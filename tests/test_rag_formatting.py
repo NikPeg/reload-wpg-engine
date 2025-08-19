@@ -50,20 +50,23 @@ def test_telegramify_markdown_rag_format():
 
 def test_html_escaping():
     """Test HTML character escaping for fallback"""
-    dangerous_text = 'Text with <script>alert("xss")</script> & "quotes" & \'apostrophes\''
+    dangerous_text = (
+        'Text with <script>alert("xss")</script> & "quotes" & \'apostrophes\''
+    )
 
-    safe_text = (dangerous_text
-                 .replace('&', '&amp;')
-                 .replace('<', '&lt;')
-                 .replace('>', '&gt;')
-                 .replace('"', '&quot;')
-                 .replace("'", '&#x27;'))
+    safe_text = (
+        dangerous_text.replace("&", "&amp;")
+        .replace("<", "&lt;")
+        .replace(">", "&gt;")
+        .replace('"', "&quot;")
+        .replace("'", "&#x27;")
+    )
 
-    assert '&lt;script&gt;' in safe_text
-    assert '&amp;' in safe_text
-    assert '&quot;' in safe_text
-    assert '&#x27;' in safe_text
-    assert '<script>' not in safe_text
+    assert "&lt;script&gt;" in safe_text
+    assert "&amp;" in safe_text
+    assert "&quot;" in safe_text
+    assert "&#x27;" in safe_text
+    assert "<script>" not in safe_text
 
 
 def test_markdown_with_special_characters():
@@ -84,11 +87,12 @@ def test_markdown_with_special_characters():
         assert isinstance(result, str)
     except Exception:
         # If markdownify fails, fallback should work
-        safe_text = (problematic_text
-                     .replace('&', '&amp;')
-                     .replace('<', '&lt;')
-                     .replace('>', '&gt;')
-                     .replace('"', '&quot;')
-                     .replace("'", '&#x27;'))
+        safe_text = (
+            problematic_text.replace("&", "&amp;")
+            .replace("<", "&lt;")
+            .replace(">", "&gt;")
+            .replace('"', "&quot;")
+            .replace("'", "&#x27;")
+        )
         assert isinstance(safe_text, str)
-        assert '&lt;' in safe_text or '<' not in problematic_text
+        assert "&lt;" in safe_text or "<" not in problematic_text

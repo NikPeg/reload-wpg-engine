@@ -23,7 +23,7 @@ async def create_demo_data(session: AsyncSession):
         max_players=10,
         years_per_day=5,
         max_points=30,
-        max_population=10000000
+        max_population=10000000,
     )
     session.add(game)
     await session.flush()
@@ -36,11 +36,17 @@ async def create_demo_data(session: AsyncSession):
             "population": 5000000,
             "synonyms": ["Солнечная Империя", "СИ"],
             "aspects": {
-                "economy": 7, "military": 8, "foreign_policy": 6,
-                "territory": 7, "technology": 9, "religion_culture": 5,
-                "governance_law": 8, "construction_infrastructure": 7,
-                "social_relations": 6, "intelligence": 7
-            }
+                "economy": 7,
+                "military": 8,
+                "foreign_policy": 6,
+                "territory": 7,
+                "technology": 9,
+                "religion_culture": 5,
+                "governance_law": 8,
+                "construction_infrastructure": 7,
+                "social_relations": 6,
+                "intelligence": 7,
+            },
         },
         {
             "name": "Вирджиния",
@@ -48,11 +54,17 @@ async def create_demo_data(session: AsyncSession):
             "population": 3000000,
             "synonyms": ["Вирг", "ВР"],
             "aspects": {
-                "economy": 6, "military": 5, "foreign_policy": 7,
-                "territory": 6, "technology": 6, "religion_culture": 8,
-                "governance_law": 7, "construction_infrastructure": 6,
-                "social_relations": 7, "intelligence": 5
-            }
+                "economy": 6,
+                "military": 5,
+                "foreign_policy": 7,
+                "territory": 6,
+                "technology": 6,
+                "religion_culture": 8,
+                "governance_law": 7,
+                "construction_infrastructure": 6,
+                "social_relations": 7,
+                "intelligence": 5,
+            },
         },
         {
             "name": "Абобистан",
@@ -60,12 +72,18 @@ async def create_demo_data(session: AsyncSession):
             "population": 2000000,
             "synonyms": ["Абоба", "АБ"],
             "aspects": {
-                "economy": 4, "military": 3, "foreign_policy": 5,
-                "territory": 5, "technology": 4, "religion_culture": 6,
-                "governance_law": 4, "construction_infrastructure": 3,
-                "social_relations": 5, "intelligence": 4
-            }
-        }
+                "economy": 4,
+                "military": 3,
+                "foreign_policy": 5,
+                "territory": 5,
+                "technology": 4,
+                "religion_culture": 6,
+                "governance_law": 4,
+                "construction_infrastructure": 3,
+                "social_relations": 5,
+                "intelligence": 4,
+            },
+        },
     ]
 
     for country_data in countries_data:
@@ -75,7 +93,7 @@ async def create_demo_data(session: AsyncSession):
             capital=country_data["capital"],
             population=country_data["population"],
             synonyms=country_data["synonyms"],
-            **country_data["aspects"]
+            **country_data["aspects"],
         )
         session.add(country)
 
@@ -105,22 +123,13 @@ async def demo_rag_analysis():
 
         # Тестовые сообщения
         test_messages = [
-            {
-                "message": "Хочу напасть на Вирджинию и Абобистан",
-                "sender": "Солярия"
-            },
-            {
-                "message": "Предлагаю торговое соглашение с СИ",
-                "sender": "Вирджиния"
-            },
-            {
-                "message": "Нужна помощь в развитии технологий",
-                "sender": "Абобистан"
-            },
+            {"message": "Хочу напасть на Вирджинию и Абобистан", "sender": "Солярия"},
+            {"message": "Предлагаю торговое соглашение с СИ", "sender": "Вирджиния"},
+            {"message": "Нужна помощь в развитии технологий", "sender": "Абобистан"},
             {
                 "message": "Солнечная Империя угрожает нашим границам",
-                "sender": "Абобистан"
-            }
+                "sender": "Абобистан",
+            },
         ]
 
         print("🤖 Демонстрация RAG системы для админа\n")
@@ -134,9 +143,7 @@ async def demo_rag_analysis():
 
             # Получить контекст от RAG системы
             context = await rag_system.generate_admin_context(
-                test_case["message"],
-                test_case["sender"],
-                game_id
+                test_case["message"], test_case["sender"], game_id
             )
 
             if context:
@@ -149,17 +156,23 @@ async def demo_rag_analysis():
                 print("📊 Базовая информация о странах:")
                 countries_data = await rag_system._get_all_countries_data(game_id)
                 for country in countries_data:
-                    if (country['name'].lower() in test_case['message'].lower() or
-                        any(syn.lower() in test_case['message'].lower() for syn in country['synonyms'])):
-                        print(f"  🏛️ {country['name']}: Военное дело {country['aspects']['military']}/10, "
-                              f"Экономика {country['aspects']['economy']}/10")
+                    if country["name"].lower() in test_case["message"].lower() or any(
+                        syn.lower() in test_case["message"].lower()
+                        for syn in country["synonyms"]
+                    ):
+                        print(
+                            f"  🏛️ {country['name']}: Военное дело {country['aspects']['military']}/10, "
+                            f"Экономика {country['aspects']['economy']}/10"
+                        )
 
             print()
 
 
 if __name__ == "__main__":
     print("Запуск демонстрации RAG системы...")
-    print("Примечание: Для полной работы нужен API ключ OpenRouter в переменной AI_TOKEN")
+    print(
+        "Примечание: Для полной работы нужен API ключ OpenRouter в переменной AI_TOKEN"
+    )
     print()
 
     asyncio.run(demo_rag_analysis())
