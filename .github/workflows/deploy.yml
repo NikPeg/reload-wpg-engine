@@ -143,6 +143,7 @@ jobs:
           -e TG_TOKEN="${{ secrets.TG_TOKEN || '' }}" \
           -e TG_ADMIN_ID="${{ secrets.TG_ADMIN_ID || '' }}" \
           -e AI_OPENROUTER_API_KEY="${{ secrets.AI_OPENROUTER_API_KEY || '' }}" \
+          -e AI_DEFAULT_MODEL="${{ secrets.AI_DEFAULT_MODEL || 'deepseek/deepseek-chat-v3-0324' }}" \
           -e DB_URL="sqlite:///./data/wpg_engine.db" \
           -e LOG_LEVEL="INFO" \
           -v /opt/wpg-engine/data:/app/data \
