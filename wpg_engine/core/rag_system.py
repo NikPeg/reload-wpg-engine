@@ -7,9 +7,10 @@ from typing import Any
 import httpx
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from wpg_engine.config.settings import settings
-from wpg_engine.models import Country
+from wpg_engine.models import Country, Message
 
 
 class RAGSystem:
@@ -22,7 +23,7 @@ class RAGSystem:
         self.model = settings.ai.default_model
 
     async def generate_admin_context(
-        self, message_content: str, sender_country_name: str, game_id: int
+        self, message_content: str, sender_country_name: str, game_id: int, player_id: int
     ) -> str:
         """
         Generate context for admin based on player message
@@ -31,6 +32,7 @@ class RAGSystem:
             message_content: The player's message
             sender_country_name: Name of sender's country
             game_id: Game ID to get countries data
+            player_id: Player ID to check for previous admin messages
 
         Returns:
             Context string for admin
@@ -44,10 +46,25 @@ class RAGSystem:
         if not countries_data:
             return ""
 
+        # Check for previous admin message to provide context
+        previous_admin_message = await self._get_previous_admin_message(player_id, game_id)
+
         # Create prompt for LLM analysis
         prompt = self._create_analysis_prompt(
-            message_content, sender_country_name, countries_data
+            message_content, sender_country_name, countries_data, previous_admin_message
         )
+
+        # Debug output: print the full prompt being sent to LLM
+        print("=" * 80)
+        print("🔍 RAG DEBUG: Полный промпт для LLM:")
+        print("=" * 80)
+        print(prompt)
+        print("=" * 80)
+        if previous_admin_message:
+            print(f"✅ Найдено предыдущее сообщение админа: {previous_admin_message[:100]}...")
+        else:
+            print("❌ Предыдущее сообщение админа НЕ найдено")
+        print("=" * 80)
 
         try:
             # Get analysis from LLM
@@ -106,8 +123,39 @@ class RAGSystem:
 
         return countries_data
 
+    async def _get_previous_admin_message(self, player_id: int, game_id: int) -> str | None:
+        """Get the previous admin message for context if it exists"""
+
+        # Get all messages for this player, ordered by creation time
+        result = await self.db.execute(
+            select(Message)
+            .options(selectinload(Message.player))
+            .where(Message.player_id == player_id)
+            .where(Message.game_id == game_id)
+            .order_by(Message.created_at.desc(), Message.id.desc())
+        )
+        messages = list(result.scalars().all())
+
+        # Debug output: show all messages for this player
+        print(f"🔍 DEBUG: Найдено {len(messages)} сообщений для игрока {player_id}:")
+        for i, msg in enumerate(messages):
+            msg_type = "АДМИН" if msg.is_admin_reply else "ИГРОК"
+            print(f"  {i}: [{msg_type}] {msg.content[:50]}... (ID: {msg.id}, created: {msg.created_at})")
+
+        # Look through messages to find the pattern: player message -> admin reply -> current player message
+        # We want to find the most recent admin reply that comes before the current player message
+        if len(messages) >= 2:
+            # Skip the first message (current player message) and look for admin replies
+            for i in range(1, len(messages)):
+                if messages[i].is_admin_reply:
+                    print(f"🎯 DEBUG: Найдено предыдущее сообщение админа на позиции {i}: {messages[i].content[:100]}...")
+                    return messages[i].content
+
+        print("❌ DEBUG: Предыдущее сообщение админа не найдено")
+        return None
+
     def _create_analysis_prompt(
-        self, message: str, sender_country: str, countries_data: list[dict[str, Any]]
+        self, message: str, sender_country: str, countries_data: list[dict[str, Any]], previous_admin_message: str | None = None
     ) -> str:
         """Create prompt for LLM analysis"""
 
@@ -137,8 +185,17 @@ class RAGSystem:
 - Разведка: {country["aspects"]["intelligence"]}
 """
 
-        prompt = f"""Ты помощник администратора многопользовательской стратегической игры.
+        context_section = ""
+        if previous_admin_message:
+            context_section = f"""
+КОНТЕКСТ: Предыдущее сообщение от администратора к этому игроку:
+"{previous_admin_message}"
 
+Текущее сообщение игрока может быть ответом на это сообщение администратора.
+"""
+
+        prompt = f"""Ты помощник администратора многопользовательской стратегической игры.
+{context_section}
 Игрок из страны "{sender_country}" отправил сообщение:
 "{message}"
 
@@ -146,12 +203,12 @@ class RAGSystem:
 {countries_info}
 
 Твоя задача:
-1. Проанализировать сообщение игрока
+1. Проанализировать сообщение игрока{" (учитывая контекст предыдущего сообщения администратора, если есть)" if previous_admin_message else ""}
 2. Определить, какие страны упоминаются или подразумеваются в сообщении (включая синонимы)
 3. Предоставить администратору краткую справку по релевантным странам
 
 Создай краткую справку для администратора, которая поможет ему принять правильное решение. Сосредоточься на:
-- релевантных упомянутых стран аспектах в контексте сообщения
+- релевантных упомянутых стран аспектах в контексте сообщения{" и предыдущего сообщения администратора" if previous_admin_message else ""}
 
 Если в сообщении упоминаются военные действия, обязательно сравни военную мощь всех задействованных стран.
 

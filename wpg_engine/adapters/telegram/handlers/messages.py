@@ -212,7 +212,7 @@ async def handle_player_message(
             if player.country:
                 rag_system = RAGSystem(game_engine.db)
                 rag_context = await rag_system.generate_admin_context(
-                    content, country_name, player.game_id
+                    content, country_name, player.game_id, player.id
                 )
 
                 # Send RAG context as reply to admin's message if available
@@ -423,6 +423,14 @@ async def handle_country_event(
             target_player.telegram_id,
             escape_html(content),
             parse_mode="HTML",
+        )
+
+        # Save the admin message to database for RAG context
+        await game_engine.create_message(
+            player_id=target_player.id,
+            game_id=admin.game_id,
+            content=content,
+            is_admin_reply=True
         )
 
         # Confirm to admin

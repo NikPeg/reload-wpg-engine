@@ -398,6 +398,27 @@ class GameEngine:
         )
         return result.scalar_one_or_none()
 
+    async def get_previous_message_for_player(
+        self, player_id: int, game_id: int, current_message_id: int | None = None
+    ) -> Message | None:
+        """Get the previous message in the conversation for a player"""
+        query = (
+            select(Message)
+            .options(selectinload(Message.player))
+            .where(Message.game_id == game_id)
+            .where(Message.player_id == player_id)
+            .order_by(Message.created_at.desc(), Message.id.desc())
+        )
+
+        # If we have a current message ID, exclude it and get the one before it
+        if current_message_id:
+            query = query.where(Message.id < current_message_id)
+
+        query = query.limit(1)
+
+        result = await self.db.execute(query)
+        return result.scalar_one_or_none()
+
     async def find_country_by_name_or_synonym(
         self, game_id: int, search_name: str
     ) -> Country | None:

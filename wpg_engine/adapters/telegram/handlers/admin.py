@@ -638,6 +638,14 @@ async def process_event_message(message: Message, state: FSMContext) -> None:
                         parse_mode="HTML",
                     )
                     sent_count = 1
+
+                    # Save the admin message to database for RAG context
+                    await game_engine.create_message(
+                        player_id=target_player.id,
+                        game_id=admin.game_id,
+                        content=message_content,
+                        is_admin_reply=True
+                    )
                 except Exception as e:
                     print(
                         f"Failed to send event message to player {target_player.telegram_id}: {e}"
@@ -660,6 +668,14 @@ async def process_event_message(message: Message, state: FSMContext) -> None:
                         parse_mode="HTML",
                     )
                     sent_count += 1
+
+                    # Save the admin message to database for RAG context
+                    await game_engine.create_message(
+                        player_id=player.id,
+                        game_id=admin.game_id,
+                        content=message_content,
+                        is_admin_reply=True
+                    )
                 except Exception as e:
                     print(
                         f"Failed to send event message to player {player.telegram_id}: {e}"
