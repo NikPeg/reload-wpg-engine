@@ -430,7 +430,7 @@ async def handle_country_event(
             player_id=target_player.id,
             game_id=admin.game_id,
             content=content,
-            is_admin_reply=True
+            is_admin_reply=True,
         )
 
         # Confirm to admin

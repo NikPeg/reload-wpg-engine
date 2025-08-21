@@ -32,8 +32,7 @@ async def test_game_data(db_session):
 
     # Create test game
     game = await game_engine.create_game(
-        name="Test Game",
-        description="Test game for RAG context"
+        name="Test Game", description="Test game for RAG context"
     )
 
     # Create test country
@@ -41,11 +40,7 @@ async def test_game_data(db_session):
         game_id=game.id,
         name="TestCountry",
         description="Test country",
-        aspects={
-            "economy": 5,
-            "military": 7,
-            "foreign_policy": 6
-        }
+        aspects={"economy": 5, "military": 7, "foreign_policy": 6},
     )
 
     # Create test player
@@ -54,7 +49,7 @@ async def test_game_data(db_session):
         telegram_id=12345,
         display_name="Test Player",
         role=PlayerRole.PLAYER,
-        country_id=country.id
+        country_id=country.id,
     )
 
     # Create admin player
@@ -62,7 +57,7 @@ async def test_game_data(db_session):
         game_id=game.id,
         telegram_id=67890,
         display_name="Test Admin",
-        role=PlayerRole.ADMIN
+        role=PlayerRole.ADMIN,
     )
 
     return {
@@ -70,7 +65,7 @@ async def test_game_data(db_session):
         "country": country,
         "player": player,
         "admin": admin,
-        "game_engine": game_engine
+        "game_engine": game_engine,
     }
 
 
@@ -84,12 +79,14 @@ async def test_rag_context_with_admin_message(db_session, test_game_data):
     country = data["country"]
 
     # Create admin message
-    admin_message_content = "Ваша страна подверглась нападению со стороны соседей. Что будете делать?"
+    admin_message_content = (
+        "Ваша страна подверглась нападению со стороны соседей. Что будете делать?"
+    )
     _ = await game_engine.create_message(
         player_id=player.id,
         game_id=game.id,
         content=admin_message_content,
-        is_admin_reply=True
+        is_admin_reply=True,
     )
 
     # Create player response
@@ -98,7 +95,7 @@ async def test_rag_context_with_admin_message(db_session, test_game_data):
         player_id=player.id,
         game_id=game.id,
         content=player_response,
-        is_admin_reply=False
+        is_admin_reply=False,
     )
 
     # Test RAG system
@@ -106,17 +103,16 @@ async def test_rag_context_with_admin_message(db_session, test_game_data):
     rag_system.api_key = "test_key"  # Mock API key
 
     # Test getting previous admin message
-    previous_admin_msg = await rag_system._get_previous_admin_message(player.id, game.id)
+    previous_admin_msg = await rag_system._get_previous_admin_message(
+        player.id, game.id
+    )
 
     assert previous_admin_msg == admin_message_content
 
     # Test prompt creation includes context
     countries_data = await rag_system._get_all_countries_data(game.id)
     prompt = rag_system._create_analysis_prompt(
-        player_response,
-        country.name,
-        countries_data,
-        previous_admin_msg
+        player_response, country.name, countries_data, previous_admin_msg
     )
 
     assert "КОНТЕКСТ: Предыдущее сообщение от администратора" in prompt
@@ -138,7 +134,7 @@ async def test_rag_context_without_admin_message(db_session, test_game_data):
         player_id=player.id,
         game_id=game.id,
         content=player_response,
-        is_admin_reply=False
+        is_admin_reply=False,
     )
 
     # Test RAG system
@@ -146,17 +142,16 @@ async def test_rag_context_without_admin_message(db_session, test_game_data):
     rag_system.api_key = "test_key"  # Mock API key
 
     # Test getting previous admin message
-    previous_admin_msg = await rag_system._get_previous_admin_message(player.id, game.id)
+    previous_admin_msg = await rag_system._get_previous_admin_message(
+        player.id, game.id
+    )
 
     assert previous_admin_msg is None
 
     # Test prompt creation without context
     countries_data = await rag_system._get_all_countries_data(game.id)
     prompt = rag_system._create_analysis_prompt(
-        player_response,
-        country.name,
-        countries_data,
-        previous_admin_msg
+        player_response, country.name, countries_data, previous_admin_msg
     )
 
     assert "КОНТЕКСТ: Предыдущее сообщение от администратора" not in prompt
@@ -174,19 +169,13 @@ async def test_event_message_saving_and_retrieval(db_session, test_game_data):
     # Simulate old admin message
     old_admin_msg = "Потому что вы слабы"
     await game_engine.create_message(
-        player_id=player.id,
-        game_id=game.id,
-        content=old_admin_msg,
-        is_admin_reply=True
+        player_id=player.id, game_id=game.id, content=old_admin_msg, is_admin_reply=True
     )
 
     # Simulate event message (like /event command would create)
     event_message = "На вас напало племя эльфов"
     await game_engine.create_message(
-        player_id=player.id,
-        game_id=game.id,
-        content=event_message,
-        is_admin_reply=True
+        player_id=player.id, game_id=game.id, content=event_message, is_admin_reply=True
     )
 
     # Player responds
@@ -195,14 +184,16 @@ async def test_event_message_saving_and_retrieval(db_session, test_game_data):
         player_id=player.id,
         game_id=game.id,
         content=player_response,
-        is_admin_reply=False
+        is_admin_reply=False,
     )
 
     # Test RAG system retrieves the LATEST admin message
     rag_system = RAGSystem(db_session)
     rag_system.api_key = "test_key"
 
-    previous_admin_msg = await rag_system._get_previous_admin_message(player.id, game.id)
+    previous_admin_msg = await rag_system._get_previous_admin_message(
+        player.id, game.id
+    )
 
     # Should get the latest event message, not the old one
     assert previous_admin_msg == event_message
@@ -211,10 +202,7 @@ async def test_event_message_saving_and_retrieval(db_session, test_game_data):
     # Test prompt includes the latest context
     countries_data = await rag_system._get_all_countries_data(game.id)
     prompt = rag_system._create_analysis_prompt(
-        player_response,
-        country.name,
-        countries_data,
-        previous_admin_msg
+        player_response, country.name, countries_data, previous_admin_msg
     )
 
     assert event_message in prompt
@@ -230,9 +218,7 @@ async def test_multiple_players_event_messages(db_session, test_game_data):
 
     # Create second country and player
     country2 = await game_engine.create_country(
-        game_id=game.id,
-        name="SecondCountry",
-        description="Second test country"
+        game_id=game.id, name="SecondCountry", description="Second test country"
     )
 
     player2 = await game_engine.create_player(
@@ -240,7 +226,7 @@ async def test_multiple_players_event_messages(db_session, test_game_data):
         telegram_id=54321,
         display_name="Second Player",
         role=PlayerRole.PLAYER,
-        country_id=country2.id
+        country_id=country2.id,
     )
 
     # Send event to all players (simulating /event without country name)
@@ -251,14 +237,11 @@ async def test_multiple_players_event_messages(db_session, test_game_data):
         player_id=data["player"].id,
         game_id=game.id,
         content=global_event,
-        is_admin_reply=True
+        is_admin_reply=True,
     )
 
     await game_engine.create_message(
-        player_id=player2.id,
-        game_id=game.id,
-        content=global_event,
-        is_admin_reply=True
+        player_id=player2.id, game_id=game.id, content=global_event, is_admin_reply=True
     )
 
     # Players respond to the event
@@ -266,14 +249,14 @@ async def test_multiple_players_event_messages(db_session, test_game_data):
         player_id=data["player"].id,
         game_id=game.id,
         content="Закрываем границы",
-        is_admin_reply=False
+        is_admin_reply=False,
     )
 
     await game_engine.create_message(
         player_id=player2.id,
         game_id=game.id,
         content="Ищем лекарство",
-        is_admin_reply=False
+        is_admin_reply=False,
     )
 
     # Test RAG system for both players

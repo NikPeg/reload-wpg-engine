@@ -23,7 +23,11 @@ class RAGSystem:
         self.model = settings.ai.default_model
 
     async def generate_admin_context(
-        self, message_content: str, sender_country_name: str, game_id: int, player_id: int
+        self,
+        message_content: str,
+        sender_country_name: str,
+        game_id: int,
+        player_id: int,
     ) -> str:
         """
         Generate context for admin based on player message
@@ -47,7 +51,9 @@ class RAGSystem:
             return ""
 
         # Check for previous admin message to provide context
-        previous_admin_message = await self._get_previous_admin_message(player_id, game_id)
+        previous_admin_message = await self._get_previous_admin_message(
+            player_id, game_id
+        )
 
         # Create prompt for LLM analysis
         prompt = self._create_analysis_prompt(
@@ -61,7 +67,9 @@ class RAGSystem:
         print(prompt)
         print("=" * 80)
         if previous_admin_message:
-            print(f"✅ Найдено предыдущее сообщение админа: {previous_admin_message[:100]}...")
+            print(
+                f"✅ Найдено предыдущее сообщение админа: {previous_admin_message[:100]}..."
+            )
         else:
             print("❌ Предыдущее сообщение админа НЕ найдено")
         print("=" * 80)
@@ -123,7 +131,9 @@ class RAGSystem:
 
         return countries_data
 
-    async def _get_previous_admin_message(self, player_id: int, game_id: int) -> str | None:
+    async def _get_previous_admin_message(
+        self, player_id: int, game_id: int
+    ) -> str | None:
         """Get the previous admin message for context if it exists"""
 
         # Get all messages for this player, ordered by creation time
@@ -140,7 +150,9 @@ class RAGSystem:
         print(f"🔍 DEBUG: Найдено {len(messages)} сообщений для игрока {player_id}:")
         for i, msg in enumerate(messages):
             msg_type = "АДМИН" if msg.is_admin_reply else "ИГРОК"
-            print(f"  {i}: [{msg_type}] {msg.content[:50]}... (ID: {msg.id}, created: {msg.created_at})")
+            print(
+                f"  {i}: [{msg_type}] {msg.content[:50]}... (ID: {msg.id}, created: {msg.created_at})"
+            )
 
         # Look through messages to find the pattern: player message -> admin reply -> current player message
         # We want to find the most recent admin reply that comes before the current player message
@@ -148,14 +160,20 @@ class RAGSystem:
             # Skip the first message (current player message) and look for admin replies
             for i in range(1, len(messages)):
                 if messages[i].is_admin_reply:
-                    print(f"🎯 DEBUG: Найдено предыдущее сообщение админа на позиции {i}: {messages[i].content[:100]}...")
+                    print(
+                        f"🎯 DEBUG: Найдено предыдущее сообщение админа на позиции {i}: {messages[i].content[:100]}..."
+                    )
                     return messages[i].content
 
         print("❌ DEBUG: Предыдущее сообщение админа не найдено")
         return None
 
     def _create_analysis_prompt(
-        self, message: str, sender_country: str, countries_data: list[dict[str, Any]], previous_admin_message: str | None = None
+        self,
+        message: str,
+        sender_country: str,
+        countries_data: list[dict[str, Any]],
+        previous_admin_message: str | None = None,
     ) -> str:
         """Create prompt for LLM analysis"""
 

@@ -644,7 +644,7 @@ async def process_event_message(message: Message, state: FSMContext) -> None:
                         player_id=target_player.id,
                         game_id=admin.game_id,
                         content=message_content,
-                        is_admin_reply=True
+                        is_admin_reply=True,
                     )
                 except Exception as e:
                     print(
@@ -674,7 +674,7 @@ async def process_event_message(message: Message, state: FSMContext) -> None:
                         player_id=player.id,
                         game_id=admin.game_id,
                         content=message_content,
-                        is_admin_reply=True
+                        is_admin_reply=True,
                     )
                 except Exception as e:
                     print(
