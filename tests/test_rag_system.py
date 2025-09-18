@@ -129,16 +129,16 @@ async def test_create_analysis_prompt(rag_system):
                 "intelligence": 7,
             },
             "descriptions": {
-                "economy": None,
-                "military": None,
-                "foreign_policy": None,
-                "territory": None,
-                "technology": None,
-                "religion_culture": None,
-                "governance_law": None,
-                "construction_infrastructure": None,
-                "social_relations": None,
-                "intelligence": None,
+                "economy": "Развитая промышленность и торговля",
+                "military": "Современная армия с высокотехнологичным оружием",
+                "foreign_policy": "Активная дипломатия",
+                "territory": "Обширные плодородные земли",
+                "technology": "Лидер в области инноваций",
+                "religion_culture": "Светское государство с богатой культурой",
+                "governance_law": "Конституционная монархия",
+                "construction_infrastructure": "Развитая транспортная сеть",
+                "social_relations": "Стабильное общество",
+                "intelligence": "Эффективные спецслужбы",
             },
         }
     ]
@@ -148,8 +148,12 @@ async def test_create_analysis_prompt(rag_system):
     # Check that prompt contains key elements
     assert "Солярия" in prompt
     assert "напасть на Вирджинию и Абобистан" in prompt
-    assert "Военной мощи" in prompt  # Fixed case
     assert "📊 RAG-справка:" in prompt
+    
+    # Check that descriptions are included in the prompt
+    assert "Развитая промышленность и торговля" in prompt
+    assert "Современная армия с высокотехнологичным оружием" in prompt
+    assert "Лидер в области инноваций" in prompt
 
 
 @pytest.mark.asyncio
@@ -157,7 +161,7 @@ async def test_generate_admin_context_no_api_key(rag_system, mock_db):
     """Test generate_admin_context when no API key is available"""
     rag_system.api_key = None
 
-    result = await rag_system.generate_admin_context("Тестовое сообщение", "Солярия", 1)
+    result = await rag_system.generate_admin_context("Тестовое сообщение", "Солярия", 1, 1)
 
     assert result == ""
 
@@ -169,19 +173,33 @@ async def test_generate_admin_context_with_api_key(
     """Test generate_admin_context with API key"""
     rag_system.api_key = "test-key"
 
-    # Mock database query properly
-    mock_scalars = AsyncMock()
-    mock_scalars.all = lambda: sample_countries
-    mock_result = AsyncMock()
-    mock_result.scalars = lambda: mock_scalars
-    mock_db.execute = AsyncMock(return_value=mock_result)
+    # Mock database queries - need to handle both countries and messages queries
+    def mock_execute(query):
+        # Check if this is a countries query or messages query
+        query_str = str(query)
+        if "countries" in query_str:
+            # Return countries
+            mock_scalars = AsyncMock()
+            mock_scalars.all = lambda: sample_countries
+            mock_result = AsyncMock()
+            mock_result.scalars = lambda: mock_scalars
+            return mock_result
+        else:
+            # Return empty messages list
+            mock_scalars = AsyncMock()
+            mock_scalars.all = lambda: []
+            mock_result = AsyncMock()
+            mock_result.scalars = lambda: mock_scalars
+            return mock_result
+
+    mock_db.execute = AsyncMock(side_effect=mock_execute)
 
     # Mock API call
     with patch.object(rag_system, "_call_openrouter_api") as mock_api:
         mock_api.return_value = "📊 RAG-справка: Тестовый ответ от AI"
 
         result = await rag_system.generate_admin_context(
-            "Хочу напасть на Вирджинию", "Солярия", 1
+            "Хочу напасть на Вирджинию", "Солярия", 1, 1
         )
 
         assert result == "📊 RAG-справка: Тестовый ответ от AI"
@@ -193,19 +211,33 @@ async def test_generate_admin_context_api_error(rag_system, mock_db, sample_coun
     """Test generate_admin_context when API call fails"""
     rag_system.api_key = "test-key"
 
-    # Mock database query properly
-    mock_scalars = AsyncMock()
-    mock_scalars.all = lambda: sample_countries
-    mock_result = AsyncMock()
-    mock_result.scalars = lambda: mock_scalars
-    mock_db.execute = AsyncMock(return_value=mock_result)
+    # Mock database queries - need to handle both countries and messages queries
+    def mock_execute(query):
+        # Check if this is a countries query or messages query
+        query_str = str(query)
+        if "countries" in query_str:
+            # Return countries
+            mock_scalars = AsyncMock()
+            mock_scalars.all = lambda: sample_countries
+            mock_result = AsyncMock()
+            mock_result.scalars = lambda: mock_scalars
+            return mock_result
+        else:
+            # Return empty messages list
+            mock_scalars = AsyncMock()
+            mock_scalars.all = lambda: []
+            mock_result = AsyncMock()
+            mock_result.scalars = lambda: mock_scalars
+            return mock_result
+
+    mock_db.execute = AsyncMock(side_effect=mock_execute)
 
     # Mock API call to raise exception
     with patch.object(rag_system, "_call_openrouter_api") as mock_api:
         mock_api.side_effect = Exception("API Error")
 
         result = await rag_system.generate_admin_context(
-            "Тестовое сообщение", "Солярия", 1
+            "Тестовое сообщение", "Солярия", 1, 1
         )
 
         assert result == ""

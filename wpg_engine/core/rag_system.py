@@ -191,16 +191,16 @@ class RAGSystem:
 Столица: {country["capital"]}
 Население: {country["population"]:,}
 Аспекты (1-10):
-- Экономика: {country["aspects"]["economy"]}
-- Военное дело: {country["aspects"]["military"]}
-- Внешняя политика: {country["aspects"]["foreign_policy"]}
-- Территория: {country["aspects"]["territory"]}
-- Технологии: {country["aspects"]["technology"]}
-- Религия и культура: {country["aspects"]["religion_culture"]}
-- Управление и право: {country["aspects"]["governance_law"]}
-- Строительство и инфраструктура: {country["aspects"]["construction_infrastructure"]}
-- Общественные отношения: {country["aspects"]["social_relations"]}
-- Разведка: {country["aspects"]["intelligence"]}
+- Экономика: {country["aspects"]["economy"]}{f' - {country["descriptions"]["economy"]}' if country["descriptions"]["economy"] else ''}
+- Военное дело: {country["aspects"]["military"]}{f' - {country["descriptions"]["military"]}' if country["descriptions"]["military"] else ''}
+- Внешняя политика: {country["aspects"]["foreign_policy"]}{f' - {country["descriptions"]["foreign_policy"]}' if country["descriptions"]["foreign_policy"] else ''}
+- Территория: {country["aspects"]["territory"]}{f' - {country["descriptions"]["territory"]}' if country["descriptions"]["territory"] else ''}
+- Технологии: {country["aspects"]["technology"]}{f' - {country["descriptions"]["technology"]}' if country["descriptions"]["technology"] else ''}
+- Религия и культура: {country["aspects"]["religion_culture"]}{f' - {country["descriptions"]["religion_culture"]}' if country["descriptions"]["religion_culture"] else ''}
+- Управление и право: {country["aspects"]["governance_law"]}{f' - {country["descriptions"]["governance_law"]}' if country["descriptions"]["governance_law"] else ''}
+- Строительство и инфраструктура: {country["aspects"]["construction_infrastructure"]}{f' - {country["descriptions"]["construction_infrastructure"]}' if country["descriptions"]["construction_infrastructure"] else ''}
+- Общественные отношения: {country["aspects"]["social_relations"]}{f' - {country["descriptions"]["social_relations"]}' if country["descriptions"]["social_relations"] else ''}
+- Разведка: {country["aspects"]["intelligence"]}{f' - {country["descriptions"]["intelligence"]}' if country["descriptions"]["intelligence"] else ''}
 """
 
         context_section = ""
