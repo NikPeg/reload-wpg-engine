@@ -779,7 +779,7 @@ async def generate_game_event(
 - Учитывающим особенности страны
 - Требующим решения от игрока
 
-Отвечай на русском языке."""
+Отвечай на русском языке. НЕ добавляй "Варианты действий:" или подобные фразы в конце."""
     else:
         # Generate global event for all countries
         countries_info = ""
@@ -804,7 +804,7 @@ async def generate_game_event(
 - Соответствующим сеттингу
 - Требующим координации между странами
 
-Отвечай на русском языке."""
+Отвечай на русском языке. НЕ добавляй "Варианты действий:" или подобные фразы в конце."""
 
     try:
         event_text = await rag_system._call_openrouter_api(prompt)
@@ -1209,19 +1209,40 @@ async def process_gen_callback(
                         )
                         failed_count += 1
 
-            # Update message with result
+            # Update message with result, keeping the original event text
+            event_header = "🎲 **Сгенерированное событие**\n"
+            if data["target_country_name"]:
+                event_header += f"**Для страны:** {data['target_country_name']}\n\n"
+            else:
+                event_header += "**Глобальное событие для всех стран**\n\n"
+
+            # Add result status
             if data["target_player_id"]:
                 if failed_count == 0:
-                    result_text = f"✅ Событие отправлено в страну {escape_html(data['target_country_name'])}!"
+                    status_text = f"✅ **Событие отправлено в страну {data['target_country_name']}!**"
                 else:
-                    result_text = f"❌ Не удалось отправить событие в страну {escape_html(data['target_country_name'])}."
+                    status_text = f"❌ **Не удалось отправить событие в страну {data['target_country_name']}.**"
             else:
                 if failed_count == 0:
-                    result_text = f"✅ Событие отправлено всем странам ({sent_count} получателей)!"
+                    status_text = f"✅ **Событие отправлено всем странам ({sent_count} получателей)!**"
                 else:
-                    result_text = f"⚠️ Событие отправлено {sent_count} странам. Не удалось отправить {failed_count} странам."
+                    status_text = f"⚠️ **Событие отправлено {sent_count} странам. Не удалось отправить {failed_count} странам.**"
 
-            await callback_query.message.edit_text(result_text, parse_mode="HTML")
+            # Format the full message with event text and result
+            full_message = f"{event_header}{data['event_text']}\n\n---\n{status_text}"
+
+            try:
+                formatted_message = markdownify(full_message)
+                await callback_query.message.edit_text(
+                    formatted_message, parse_mode="MarkdownV2"
+                )
+            except Exception as e:
+                print(f"Failed to edit formatted result message: {e}")
+                # Fallback to HTML
+                await callback_query.message.edit_text(
+                    f"{event_header}{escape_html(data['event_text'])}\n\n---\n{escape_html(status_text)}",
+                    parse_mode="HTML",
+                )
 
             await state.clear()
 
