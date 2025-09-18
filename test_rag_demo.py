@@ -3,17 +3,18 @@
 Демонстрация улучшенной RAG системы с текстовыми описаниями
 """
 
-from wpg_engine.core.rag_system import RAGSystem
 from unittest.mock import AsyncMock
+
+from wpg_engine.core.rag_system import RAGSystem
 
 
 def test_rag_with_descriptions():
     """Демонстрация того, как RAG теперь включает текстовые описания"""
-    
+
     # Создаем мок RAG системы
     mock_db = AsyncMock()
     rag_system = RAGSystem(mock_db)
-    
+
     # Пример данных стран с описаниями
     countries_data = [
         {
@@ -77,13 +78,13 @@ def test_rag_with_descriptions():
             },
         }
     ]
-    
+
     # Создаем промпт
     message = "Хочу напасть на Вирджинию с помощью новых технологий"
     sender_country = "Солярия"
-    
+
     prompt = rag_system._create_analysis_prompt(message, sender_country, countries_data)
-    
+
     print("=" * 80)
     print("🔍 ДЕМОНСТРАЦИЯ УЛУЧШЕННОЙ RAG СИСТЕМЫ")
     print("=" * 80)
@@ -94,7 +95,7 @@ def test_rag_with_descriptions():
     print("=" * 80)
     print(prompt)
     print("=" * 80)
-    
+
     # Проверяем, что описания включены
     assert "Развитая промышленность с акцентом на солнечную энергетику" in prompt
     assert "Современная армия с высокотехнологичным оружием на солнечных батареях" in prompt
