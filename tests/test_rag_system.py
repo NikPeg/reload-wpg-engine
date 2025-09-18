@@ -149,7 +149,7 @@ async def test_create_analysis_prompt(rag_system):
     assert "Солярия" in prompt
     assert "напасть на Вирджинию и Абобистан" in prompt
     assert "📊 RAG-справка:" in prompt
-    
+
     # Check that descriptions are included in the prompt
     assert "Развитая промышленность и торговля" in prompt
     assert "Современная армия с высокотехнологичным оружием" in prompt
@@ -161,7 +161,9 @@ async def test_generate_admin_context_no_api_key(rag_system, mock_db):
     """Test generate_admin_context when no API key is available"""
     rag_system.api_key = None
 
-    result = await rag_system.generate_admin_context("Тестовое сообщение", "Солярия", 1, 1)
+    result = await rag_system.generate_admin_context(
+        "Тестовое сообщение", "Солярия", 1, 1
+    )
 
     assert result == ""
 
