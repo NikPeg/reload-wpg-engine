@@ -134,38 +134,27 @@ class RAGSystem:
     async def _get_previous_admin_message(
         self, player_id: int, game_id: int
     ) -> str | None:
-        """Get the previous admin message for context if it exists"""
+        """Get the most recent admin message for context if it exists"""
 
-        # Get all messages for this player, ordered by creation time
+        # Get all admin messages for this player, ordered by creation time (most recent first)
         result = await self.db.execute(
             select(Message)
             .options(selectinload(Message.player))
             .where(Message.player_id == player_id)
             .where(Message.game_id == game_id)
+            .where(Message.is_admin_reply)
             .order_by(Message.created_at.desc(), Message.id.desc())
+            .limit(1)
         )
-        messages = list(result.scalars().all())
+        latest_admin_message = result.scalar_one_or_none()
 
-        # Debug output: show all messages for this player
-        print(f"🔍 DEBUG: Найдено {len(messages)} сообщений для игрока {player_id}:")
-        for i, msg in enumerate(messages):
-            msg_type = "АДМИН" if msg.is_admin_reply else "ИГРОК"
+        if latest_admin_message:
             print(
-                f"  {i}: [{msg_type}] {msg.content[:50]}... (ID: {msg.id}, created: {msg.created_at})"
+                f"🎯 DEBUG: Найдено последнее сообщение админа: {latest_admin_message.content[:100]}..."
             )
+            return latest_admin_message.content
 
-        # Look through messages to find the pattern: player message -> admin reply -> current player message
-        # We want to find the most recent admin reply that comes before the current player message
-        if len(messages) >= 2:
-            # Skip the first message (current player message) and look for admin replies
-            for i in range(1, len(messages)):
-                if messages[i].is_admin_reply:
-                    print(
-                        f"🎯 DEBUG: Найдено предыдущее сообщение админа на позиции {i}: {messages[i].content[:100]}..."
-                    )
-                    return messages[i].content
-
-        print("❌ DEBUG: Предыдущее сообщение админа не найдено")
+        print("❌ DEBUG: Сообщения админа не найдены")
         return None
 
     def _create_analysis_prompt(
