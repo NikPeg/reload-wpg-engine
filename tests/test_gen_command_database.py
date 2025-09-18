@@ -126,7 +126,10 @@ async def test_gen_command_saves_events_to_database(db_session):
 
     # Test 2: Generate global event
     global_event_text, global_tone = await generate_game_event(
-        rag_system, game.id, None, game.setting  # None means global event
+        rag_system,
+        game.id,
+        None,
+        game.setting,  # None means global event
     )
 
     assert global_event_text is not None
@@ -238,9 +241,7 @@ async def test_gen_vs_event_command_consistency(db_session):
 
     # RAG system should find both
     rag_system = RAGSystem(db_session)
-    latest_message = await rag_system._get_previous_admin_message(
-        player.id, game.id
-    )
+    latest_message = await rag_system._get_previous_admin_message(player.id, game.id)
 
     # Should find the most recent one (gen_message)
     assert latest_message == "Тестовое событие от /gen команды"
