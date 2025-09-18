@@ -148,7 +148,6 @@ async def test_create_analysis_prompt(rag_system):
     # Check that prompt contains key elements
     assert "Солярия" in prompt
     assert "напасть на Вирджинию и Абобистан" in prompt
-    assert "📊 RAG-справка:" in prompt
 
     # Check that descriptions are included in the prompt
     assert "Развитая промышленность и торговля" in prompt

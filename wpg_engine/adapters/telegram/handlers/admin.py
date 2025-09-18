@@ -6,13 +6,20 @@ from aiogram import Dispatcher
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
-from aiogram.types import Message
+from aiogram.types import (
+    CallbackQuery,
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+    Message,
+)
 from sqlalchemy import select, text
 from sqlalchemy.orm import selectinload
+from telegramify_markdown import markdownify
 
 from wpg_engine.adapters.telegram.utils import escape_html, escape_markdown
 from wpg_engine.core.admin_utils import is_admin
 from wpg_engine.core.engine import GameEngine
+from wpg_engine.core.rag_system import RAGSystem
 from wpg_engine.models import Player, PlayerRole, get_db
 
 
@@ -21,6 +28,7 @@ class AdminStates(StatesGroup):
 
     waiting_for_restart_confirmation = State()
     waiting_for_event_message = State()
+    waiting_for_gen_action = State()
 
 
 # Removed admin_command - functionality merged into /start command
@@ -708,13 +716,471 @@ async def process_event_message(message: Message, state: FSMContext) -> None:
     await state.clear()
 
 
+async def generate_game_event(
+    rag_system: RAGSystem,
+    game_id: int,
+    country_name: str | None = None,
+    game_setting: str = "Современность",
+) -> str:
+    """Generate a game event using RAG system"""
+
+    # Get all countries data for context
+    countries_data = await rag_system._get_all_countries_data(game_id)
+
+    if not countries_data:
+        return "Не удалось получить информацию о странах для генерации события."
+
+    # Create prompt for event generation
+    if country_name:
+        # Find specific country
+        target_country = None
+        for country in countries_data:
+            if country["name"].lower() == country_name.lower():
+                target_country = country
+                break
+            # Check synonyms
+            if country["synonyms"]:
+                for synonym in country["synonyms"]:
+                    if synonym.lower() == country_name.lower():
+                        target_country = country
+                        break
+                if target_country:
+                    break
+
+        if not target_country:
+            return f"Страна '{country_name}' не найдена."
+
+        # Generate event for specific country
+        prompt = f"""Ты мастер многопользовательской стратегической игры в сеттинге "{game_setting}".
+
+Информация о стране "{target_country["name"]}":
+Столица: {target_country["capital"]}
+Население: {target_country["population"]:,}
+Аспекты (1-10):
+- Экономика: {target_country["aspects"]["economy"]}{f" - {target_country['descriptions']['economy']}" if target_country["descriptions"]["economy"] else ""}
+- Военное дело: {target_country["aspects"]["military"]}{f" - {target_country['descriptions']['military']}" if target_country["descriptions"]["military"] else ""}
+- Внешняя политика: {target_country["aspects"]["foreign_policy"]}{f" - {target_country['descriptions']['foreign_policy']}" if target_country["descriptions"]["foreign_policy"] else ""}
+- Территория: {target_country["aspects"]["territory"]}{f" - {target_country['descriptions']['territory']}" if target_country["descriptions"]["territory"] else ""}
+- Технологии: {target_country["aspects"]["technology"]}{f" - {target_country['descriptions']['technology']}" if target_country["descriptions"]["technology"] else ""}
+- Религия и культура: {target_country["aspects"]["religion_culture"]}{f" - {target_country['descriptions']['religion_culture']}" if target_country["descriptions"]["religion_culture"] else ""}
+- Управление и право: {target_country["aspects"]["governance_law"]}{f" - {target_country['descriptions']['governance_law']}" if target_country["descriptions"]["governance_law"] else ""}
+- Строительство и инфраструктура: {target_country["aspects"]["construction_infrastructure"]}{f" - {target_country['descriptions']['construction_infrastructure']}" if target_country["descriptions"]["construction_infrastructure"] else ""}
+- Общественные отношения: {target_country["aspects"]["social_relations"]}{f" - {target_country['descriptions']['social_relations']}" if target_country["descriptions"]["social_relations"] else ""}
+- Разведка: {target_country["aspects"]["intelligence"]}{f" - {target_country['descriptions']['intelligence']}" if target_country["descriptions"]["intelligence"] else ""}
+
+Создай короткое игровое событие (2-4 предложения) для этой страны, учитывая:
+1. Сеттинг игры
+2. Характеристики страны (сильные и слабые стороны)
+3. Текущее состояние аспектов
+
+Событие должно быть:
+- Интересным и вовлекающим
+- Соответствующим сеттингу
+- Учитывающим особенности страны
+- Требующим решения от игрока
+
+Отвечай на русском языке."""
+    else:
+        # Generate global event for all countries
+        countries_info = ""
+        for country in countries_data[:5]:  # Limit to first 5 countries for brevity
+            countries_info += f"""
+{country["name"]} (население: {country["population"]:,})
+- Экономика: {country["aspects"]["economy"]}, Военное дело: {country["aspects"]["military"]}
+- Технологии: {country["aspects"]["technology"]}, Внешняя политика: {country["aspects"]["foreign_policy"]}"""
+
+        prompt = f"""Ты мастер многопользовательской стратегической игры в сеттинге "{game_setting}".
+
+Основные страны в игре:{countries_info}
+
+Создай короткое глобальное игровое событие (2-4 предложения), которое затронет все страны мира, учитывая:
+1. Сеттинг игры
+2. Разнообразие стран и их характеристики
+3. Необходимость взаимодействия между странами
+
+Событие должно быть:
+- Глобальным по масштабу
+- Интересным и вовлекающим
+- Соответствующим сеттингу
+- Требующим координации между странами
+
+Отвечай на русском языке."""
+
+    try:
+        event_text = await rag_system._call_openrouter_api(prompt)
+        return event_text
+    except Exception as e:
+        print(f"Error generating event: {e}")
+        return "Не удалось сгенерировать событие. Попробуйте еще раз."
+
+
+async def gen_command(message: Message, state: FSMContext) -> None:
+    """Handle /gen command - generate game event"""
+    user_id = message.from_user.id
+    args = message.text.split(" ", 1)  # /gen [country_name]
+
+    async for db in get_db():
+        game_engine = GameEngine(db)
+
+        # Check if user is admin
+        if not await is_admin(user_id, game_engine.db):
+            await message.answer("❌ У вас нет прав администратора.")
+            return
+
+        # Get admin info - take the first admin player
+        result = await game_engine.db.execute(
+            select(Player)
+            .options(selectinload(Player.country), selectinload(Player.game))
+            .where(Player.telegram_id == user_id)
+            .where(Player.role == PlayerRole.ADMIN)
+            .limit(1)
+        )
+        admin = result.scalar_one_or_none()
+
+        if not admin:
+            await message.answer("❌ Вы не зарегистрированы в игре.")
+            return
+
+        # Get all countries in the same game
+        result = await game_engine.db.execute(
+            select(Player)
+            .options(selectinload(Player.country))
+            .where(Player.game_id == admin.game_id)
+            .where(Player.country_id.isnot(None))
+            .where(Player.role == PlayerRole.PLAYER)
+        )
+        all_players = result.scalars().all()
+
+        # Get available countries
+        available_countries = []
+        for player in all_players:
+            if player.country:
+                available_countries.append(player.country.name)
+
+        if not available_countries:
+            await message.answer("❌ В игре нет стран для генерации событий.")
+            return
+
+        # Determine target country
+        target_country_name = None
+        target_player = None
+
+        if len(args) > 1:
+            target_country_name = args[1].strip()
+
+            # Find target country (case-insensitive search by name and synonyms)
+            for player in all_players:
+                if player.country:
+                    # Check official name
+                    if player.country.name.lower() == target_country_name.lower():
+                        target_player = player
+                        break
+
+                    # Check synonyms
+                    if player.country.synonyms:
+                        for synonym in player.country.synonyms:
+                            if synonym.lower() == target_country_name.lower():
+                                target_player = player
+                                target_country_name = player.country.name
+                                break
+                        if target_player:
+                            break
+
+            if not target_player:
+                countries_list = "\n".join(
+                    [f"• {country}" for country in sorted(available_countries)]
+                )
+                await message.answer(
+                    f"❌ Страна '{escape_html(target_country_name)}' не найдена.\n\n"
+                    f"Доступные страны:\n{countries_list}\n\n"
+                    f"Используйте: <code>/gen название_страны</code> или <code>/gen</code> для всех",
+                    parse_mode="HTML",
+                )
+                return
+
+        # Initialize RAG system
+        rag_system = RAGSystem(game_engine.db)
+
+        # Generate event
+        await message.answer("🎲 Генерирую событие...")
+
+        event_text = await generate_game_event(
+            rag_system, admin.game_id, target_country_name, admin.game.setting
+        )
+
+        # Create inline keyboard
+        keyboard = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [
+                    InlineKeyboardButton(text="📤 Отправить", callback_data="gen_send"),
+                    InlineKeyboardButton(
+                        text="🔄 Заново", callback_data="gen_regenerate"
+                    ),
+                    InlineKeyboardButton(
+                        text="❌ Отменить", callback_data="gen_cancel"
+                    ),
+                ]
+            ]
+        )
+
+        # Store data for callback handlers
+        await state.update_data(
+            target_country_name=target_country_name,
+            target_player_id=target_player.id if target_player else None,
+            event_text=event_text,
+            game_id=admin.game_id,
+            game_setting=admin.game.setting,
+        )
+
+        # Send event with buttons
+        event_header = "🎲 **Сгенерированное событие**\n"
+        if target_country_name:
+            event_header += f"**Для страны:** {target_country_name}\n\n"
+        else:
+            event_header += "**Глобальное событие для всех стран**\n\n"
+
+        # Format the full message with markdownify
+        full_message = f"{event_header}{event_text}"
+
+        try:
+            formatted_message = markdownify(full_message)
+            await message.answer(
+                formatted_message, parse_mode="MarkdownV2", reply_markup=keyboard
+            )
+        except Exception as e:
+            print(f"Failed to send formatted event message: {e}")
+            # Fallback to HTML
+            await message.answer(
+                f"{event_header}{escape_html(event_text)}",
+                parse_mode="HTML",
+                reply_markup=keyboard,
+            )
+
+        await state.set_state(AdminStates.waiting_for_gen_action)
+        break
+
+
+async def process_gen_callback(
+    callback_query: CallbackQuery, state: FSMContext
+) -> None:
+    """Process callback from gen command buttons"""
+    data = await state.get_data()
+
+    if not data:
+        await callback_query.answer("❌ Данные сессии утеряны. Начните заново.")
+        return
+
+    user_id = callback_query.from_user.id
+
+    async for db in get_db():
+        game_engine = GameEngine(db)
+
+        # Check if user is admin
+        if not await is_admin(user_id, game_engine.db):
+            await callback_query.answer("❌ У вас нет прав администратора.")
+            return
+
+        # Get admin info
+        result = await game_engine.db.execute(
+            select(Player)
+            .options(selectinload(Player.country), selectinload(Player.game))
+            .where(Player.telegram_id == user_id)
+            .where(Player.role == PlayerRole.ADMIN)
+            .limit(1)
+        )
+        admin = result.scalar_one_or_none()
+
+        if not admin:
+            await callback_query.answer("❌ Вы не зарегистрированы в игре.")
+            return
+
+        if callback_query.data == "gen_cancel":
+            await callback_query.message.edit_text(
+                "❌ Генерация события отменена.", parse_mode="HTML"
+            )
+            await state.clear()
+            await callback_query.answer()
+
+        elif callback_query.data == "gen_regenerate":
+            await callback_query.answer("🔄 Генерирую новое событие...")
+
+            # Initialize RAG system and regenerate
+            rag_system = RAGSystem(game_engine.db)
+
+            new_event_text = await generate_game_event(
+                rag_system,
+                data["game_id"],
+                data["target_country_name"],
+                data["game_setting"],
+            )
+
+            # Update stored data
+            await state.update_data(event_text=new_event_text)
+
+            # Create keyboard again
+            keyboard = InlineKeyboardMarkup(
+                inline_keyboard=[
+                    [
+                        InlineKeyboardButton(
+                            text="📤 Отправить", callback_data="gen_send"
+                        ),
+                        InlineKeyboardButton(
+                            text="🔄 Заново", callback_data="gen_regenerate"
+                        ),
+                        InlineKeyboardButton(
+                            text="❌ Отменить", callback_data="gen_cancel"
+                        ),
+                    ]
+                ]
+            )
+
+            # Update message
+            event_header = "🎲 **Сгенерированное событие**\n"
+            if data["target_country_name"]:
+                event_header += f"**Для страны:** {data['target_country_name']}\n\n"
+            else:
+                event_header += "**Глобальное событие для всех стран**\n\n"
+
+            # Format the full message with markdownify
+            full_message = f"{event_header}{new_event_text}"
+
+            try:
+                formatted_message = markdownify(full_message)
+                await callback_query.message.edit_text(
+                    formatted_message, parse_mode="MarkdownV2", reply_markup=keyboard
+                )
+            except Exception as e:
+                print(f"Failed to edit formatted event message: {e}")
+                # Fallback to HTML
+                await callback_query.message.edit_text(
+                    f"{event_header}{escape_html(new_event_text)}",
+                    parse_mode="HTML",
+                    reply_markup=keyboard,
+                )
+
+        elif callback_query.data == "gen_send":
+            await callback_query.answer("📤 Отправляю событие...")
+
+            # Send event to target(s)
+            bot = callback_query.bot
+            sent_count = 0
+            failed_count = 0
+
+            if data["target_player_id"]:
+                # Send to specific country
+                result = await game_engine.db.execute(
+                    select(Player)
+                    .options(selectinload(Player.country))
+                    .where(Player.id == data["target_player_id"])
+                )
+                target_player = result.scalar_one_or_none()
+
+                if target_player:
+                    try:
+                        # Format event text with markdownify
+                        try:
+                            formatted_event = markdownify(data["event_text"])
+                            await bot.send_message(
+                                target_player.telegram_id,
+                                formatted_event,
+                                parse_mode="MarkdownV2",
+                            )
+                        except Exception as format_error:
+                            print(
+                                f"Failed to send formatted event to player: {format_error}"
+                            )
+                            # Fallback to HTML
+                            await bot.send_message(
+                                target_player.telegram_id,
+                                escape_html(data["event_text"]),
+                                parse_mode="HTML",
+                            )
+                        sent_count = 1
+
+                        # Save the admin message to database for RAG context
+                        await game_engine.create_message(
+                            player_id=target_player.id,
+                            game_id=data["game_id"],
+                            content=data["event_text"],
+                            is_admin_reply=True,
+                        )
+                    except Exception as e:
+                        print(
+                            f"Failed to send event to player {target_player.telegram_id}: {e}"
+                        )
+                        failed_count = 1
+            else:
+                # Send to all countries
+                result = await game_engine.db.execute(
+                    select(Player)
+                    .where(Player.game_id == data["game_id"])
+                    .where(Player.role == PlayerRole.PLAYER)
+                )
+                players = result.scalars().all()
+
+                for player in players:
+                    try:
+                        # Format event text with markdownify
+                        try:
+                            formatted_event = markdownify(data["event_text"])
+                            await bot.send_message(
+                                player.telegram_id,
+                                formatted_event,
+                                parse_mode="MarkdownV2",
+                            )
+                        except Exception as format_error:
+                            print(
+                                f"Failed to send formatted event to player {player.telegram_id}: {format_error}"
+                            )
+                            # Fallback to HTML
+                            await bot.send_message(
+                                player.telegram_id,
+                                escape_html(data["event_text"]),
+                                parse_mode="HTML",
+                            )
+                        sent_count += 1
+
+                        # Save the admin message to database for RAG context
+                        await game_engine.create_message(
+                            player_id=player.id,
+                            game_id=data["game_id"],
+                            content=data["event_text"],
+                            is_admin_reply=True,
+                        )
+                    except Exception as e:
+                        print(
+                            f"Failed to send event to player {player.telegram_id}: {e}"
+                        )
+                        failed_count += 1
+
+            # Update message with result
+            if data["target_player_id"]:
+                if failed_count == 0:
+                    result_text = f"✅ Событие отправлено в страну {escape_html(data['target_country_name'])}!"
+                else:
+                    result_text = f"❌ Не удалось отправить событие в страну {escape_html(data['target_country_name'])}."
+            else:
+                if failed_count == 0:
+                    result_text = f"✅ Событие отправлено всем странам ({sent_count} получателей)!"
+                else:
+                    result_text = f"⚠️ Событие отправлено {sent_count} странам. Не удалось отправить {failed_count} странам."
+
+            await callback_query.message.edit_text(result_text, parse_mode="HTML")
+
+            await state.clear()
+
+        break
+
+
 def register_admin_handlers(dp: Dispatcher) -> None:
     """Register admin handlers"""
     dp.message.register(game_stats_command, Command("game_stats"))
     dp.message.register(restart_game_command, Command("restart_game"))
     dp.message.register(update_game_command, Command("update_game"))
     dp.message.register(event_command, Command("event"))
+    dp.message.register(gen_command, Command("gen"))
     dp.message.register(
         process_restart_confirmation, AdminStates.waiting_for_restart_confirmation
     )
     dp.message.register(process_event_message, AdminStates.waiting_for_event_message)
+    dp.callback_query.register(process_gen_callback, AdminStates.waiting_for_gen_action)
