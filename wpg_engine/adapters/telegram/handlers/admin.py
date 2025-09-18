@@ -721,14 +721,18 @@ async def generate_game_event(
     game_id: int,
     country_name: str | None = None,
     game_setting: str = "Современность",
-) -> str:
-    """Generate a game event using RAG system"""
+) -> tuple[str, str]:
+    """Generate a game event using RAG system
+    
+    Returns:
+        tuple: (event_text, selected_tone)
+    """
 
     # Get all countries data for context
     countries_data = await rag_system._get_all_countries_data(game_id)
 
     if not countries_data:
-        return "Не удалось получить информацию о странах для генерации события."
+        return "Не удалось получить информацию о странах для генерации события.", "нейтральное"
 
     # Add randomness to event generation
     import random
@@ -773,7 +777,7 @@ async def generate_game_event(
                     break
 
         if not target_country:
-            return f"Страна '{country_name}' не найдена."
+            return f"Страна '{country_name}' не найдена.", "нейтральное"
 
         # Generate event for specific country
         prompt = f"""Ты мастер многопользовательской стратегической игры в сеттинге "{game_setting}".
@@ -837,10 +841,10 @@ async def generate_game_event(
 
     try:
         event_text = await rag_system._call_openrouter_api(prompt)
-        return event_text
+        return event_text, selected_tone
     except Exception as e:
         print(f"Error generating event: {e}")
-        return "Не удалось сгенерировать событие. Попробуйте еще раз."
+        return "Не удалось сгенерировать событие. Попробуйте еще раз.", selected_tone
 
 
 async def gen_command(message: Message, state: FSMContext) -> None:
@@ -982,11 +986,11 @@ async def gen_command(message: Message, state: FSMContext) -> None:
         rag_system = RAGSystem(game_engine.db)
 
         # Generate event
-        await message.answer("🎲 Генерирую событие...")
-
-        event_text = await generate_game_event(
+        event_text, selected_tone = await generate_game_event(
             rag_system, admin.game_id, target_country_name, admin.game.setting
         )
+        
+        await message.answer(f"🎲 Генерирую {selected_tone} событие...")
 
         # Create inline keyboard
         keyboard = InlineKeyboardMarkup(
@@ -1092,12 +1096,15 @@ async def process_gen_callback(
             # Initialize RAG system and regenerate
             rag_system = RAGSystem(game_engine.db)
 
-            new_event_text = await generate_game_event(
+            new_event_text, selected_tone = await generate_game_event(
                 rag_system,
                 data["game_id"],
                 data["target_country_name"],
                 data["game_setting"],
             )
+            
+            # Send message with selected tone
+            await callback_query.message.answer(f"🎲 Генерирую {selected_tone} событие...")
 
             # Update stored data
             await state.update_data(event_text=new_event_text)
