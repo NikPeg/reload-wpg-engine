@@ -965,16 +965,6 @@ async def gen_command(message: Message, state: FSMContext) -> None:
             ]
         )
 
-        # Store data for callback handlers
-        await state.update_data(
-            target_country_name=target_country_name,
-            target_player_id=target_player.id if target_player else None,
-            event_text=event_text,
-            game_id=admin.game_id,
-            game_setting=admin.game.setting,
-            tone_message_id=tone_message.message_id,
-        )
-
         # Send event with buttons
         event_header = "🎲 **Сгенерированное событие**\n"
         if target_country_name:
@@ -992,17 +982,28 @@ async def gen_command(message: Message, state: FSMContext) -> None:
 
         try:
             formatted_message = markdownify(full_message)
-            await message.answer(
+            event_message = await message.answer(
                 formatted_message, parse_mode="MarkdownV2", reply_markup=keyboard
             )
         except Exception as e:
             print(f"Failed to send formatted event message: {e}")
             # Fallback to HTML
-            await message.answer(
+            event_message = await message.answer(
                 f"{event_header}{escape_html(event_text)}",
                 parse_mode="HTML",
                 reply_markup=keyboard,
             )
+
+        # Store data for callback handlers
+        await state.update_data(
+            target_country_name=target_country_name,
+            target_player_id=target_player.id if target_player else None,
+            event_text=event_text,
+            game_id=admin.game_id,
+            game_setting=admin.game.setting,
+            tone_message_id=tone_message.message_id,
+            event_message_id=event_message.message_id,
+        )
 
         await state.set_state(AdminStates.waiting_for_gen_action)
         break
@@ -1052,7 +1053,32 @@ async def process_gen_callback(
         elif callback_query.data == "gen_regenerate":
             await callback_query.answer("🔄 Генерирую новое событие...")
 
-            # Initialize RAG system and regenerate
+            # Step 1: Delete the old event message
+            try:
+                await callback_query.bot.delete_message(
+                    chat_id=callback_query.message.chat.id,
+                    message_id=data["event_message_id"]
+                )
+            except Exception as e:
+                print(f"Failed to delete old event message: {e}")
+
+            # Step 2: Edit the existing tone message to show "generating..." immediately
+            try:
+                await callback_query.bot.edit_message_text(
+                    chat_id=callback_query.message.chat.id,
+                    message_id=data["tone_message_id"],
+                    text="🎲 Генерирую новое событие..."
+                )
+            except Exception as e:
+                print(f"Failed to edit tone message: {e}")
+                # Fallback: send new message if editing fails
+                tone_message = await callback_query.message.answer(
+                    "🎲 Генерирую новое событие..."
+                )
+                # Update tone message ID in state
+                await state.update_data(tone_message_id=tone_message.message_id)
+
+            # Step 3: Initialize RAG system and regenerate (this takes time)
             rag_system = RAGSystem(game_engine.db)
 
             new_event_text, selected_tone = await generate_game_event(
@@ -1062,7 +1088,7 @@ async def process_gen_callback(
                 data["game_setting"],
             )
 
-            # Edit the existing tone message instead of creating a new one
+            # Step 4: Update the tone message with the actual tone
             try:
                 await callback_query.bot.edit_message_text(
                     chat_id=callback_query.message.chat.id,
@@ -1070,16 +1096,10 @@ async def process_gen_callback(
                     text=f"🎲 Генерирую {selected_tone} событие..."
                 )
             except Exception as e:
-                print(f"Failed to edit tone message: {e}")
-                # Fallback: send new message if editing fails
-                await callback_query.message.answer(
-                    f"🎲 Генерирую {selected_tone} событие..."
-                )
+                print(f"Failed to edit tone message with actual tone: {e}")
 
-            # Update stored data
-            await state.update_data(event_text=new_event_text)
-
-            # Create keyboard again
+            # Step 5: Send new event message
+            # Create keyboard
             keyboard = InlineKeyboardMarkup(
                 inline_keyboard=[
                     [
@@ -1096,29 +1116,35 @@ async def process_gen_callback(
                 ]
             )
 
-            # Update message
+            # Create event message
             event_header = "🎲 **Сгенерированное событие**\n"
             if data["target_country_name"]:
                 event_header += f"**Для страны:** {data['target_country_name']}\n\n"
             else:
                 event_header += "**Глобальное событие для всех стран**\n\n"
 
-            # Format the full message with markdownify
+            # Format and send the new event message
             full_message = f"{event_header}{new_event_text}"
 
             try:
                 formatted_message = markdownify(full_message)
-                await callback_query.message.edit_text(
+                new_event_message = await callback_query.message.answer(
                     formatted_message, parse_mode="MarkdownV2", reply_markup=keyboard
                 )
             except Exception as e:
-                print(f"Failed to edit formatted event message: {e}")
+                print(f"Failed to send formatted event message: {e}")
                 # Fallback to HTML
-                await callback_query.message.edit_text(
+                new_event_message = await callback_query.message.answer(
                     f"{event_header}{escape_html(new_event_text)}",
                     parse_mode="HTML",
                     reply_markup=keyboard,
                 )
+
+            # Update stored data with new event text and message ID
+            await state.update_data(
+                event_text=new_event_text,
+                event_message_id=new_event_message.message_id
+            )
 
         elif callback_query.data == "gen_send":
             await callback_query.answer("📤 Отправляю событие...")
