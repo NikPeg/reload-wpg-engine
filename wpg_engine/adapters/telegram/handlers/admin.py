@@ -2,7 +2,6 @@
 Admin handlers
 """
 
-
 from aiogram import Dispatcher
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
@@ -54,6 +53,7 @@ async def extract_country_from_reply(
         return None
 
     import re
+
     replied_text = message.reply_to_message.text
 
     # Look for the hidden marker [EDIT_COUNTRY:id]
@@ -73,7 +73,9 @@ async def extract_country_from_reply(
         extracted_country_name = country_name_match.group(1).strip()
 
         # Find target country by name and synonyms
-        target_player = await find_target_country_by_name(all_players, extracted_country_name)
+        target_player = await find_target_country_by_name(
+            all_players, extracted_country_name
+        )
         if target_player:
             return target_player, target_player.country.name
 
@@ -81,8 +83,12 @@ async def extract_country_from_reply(
 
 
 async def send_message_to_players(
-    bot, game_engine: GameEngine, players: list[Player], message_content: str,
-    game_id: int, use_markdown: bool = False
+    bot,
+    game_engine: GameEngine,
+    players: list[Player],
+    message_content: str,
+    game_id: int,
+    use_markdown: bool = False,
 ) -> tuple[int, int]:
     """Send message to multiple players
 
@@ -104,7 +110,9 @@ async def send_message_to_players(
                         parse_mode="MarkdownV2",
                     )
                 except Exception as format_error:
-                    print(f"Failed to send formatted message to player {player.telegram_id}: {format_error}")
+                    print(
+                        f"Failed to send formatted message to player {player.telegram_id}: {format_error}"
+                    )
                     # Fallback to HTML
                     await bot.send_message(
                         player.telegram_id,
@@ -580,7 +588,9 @@ async def event_command(message: Message, state: FSMContext) -> None:
     # If no country found from reply, check if country name was provided in command
     if not target_player and len(args) > 1:
         target_country_name = args[1].strip()
-        target_player = await find_target_country_by_name(all_players, target_country_name)
+        target_player = await find_target_country_by_name(
+            all_players, target_country_name
+        )
 
         if not target_player:
             countries_list = "\n".join(
@@ -926,7 +936,9 @@ async def gen_command(message: Message, state: FSMContext) -> None:
         # If no country found from reply, check if country name was provided in command
         if not target_player and len(args) > 1:
             target_country_name = args[1].strip()
-            target_player = await find_target_country_by_name(all_players, target_country_name)
+            target_player = await find_target_country_by_name(
+                all_players, target_country_name
+            )
 
             if not target_player:
                 countries_list = "\n".join(
@@ -1057,7 +1069,7 @@ async def process_gen_callback(
             try:
                 await callback_query.bot.delete_message(
                     chat_id=callback_query.message.chat.id,
-                    message_id=data["event_message_id"]
+                    message_id=data["event_message_id"],
                 )
             except Exception as e:
                 print(f"Failed to delete old event message: {e}")
@@ -1067,7 +1079,7 @@ async def process_gen_callback(
                 await callback_query.bot.edit_message_text(
                     chat_id=callback_query.message.chat.id,
                     message_id=data["tone_message_id"],
-                    text="🎲 Генерирую новое событие..."
+                    text="🎲 Генерирую новое событие...",
                 )
             except Exception as e:
                 print(f"Failed to edit tone message: {e}")
@@ -1093,7 +1105,7 @@ async def process_gen_callback(
                 await callback_query.bot.edit_message_text(
                     chat_id=callback_query.message.chat.id,
                     message_id=data["tone_message_id"],
-                    text=f"🎲 Генерирую {selected_tone} событие..."
+                    text=f"🎲 Генерирую {selected_tone} событие...",
                 )
             except Exception as e:
                 print(f"Failed to edit tone message with actual tone: {e}")
@@ -1142,8 +1154,7 @@ async def process_gen_callback(
 
             # Update stored data with new event text and message ID
             await state.update_data(
-                event_text=new_event_text,
-                event_message_id=new_event_message.message_id
+                event_text=new_event_text, event_message_id=new_event_message.message_id
             )
 
         elif callback_query.data == "gen_send":
@@ -1165,8 +1176,12 @@ async def process_gen_callback(
 
                 if target_player:
                     sent_count, failed_count = await send_message_to_players(
-                        bot, game_engine, [target_player], data["event_text"],
-                        data["game_id"], use_markdown=True
+                        bot,
+                        game_engine,
+                        [target_player],
+                        data["event_text"],
+                        data["game_id"],
+                        use_markdown=True,
                     )
             else:
                 # Send to all countries
@@ -1178,8 +1193,12 @@ async def process_gen_callback(
                 players = result.scalars().all()
 
                 sent_count, failed_count = await send_message_to_players(
-                    bot, game_engine, players, data["event_text"],
-                    data["game_id"], use_markdown=True
+                    bot,
+                    game_engine,
+                    players,
+                    data["event_text"],
+                    data["game_id"],
+                    use_markdown=True,
                 )
 
             # Update message with result, keeping the original event text
