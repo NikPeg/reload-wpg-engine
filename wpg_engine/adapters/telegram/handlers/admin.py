@@ -2,6 +2,7 @@
 Admin handlers
 """
 
+
 from aiogram import Dispatcher
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
@@ -21,6 +22,115 @@ from wpg_engine.core.admin_utils import is_admin
 from wpg_engine.core.engine import GameEngine
 from wpg_engine.core.rag_system import RAGSystem
 from wpg_engine.models import Player, PlayerRole, get_db
+
+
+async def find_target_country_by_name(
+    all_players: list[Player], country_name: str
+) -> Player | None:
+    """Find target country by name or synonyms (case-insensitive)"""
+    for player in all_players:
+        if player.country:
+            # Check official name
+            if player.country.name.lower() == country_name.lower():
+                return player
+
+            # Check synonyms
+            if player.country.synonyms:
+                for synonym in player.country.synonyms:
+                    if synonym.lower() == country_name.lower():
+                        return player
+    return None
+
+
+async def extract_country_from_reply(
+    message: Message, all_players: list[Player]
+) -> tuple[Player, str] | None:
+    """Extract country information from reply message
+
+    Returns:
+        Tuple of (target_player, country_name) or None if not found
+    """
+    if not message.reply_to_message or not message.reply_to_message.text:
+        return None
+
+    import re
+    replied_text = message.reply_to_message.text
+
+    # Look for the hidden marker [EDIT_COUNTRY:id]
+    country_id_match = re.search(r"\[EDIT_COUNTRY:(\d+)\]", replied_text)
+    if country_id_match:
+        country_id = int(country_id_match.group(1))
+
+        # Find the player with this country
+        for player in all_players:
+            if player.country and player.country.id == country_id:
+                return player, player.country.name
+
+    # If no hidden marker found, try to extract country name from the message
+    # Look for country name in the format "🏛️ **Country Name**"
+    country_name_match = re.search(r"🏛️\s*<b>([^<]+)</b>", replied_text)
+    if country_name_match:
+        extracted_country_name = country_name_match.group(1).strip()
+
+        # Find target country by name and synonyms
+        target_player = await find_target_country_by_name(all_players, extracted_country_name)
+        if target_player:
+            return target_player, target_player.country.name
+
+    return None
+
+
+async def send_message_to_players(
+    bot, game_engine: GameEngine, players: list[Player], message_content: str,
+    game_id: int, use_markdown: bool = False
+) -> tuple[int, int]:
+    """Send message to multiple players
+
+    Returns:
+        Tuple of (sent_count, failed_count)
+    """
+    sent_count = 0
+    failed_count = 0
+
+    for player in players:
+        try:
+            if use_markdown:
+                # Try to format with markdownify first
+                try:
+                    formatted_message = markdownify(message_content)
+                    await bot.send_message(
+                        player.telegram_id,
+                        formatted_message,
+                        parse_mode="MarkdownV2",
+                    )
+                except Exception as format_error:
+                    print(f"Failed to send formatted message to player {player.telegram_id}: {format_error}")
+                    # Fallback to HTML
+                    await bot.send_message(
+                        player.telegram_id,
+                        escape_html(message_content),
+                        parse_mode="HTML",
+                    )
+            else:
+                await bot.send_message(
+                    player.telegram_id,
+                    escape_html(message_content),
+                    parse_mode="HTML",
+                )
+            sent_count += 1
+
+            # Save the admin message to database for RAG context
+            await game_engine.create_message(
+                player_id=player.id,
+                game_id=game_id,
+                content=message_content,
+                is_admin_reply=True,
+            )
+        except Exception as e:
+            print(f"Failed to send message to player {player.telegram_id}: {e}")
+            failed_count += 1
+
+    return sent_count, failed_count
 
 
 class AdminStates(StatesGroup):
@@ -462,73 +572,15 @@ async def event_command(message: Message, state: FSMContext) -> None:
     target_player = None
     target_country_name = None
 
-    if message.reply_to_message and message.reply_to_message.text:
-        # Try to extract country ID from the replied message
-        import re
-
-        replied_text = message.reply_to_message.text
-
-        # Look for the hidden marker [EDIT_COUNTRY:id]
-        country_id_match = re.search(r"\[EDIT_COUNTRY:(\d+)\]", replied_text)
-        if country_id_match:
-            country_id = int(country_id_match.group(1))
-
-            # Find the player with this country
-            for player in all_players:
-                if player.country and player.country.id == country_id:
-                    target_player = player
-                    target_country_name = player.country.name
-                    break
-
-        # If no hidden marker found, try to extract country name from the message
-        if not target_player:
-            # Look for country name in the format "🏛️ **Country Name**"
-            country_name_match = re.search(r"🏛️\s*<b>([^<]+)</b>", replied_text)
-            if country_name_match:
-                extracted_country_name = country_name_match.group(1).strip()
-
-                # Find target country by name
-                for player in all_players:
-                    if player.country:
-                        # Check official name
-                        if (
-                            player.country.name.lower()
-                            == extracted_country_name.lower()
-                        ):
-                            target_player = player
-                            target_country_name = player.country.name
-                            break
-
-                        # Check synonyms
-                        if player.country.synonyms:
-                            for synonym in player.country.synonyms:
-                                if synonym.lower() == extracted_country_name.lower():
-                                    target_player = player
-                                    target_country_name = player.country.name
-                                    break
-                            if target_player:
-                                break
+    # Try to extract country from reply message
+    reply_result = await extract_country_from_reply(message, all_players)
+    if reply_result:
+        target_player, target_country_name = reply_result
 
     # If no country found from reply, check if country name was provided in command
     if not target_player and len(args) > 1:
         target_country_name = args[1].strip()
-
-        # Find target country (case-insensitive search by name and synonyms)
-        for player in all_players:
-            if player.country:
-                # Check official name
-                if player.country.name.lower() == target_country_name.lower():
-                    target_player = player
-                    break
-
-                # Check synonyms
-                if player.country.synonyms:
-                    for synonym in player.country.synonyms:
-                        if synonym.lower() == target_country_name.lower():
-                            target_player = player
-                            break
-                    if target_player:
-                        break
+        target_player = await find_target_country_by_name(all_players, target_country_name)
 
         if not target_player:
             countries_list = "\n".join(
@@ -639,26 +691,9 @@ async def process_event_message(message: Message, state: FSMContext) -> None:
             target_player = result.scalar_one_or_none()
 
             if target_player:
-                try:
-                    await bot.send_message(
-                        target_player.telegram_id,
-                        escape_html(message_content),
-                        parse_mode="HTML",
-                    )
-                    sent_count = 1
-
-                    # Save the admin message to database for RAG context
-                    await game_engine.create_message(
-                        player_id=target_player.id,
-                        game_id=admin.game_id,
-                        content=message_content,
-                        is_admin_reply=True,
-                    )
-                except Exception as e:
-                    print(
-                        f"Failed to send event message to player {target_player.telegram_id}: {e}"
-                    )
-                    failed_count = 1
+                sent_count, failed_count = await send_message_to_players(
+                    bot, game_engine, [target_player], message_content, admin.game_id
+                )
         else:
             # Send to all countries
             result = await game_engine.db.execute(
@@ -668,27 +703,9 @@ async def process_event_message(message: Message, state: FSMContext) -> None:
             )
             players = result.scalars().all()
 
-            for player in players:
-                try:
-                    await bot.send_message(
-                        player.telegram_id,
-                        escape_html(message_content),
-                        parse_mode="HTML",
-                    )
-                    sent_count += 1
-
-                    # Save the admin message to database for RAG context
-                    await game_engine.create_message(
-                        player_id=player.id,
-                        game_id=admin.game_id,
-                        content=message_content,
-                        is_admin_reply=True,
-                    )
-                except Exception as e:
-                    print(
-                        f"Failed to send event message to player {player.telegram_id}: {e}"
-                    )
-                    failed_count += 1
+            sent_count, failed_count = await send_message_to_players(
+                bot, game_engine, players, message_content, admin.game_id
+            )
 
         # Send confirmation to admin
         if target_player_id:
@@ -901,77 +918,15 @@ async def gen_command(message: Message, state: FSMContext) -> None:
         target_player = None
         target_country_name = None
 
-        if message.reply_to_message and message.reply_to_message.text:
-            # Try to extract country ID from the replied message
-            import re
-
-            replied_text = message.reply_to_message.text
-
-            # Look for the hidden marker [EDIT_COUNTRY:id]
-            country_id_match = re.search(r"\[EDIT_COUNTRY:(\d+)\]", replied_text)
-            if country_id_match:
-                country_id = int(country_id_match.group(1))
-
-                # Find the player with this country
-                for player in all_players:
-                    if player.country and player.country.id == country_id:
-                        target_player = player
-                        target_country_name = player.country.name
-                        break
-
-            # If no hidden marker found, try to extract country name from the message
-            if not target_player:
-                # Look for country name in the format "🏛️ **Country Name**"
-                country_name_match = re.search(r"🏛️\s*<b>([^<]+)</b>", replied_text)
-                if country_name_match:
-                    extracted_country_name = country_name_match.group(1).strip()
-
-                    # Find target country by name
-                    for player in all_players:
-                        if player.country:
-                            # Check official name
-                            if (
-                                player.country.name.lower()
-                                == extracted_country_name.lower()
-                            ):
-                                target_player = player
-                                target_country_name = player.country.name
-                                break
-
-                            # Check synonyms
-                            if player.country.synonyms:
-                                for synonym in player.country.synonyms:
-                                    if (
-                                        synonym.lower()
-                                        == extracted_country_name.lower()
-                                    ):
-                                        target_player = player
-                                        target_country_name = player.country.name
-                                        break
-                                if target_player:
-                                    break
+        # Try to extract country from reply message
+        reply_result = await extract_country_from_reply(message, all_players)
+        if reply_result:
+            target_player, target_country_name = reply_result
 
         # If no country found from reply, check if country name was provided in command
         if not target_player and len(args) > 1:
             target_country_name = args[1].strip()
-
-            # Find target country (case-insensitive search by name and synonyms)
-            for player in all_players:
-                if player.country:
-                    # Check official name
-                    if player.country.name.lower() == target_country_name.lower():
-                        target_player = player
-                        break
-
-                    # Check synonyms
-                    if player.country.synonyms:
-                        for synonym in player.country.synonyms:
-                            if synonym.lower() == target_country_name.lower():
-                                target_player = player
-                                target_country_name = player.country.name
-                                break
-                        if target_player:
-                            break
+            target_player = await find_target_country_by_name(all_players, target_country_name)
 
             if not target_player:
                 countries_list = "\n".join(
@@ -1173,39 +1128,10 @@ async def process_gen_callback(
                 target_player = result.scalar_one_or_none()
 
                 if target_player:
-                    try:
-                        # Format event text with markdownify
-                        try:
-                            formatted_event = markdownify(data["event_text"])
-                            await bot.send_message(
-                                target_player.telegram_id,
-                                formatted_event,
-                                parse_mode="MarkdownV2",
-                            )
-                        except Exception as format_error:
-                            print(
-                                f"Failed to send formatted event to player: {format_error}"
-                            )
-                            # Fallback to HTML
-                            await bot.send_message(
-                                target_player.telegram_id,
-                                escape_html(data["event_text"]),
-                                parse_mode="HTML",
-                            )
-                        sent_count = 1
-
-                        # Save the admin message to database for RAG context
-                        await game_engine.create_message(
-                            player_id=target_player.id,
-                            game_id=data["game_id"],
-                            content=data["event_text"],
-                            is_admin_reply=True,
-                        )
-                    except Exception as e:
-                        print(
-                            f"Failed to send event to player {target_player.telegram_id}: {e}"
-                        )
-                        failed_count = 1
+                    sent_count, failed_count = await send_message_to_players(
+                        bot, game_engine, [target_player], data["event_text"],
+                        data["game_id"], use_markdown=True
+                    )
             else:
                 # Send to all countries
                 result = await game_engine.db.execute(
@@ -1215,40 +1141,10 @@ async def process_gen_callback(
                 )
                 players = result.scalars().all()
 
-                for player in players:
-                    try:
-                        # Format event text with markdownify
-                        try:
-                            formatted_event = markdownify(data["event_text"])
-                            await bot.send_message(
-                                player.telegram_id,
-                                formatted_event,
-                                parse_mode="MarkdownV2",
-                            )
-                        except Exception as format_error:
-                            print(
-                                f"Failed to send formatted event to player {player.telegram_id}: {format_error}"
-                            )
-                            # Fallback to HTML
-                            await bot.send_message(
-                                player.telegram_id,
-                                escape_html(data["event_text"]),
-                                parse_mode="HTML",
-                            )
-                        sent_count += 1
-
-                        # Save the admin message to database for RAG context
-                        await game_engine.create_message(
-                            player_id=player.id,
-                            game_id=data["game_id"],
-                            content=data["event_text"],
-                            is_admin_reply=True,
-                        )
-                    except Exception as e:
-                        print(
-                            f"Failed to send event to player {player.telegram_id}: {e}"
-                        )
-                        failed_count += 1
+                sent_count, failed_count = await send_message_to_players(
+                    bot, game_engine, players, data["event_text"],
+                    data["game_id"], use_markdown=True
+                )
 
             # Update message with result, keeping the original event text
             event_header = "🎲 **Сгенерированное событие**\n"
