@@ -948,7 +948,7 @@ async def gen_command(message: Message, state: FSMContext) -> None:
             rag_system, admin.game_id, target_country_name, admin.game.setting
         )
 
-        await message.answer(f"🎲 Генерирую {selected_tone} событие...")
+        tone_message = await message.answer(f"🎲 Генерирую {selected_tone} событие...")
 
         # Create inline keyboard
         keyboard = InlineKeyboardMarkup(
@@ -972,6 +972,7 @@ async def gen_command(message: Message, state: FSMContext) -> None:
             event_text=event_text,
             game_id=admin.game_id,
             game_setting=admin.game.setting,
+            tone_message_id=tone_message.message_id,
         )
 
         # Send event with buttons
@@ -1061,10 +1062,19 @@ async def process_gen_callback(
                 data["game_setting"],
             )
 
-            # Send message with selected tone
-            await callback_query.message.answer(
-                f"🎲 Генерирую {selected_tone} событие..."
-            )
+            # Edit the existing tone message instead of creating a new one
+            try:
+                await callback_query.bot.edit_message_text(
+                    chat_id=callback_query.message.chat.id,
+                    message_id=data["tone_message_id"],
+                    text=f"🎲 Генерирую {selected_tone} событие..."
+                )
+            except Exception as e:
+                print(f"Failed to edit tone message: {e}")
+                # Fallback: send new message if editing fails
+                await callback_query.message.answer(
+                    f"🎲 Генерирую {selected_tone} событие..."
+                )
 
             # Update stored data
             await state.update_data(event_text=new_event_text)
