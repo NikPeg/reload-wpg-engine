@@ -190,6 +190,69 @@ async def game_stats_command(message: Message) -> None:
         )
 
 
+async def stats_command(message: Message) -> None:
+    """Handle /stats command - show message statistics by countries for the last week"""
+    user_id = message.from_user.id
+
+    async for db in get_db():
+        game_engine = GameEngine(db)
+
+        # Check if user is admin
+        if not await is_admin(user_id, game_engine.db):
+            await message.answer("❌ У вас нет прав администратора.")
+            return
+
+        # Get admin info - take the first admin player
+        result = await game_engine.db.execute(
+            select(Player)
+            .where(Player.telegram_id == user_id)
+            .where(Player.role == PlayerRole.ADMIN)
+            .limit(1)
+        )
+        admin = result.scalar_one_or_none()
+
+        if not admin:
+            await message.answer("❌ Вы не зарегистрированы в игре.")
+            return
+
+        # Get message statistics by countries
+        stats = await game_engine.get_countries_message_stats(admin.game_id)
+
+        if not stats:
+            await message.answer(
+                "📊 В игре пока нет стран или сообщений за последнюю неделю."
+            )
+            return
+
+        # Format statistics message
+        stats_text = "📊 **Статистика сообщений по странам за последнюю неделю**\n\n"
+
+        total_messages = sum(stat["message_count"] for stat in stats)
+
+        for i, stat in enumerate(stats, 1):
+            country_name = stat["country_name"]
+            message_count = stat["message_count"]
+
+            # Add emoji based on position
+            if i == 1 and message_count > 0:
+                emoji = "🥇"
+            elif i == 2 and message_count > 0:
+                emoji = "🥈"
+            elif i == 3 and message_count > 0:
+                emoji = "🥉"
+            elif message_count > 0:
+                emoji = "📝"
+            else:
+                emoji = "💤"
+
+            stats_text += f"{emoji} **{escape_markdown(country_name)}**: {message_count} сообщений\n"
+
+        stats_text += f"\n**Всего сообщений:** {total_messages}"
+
+        await message.answer(stats_text, parse_mode="Markdown")
+        break
+
+
 async def restart_game_command(message: Message, state: FSMContext) -> None:
     """Handle /restart_game command"""
     user_id = message.from_user.id
@@ -1244,6 +1307,7 @@ async def process_gen_callback(
 def register_admin_handlers(dp: Dispatcher) -> None:
     """Register admin handlers"""
     dp.message.register(game_stats_command, Command("game_stats"))
+    dp.message.register(stats_command, Command("stats"))
     dp.message.register(restart_game_command, Command("restart_game"))
     dp.message.register(update_game_command, Command("update_game"))
     dp.message.register(event_command, Command("event"))

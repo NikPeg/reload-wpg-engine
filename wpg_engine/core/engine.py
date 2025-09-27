@@ -2,7 +2,9 @@
 Basic GameEngine class
 """
 
-from sqlalchemy import select
+from datetime import datetime, timedelta, timezone
+
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -327,6 +329,39 @@ class GameEngine:
             "created_at": game.created_at,
             "updated_at": game.updated_at,
         }
+
+    async def get_countries_message_stats(self, game_id: int) -> list[dict]:
+        """Get message statistics by countries for the last week"""
+        # Calculate date one week ago
+        week_ago = datetime.now(timezone.utc) - timedelta(days=7)
+
+        # Query to get message count by country for the last week
+        # Only count messages from players (not admin replies)
+        result = await self.db.execute(
+            select(
+                Country.name.label("country_name"),
+                func.count(Message.id).label("message_count"),
+            )
+            .select_from(Country)
+            .outerjoin(Player, Country.id == Player.country_id)
+            .outerjoin(
+                Message,
+                (Player.id == Message.player_id)
+                & (Message.is_admin_reply == False)
+                & (Message.created_at >= week_ago),
+            )
+            .where(Country.game_id == game_id)
+            .group_by(Country.id, Country.name)
+            .order_by(func.count(Message.id).desc(), Country.name)
+        )
+
+        stats = []
+        for row in result:
+            stats.append(
+                {"country_name": row.country_name, "message_count": row.message_count}
+            )
+
+        return stats
 
     # Message management
     async def create_message(
