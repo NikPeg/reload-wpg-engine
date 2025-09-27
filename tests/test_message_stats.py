@@ -2,12 +2,13 @@
 Tests for message statistics functionality
 """
 
-import pytest
 from datetime import datetime, timedelta, timezone
+
+import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from wpg_engine.core.engine import GameEngine
-from wpg_engine.models import Player, PlayerRole
+from wpg_engine.models import PlayerRole
 
 
 @pytest.fixture

@@ -347,7 +347,7 @@ class GameEngine:
             .outerjoin(
                 Message,
                 (Player.id == Message.player_id)
-                & (Message.is_admin_reply == False)
+                & (~Message.is_admin_reply)
                 & (Message.created_at >= week_ago),
             )
             .where(Country.game_id == game_id)
