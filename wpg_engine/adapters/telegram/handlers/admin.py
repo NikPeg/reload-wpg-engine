@@ -190,8 +190,8 @@ async def game_stats_command(message: Message) -> None:
         )
 
 
-async def stats_command(message: Message) -> None:
-    """Handle /stats command - show message statistics by countries for the last week"""
+async def active_command(message: Message) -> None:
+    """Handle /active command - show message statistics by countries for the last week"""
     user_id = message.from_user.id
 
     async for db in get_db():
@@ -225,7 +225,7 @@ async def stats_command(message: Message) -> None:
             return
 
         # Format statistics message
-        stats_text = "📊 **Статистика сообщений по странам за последнюю неделю**\n\n"
+        stats_text = "📊 **Активность стран за последнюю неделю**\n\n"
 
         total_messages = sum(stat["message_count"] for stat in stats)
 
@@ -1307,7 +1307,7 @@ async def process_gen_callback(
 def register_admin_handlers(dp: Dispatcher) -> None:
     """Register admin handlers"""
     dp.message.register(game_stats_command, Command("game_stats"))
-    dp.message.register(stats_command, Command("stats"))
+    dp.message.register(active_command, Command("active"))
     dp.message.register(restart_game_command, Command("restart_game"))
     dp.message.register(update_game_command, Command("update_game"))
     dp.message.register(event_command, Command("event"))
