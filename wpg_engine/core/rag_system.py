@@ -10,6 +10,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from wpg_engine.config.settings import settings
+from wpg_engine.core.message_classifier import MessageClassifier
+from wpg_engine.core.rag_analyzers import RAGAnalyzerFactory
 from wpg_engine.models import Country, Message
 
 
@@ -21,6 +23,7 @@ class RAGSystem:
         # Используем стандартные настройки
         self.api_key = settings.ai.openrouter_api_key
         self.model = settings.ai.default_model
+        self.classifier = MessageClassifier()
 
     async def generate_admin_context(
         self,
@@ -55,13 +58,24 @@ class RAGSystem:
             player_id, game_id
         )
 
+        # Classify message type
+        message_type = await self.classifier.classify_message(
+            message_content, sender_country_name
+        )
+
+        # Create appropriate analyzer based on message type
+        analyzer = RAGAnalyzerFactory.create_analyzer(
+            message_type, countries_data, sender_country_name
+        )
+
         # Create prompt for LLM analysis
-        prompt = self._create_analysis_prompt(
-            message_content, sender_country_name, countries_data, previous_admin_message
+        prompt = analyzer.create_analysis_prompt(
+            message_content, previous_admin_message
         )
 
         # Debug output: print the full prompt being sent to LLM
         print("=" * 80)
+        print(f"🔍 RAG DEBUG: Тип сообщения: {message_type}")
         print("🔍 RAG DEBUG: Полный промпт для LLM:")
         print("=" * 80)
         print(prompt)
@@ -156,72 +170,6 @@ class RAGSystem:
 
         print("❌ DEBUG: Сообщения админа не найдены")
         return None
-
-    def _create_analysis_prompt(
-        self,
-        message: str,
-        sender_country: str,
-        countries_data: list[dict[str, Any]],
-        previous_admin_message: str | None = None,
-    ) -> str:
-        """Create prompt for LLM analysis"""
-
-        # Format countries data for the prompt
-        countries_info = ""
-        for country in countries_data:
-            synonyms_str = (
-                f" (синонимы: {', '.join(country['synonyms'])})"
-                if country["synonyms"]
-                else ""
-            )
-
-            countries_info += f"""
-{country["name"]}{synonyms_str}
-Столица: {country["capital"]}
-Население: {country["population"]:,}
-Аспекты (1-10):
-- Экономика: {country["aspects"]["economy"]}{f" - {country['descriptions']['economy']}" if country["descriptions"]["economy"] else ""}
-- Военное дело: {country["aspects"]["military"]}{f" - {country['descriptions']['military']}" if country["descriptions"]["military"] else ""}
-- Внешняя политика: {country["aspects"]["foreign_policy"]}{f" - {country['descriptions']['foreign_policy']}" if country["descriptions"]["foreign_policy"] else ""}
-- Территория: {country["aspects"]["territory"]}{f" - {country['descriptions']['territory']}" if country["descriptions"]["territory"] else ""}
-- Технологии: {country["aspects"]["technology"]}{f" - {country['descriptions']['technology']}" if country["descriptions"]["technology"] else ""}
-- Религия и культура: {country["aspects"]["religion_culture"]}{f" - {country['descriptions']['religion_culture']}" if country["descriptions"]["religion_culture"] else ""}
-- Управление и право: {country["aspects"]["governance_law"]}{f" - {country['descriptions']['governance_law']}" if country["descriptions"]["governance_law"] else ""}
-- Строительство и инфраструктура: {country["aspects"]["construction_infrastructure"]}{f" - {country['descriptions']['construction_infrastructure']}" if country["descriptions"]["construction_infrastructure"] else ""}
-- Общественные отношения: {country["aspects"]["social_relations"]}{f" - {country['descriptions']['social_relations']}" if country["descriptions"]["social_relations"] else ""}
-- Разведка: {country["aspects"]["intelligence"]}{f" - {country['descriptions']['intelligence']}" if country["descriptions"]["intelligence"] else ""}
-"""
-
-        context_section = ""
-        if previous_admin_message:
-            context_section = f"""
-КОНТЕКСТ: Предыдущее сообщение от администратора к этому игроку:
-"{previous_admin_message}"
-
-Текущее сообщение игрока может быть ответом на это сообщение администратора.
-"""
-
-        prompt = f"""Ты помощник администратора многопользовательской стратегической игры.
-{context_section}
-Игрок из страны "{sender_country}" отправил сообщение:
-"{message}"
-
-Доступные страны в игре:
-{countries_info}
-
-Твоя задача:
-1. Проанализировать сообщение игрока{" (учитывая контекст предыдущих сообщений)" if previous_admin_message else ""}
-2. Определить, какие страны упоминаются или подразумеваются в сообщении (включая синонимы)
-3. Предоставить администратору краткую справку по релевантным странам
-
-Создай краткую справку для администратора, которая поможет ему принять правильное решение. Сосредоточься на:
-- релевантных упомянутых стран аспектах в контексте сообщения
-
-Если в сообщении упоминаются военные действия, обязательно сравни военную мощь всех задействованных стран.
-
-Отвечай на русском языке. Будь кратким и информативным."""
-
-        return prompt
 
     async def _call_openrouter_api(self, prompt: str) -> str:
         """Call OpenRouter API"""
