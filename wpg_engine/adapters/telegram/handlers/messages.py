@@ -11,6 +11,7 @@ from telegramify_markdown import markdownify
 from wpg_engine.adapters.telegram.utils import escape_html, escape_markdown
 from wpg_engine.core.admin_utils import is_admin
 from wpg_engine.core.engine import GameEngine
+from wpg_engine.core.message_classifier import MessageClassifier
 from wpg_engine.core.rag_system import RAGSystem
 from wpg_engine.models import Player, PlayerRole, get_db
 
@@ -193,8 +194,35 @@ async def handle_player_message(
 
     if admin and admin.telegram_id:
         try:
-            # Format message for admin (without RAG context)
             country_name = player.country.name if player.country else "без страны"
+            bot = message.bot
+
+            # Step 1: Classify message type using LLM
+            classifier = MessageClassifier()
+            message_type = await classifier.classify_message(content, country_name)
+
+            # Map message types to emojis and descriptions
+            type_info = {
+                "вопрос": {"emoji": "❓", "desc": "Вопрос"},
+                "приказ": {"emoji": "⚡", "desc": "Приказ"},
+                "проект": {"emoji": "🏗️", "desc": "Проект"},
+                "иное": {"emoji": "💭", "desc": "Иное"}
+            }
+
+            type_emoji = type_info.get(message_type, type_info["иное"])["emoji"]
+            type_desc = type_info.get(message_type, type_info["иное"])["desc"]
+
+            # Step 2: Send message type classification to admin
+            type_message = (
+                f"{type_emoji} <b>Тип сообщения: {type_desc}</b>\n"
+                f"<i>Автоматически определено ИИ</i>"
+            )
+
+            await bot.send_message(
+                admin.telegram_id, type_message, parse_mode="HTML"
+            )
+
+            # Step 3: Send original message to admin
             admin_message = (
                 f"💬 <b>Новое сообщение от игрока</b>\n\n"
                 f"<b>От:</b> {escape_html(player.display_name)} (ID: {player.telegram_id})\n"
@@ -202,13 +230,11 @@ async def handle_player_message(
                 f"<b>Сообщение:</b>\n{escape_html(content)}"
             )
 
-            # Send original message to admin first
-            bot = message.bot
             sent_message = await bot.send_message(
                 admin.telegram_id, admin_message, parse_mode="HTML"
             )
 
-            # Generate and send RAG context as reply to the original message
+            # Step 4: Generate and send RAG context as reply to the original message
             if player.country:
                 rag_system = RAGSystem(game_engine.db)
                 rag_context = await rag_system.generate_admin_context(
@@ -221,7 +247,7 @@ async def handle_player_message(
                         bot, admin.telegram_id, rag_context, sent_message.message_id
                     )
 
-            # Now save message to database with admin's telegram message ID
+            # Step 5: Save message to database with admin's telegram message ID
             await game_engine.create_message(
                 player_id=player.id,
                 game_id=player.game_id,
