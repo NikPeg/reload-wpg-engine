@@ -147,6 +147,8 @@ class AdminStates(StatesGroup):
     waiting_for_restart_confirmation = State()
     waiting_for_event_message = State()
     waiting_for_gen_action = State()
+    waiting_for_delete_country_confirmation = State()
+    waiting_for_final_message = State()
 
 
 # Removed admin_command - functionality merged into /start command
@@ -1304,6 +1306,296 @@ async def process_gen_callback(
         break
 
 
+async def delete_country_command(message: Message, state: FSMContext) -> None:
+    """Handle /delete_country command"""
+    user_id = message.from_user.id
+    args = message.text.split(" ", 1)  # /delete_country [country_name]
+
+    async for db in get_db():
+        game_engine = GameEngine(db)
+
+        # Check if user is admin
+        if not await is_admin(user_id, game_engine.db):
+            await message.answer("❌ У вас нет прав администратора.")
+            return
+
+        # Get admin info - take the first admin player
+        result = await game_engine.db.execute(
+            select(Player)
+            .options(selectinload(Player.country), selectinload(Player.game))
+            .where(Player.telegram_id == user_id)
+            .where(Player.role == PlayerRole.ADMIN)
+            .limit(1)
+        )
+        admin = result.scalar_one_or_none()
+
+        if not admin:
+            await message.answer("❌ Вы не зарегистрированы в игре.")
+            return
+
+        # Get all countries in the same game
+        result = await game_engine.db.execute(
+            select(Player)
+            .options(selectinload(Player.country))
+            .where(Player.game_id == admin.game_id)
+            .where(Player.country_id.isnot(None))
+            .where(Player.role == PlayerRole.PLAYER)
+        )
+        all_players = result.scalars().all()
+
+        # Get available countries
+        available_countries = []
+        for player in all_players:
+            if player.country:
+                available_countries.append(player.country.name)
+
+        if not available_countries:
+            await message.answer("❌ В игре нет стран для удаления.")
+            return
+
+        # Check if this is a reply to a message with country information
+        target_player = None
+        target_country_name = None
+
+        # Try to extract country from reply message
+        reply_result = await extract_country_from_reply(message, all_players)
+        if reply_result:
+            target_player, target_country_name = reply_result
+
+        # If no country found from reply, check if country name was provided in command
+        if not target_player and len(args) > 1:
+            target_country_name = args[1].strip()
+            target_player = await find_target_country_by_name(
+                all_players, target_country_name
+            )
+
+            if not target_player:
+                countries_list = "\n".join(
+                    [f"• {country}" for country in sorted(available_countries)]
+                )
+                await message.answer(
+                    f"❌ Страна '{escape_html(target_country_name)}' не найдена.\n\n"
+                    f"Доступные страны:\n{countries_list}\n\n"
+                    f"Используйте: <code>/delete_country название_страны</code>",
+                    parse_mode="HTML",
+                )
+                return
+
+        if not target_player:
+            countries_list = "\n".join(
+                [f"• {country}" for country in sorted(available_countries)]
+            )
+            await message.answer(
+                f"❌ Укажите название страны для удаления.\n\n"
+                f"Доступные страны:\n{countries_list}\n\n"
+                f"Используйте: <code>/delete_country название_страны</code>",
+                parse_mode="HTML",
+            )
+            return
+
+        # Store data for confirmation
+        await state.update_data(
+            target_player_id=target_player.id,
+            target_country_id=target_player.country.id,
+            target_country_name=target_player.country.name,
+            target_telegram_id=target_player.telegram_id,
+        )
+
+        # Show different message if country was auto-detected from reply
+        if message.reply_to_message:
+            await message.answer(
+                f"⚠️ <b>ВНИМАНИЕ! ОПАСНАЯ ОПЕРАЦИЯ!</b>\n\n"
+                f"Вы собираетесь <b>ПОЛНОСТЬЮ УДАЛИТЬ</b> страну:\n\n"
+                f"🏛️ <b>{escape_html(target_player.country.name)}</b>\n"
+                f"👤 <b>Игрок:</b> {escape_html(target_player.display_name or target_player.username or 'Неизвестно')}\n"
+                f"<i>(автоматически определено из сообщения)</i>\n\n"
+                f"<b>ЭТО ДЕЙСТВИЕ НЕОБРАТИМО!</b>\n"
+                f"• Страна будет удалена навсегда\n"
+                f"• Игрок потеряет свою страну\n"
+                f"• Все данные страны будут потеряны\n\n"
+                f"Вы <b>ДЕЙСТВИТЕЛЬНО</b> хотите удалить эту страну?\n\n"
+                f"Напишите <b>УДАЛИТЬ</b> (заглавными буквами), чтобы продолжить, или любое другое сообщение для отмены.",
+                parse_mode="HTML",
+            )
+        else:
+            await message.answer(
+                f"⚠️ <b>ВНИМАНИЕ! ОПАСНАЯ ОПЕРАЦИЯ!</b>\n\n"
+                f"Вы собираетесь <b>ПОЛНОСТЬЮ УДАЛИТЬ</b> страну:\n\n"
+                f"🏛️ <b>{escape_html(target_player.country.name)}</b>\n"
+                f"👤 <b>Игрок:</b> {escape_html(target_player.display_name or target_player.username or 'Неизвестно')}\n\n"
+                f"<b>ЭТО ДЕЙСТВИЕ НЕОБРАТИМО!</b>\n"
+                f"• Страна будет удалена навсегда\n"
+                f"• Игрок потеряет свою страну\n"
+                f"• Все данные страны будут потеряны\n\n"
+                f"Вы <b>ДЕЙСТВИТЕЛЬНО</b> хотите удалить эту страну?\n\n"
+                f"Напишите <b>УДАЛИТЬ</b> (заглавными буквами), чтобы продолжить, или любое другое сообщение для отмены.",
+                parse_mode="HTML",
+            )
+
+        await state.set_state(AdminStates.waiting_for_delete_country_confirmation)
+        break
+
+
+async def process_delete_country_confirmation(
+    message: Message, state: FSMContext
+) -> None:
+    """Process confirmation for country deletion"""
+    confirmation = message.text.strip()
+
+    if confirmation != "УДАЛИТЬ":
+        await message.answer("❌ Удаление страны отменено.")
+        await state.clear()
+        return
+
+    # Get stored data
+    data = await state.get_data()
+    target_country_id = data["target_country_id"]
+    target_country_name = data["target_country_name"]
+
+    user_id = message.from_user.id
+
+    async for db in get_db():
+        game_engine = GameEngine(db)
+
+        # Check if user is still admin
+        if not await is_admin(user_id, game_engine.db):
+            await message.answer("❌ У вас нет прав администратора.")
+            await state.clear()
+            return
+
+        # Get admin info
+        result = await game_engine.db.execute(
+            select(Player)
+            .where(Player.telegram_id == user_id)
+            .where(Player.role == PlayerRole.ADMIN)
+            .limit(1)
+        )
+        admin = result.scalar_one_or_none()
+
+        if not admin:
+            await message.answer("❌ Вы не зарегистрированы в игре.")
+            await state.clear()
+            return
+
+        # Verify the country still exists
+        country = await game_engine.get_country(target_country_id)
+        if not country:
+            await message.answer("❌ Страна уже была удалена или не существует.")
+            await state.clear()
+            return
+
+        # Ask for final message to send to the player
+        await state.update_data(admin_id=admin.id)
+        await message.answer(
+            f"💬 <b>Последнее слово</b>\n\n"
+            f"Перед удалением страны <b>{escape_html(target_country_name)}</b> вы можете отправить игроку последнее сообщение.\n\n"
+            f"Введите текст сообщения или напишите <code>skip</code>, чтобы пропустить:",
+            parse_mode="HTML",
+        )
+        await state.set_state(AdminStates.waiting_for_final_message)
+        break
+
+
+async def process_final_message(message: Message, state: FSMContext) -> None:
+    """Process final message and delete country"""
+    final_message_text = message.text.strip()
+
+    # Get stored data
+    data = await state.get_data()
+    target_country_id = data["target_country_id"]
+    target_country_name = data["target_country_name"]
+    admin_id = data["admin_id"]
+
+    user_id = message.from_user.id
+
+    async for db in get_db():
+        game_engine = GameEngine(db)
+
+        # Check if user is still admin
+        if not await is_admin(user_id, game_engine.db):
+            await message.answer("❌ У вас нет прав администратора.")
+            await state.clear()
+            return
+
+        # Get admin info
+        result = await game_engine.db.execute(
+            select(Player).where(Player.id == admin_id)
+        )
+        admin = result.scalar_one_or_none()
+
+        if not admin:
+            await message.answer("❌ Ошибка: администратор не найден.")
+            await state.clear()
+            return
+
+        # Verify the country still exists
+        country = await game_engine.get_country(target_country_id)
+        if not country:
+            await message.answer("❌ Страна уже была удалена или не существует.")
+            await state.clear()
+            return
+
+        # Send final message to player if provided
+        if final_message_text.lower() != "skip" and len(final_message_text) >= 3:
+            if len(final_message_text) > 2000:
+                await message.answer(
+                    "❌ Сообщение слишком длинное (максимум 2000 символов). Попробуйте еще раз или напишите <code>skip</code> для пропуска:",
+                    parse_mode="HTML",
+                )
+                return
+
+            try:
+                bot = message.bot
+                final_message = (
+                    f"📢 <b>Сообщение от администратора</b>\n\n"
+                    f"{escape_html(final_message_text)}\n\n"
+                    f"<i>Ваша страна {escape_html(target_country_name)} была удалена из игры.</i>"
+                )
+
+                await bot.send_message(
+                    data["target_telegram_id"],
+                    final_message,
+                    parse_mode="HTML",
+                )
+
+                # Save the admin message to database for RAG context
+                await game_engine.create_message(
+                    player_id=data["target_player_id"],
+                    game_id=admin.game_id,
+                    content=final_message_text,
+                    is_admin_reply=True,
+                )
+
+                await message.answer("✅ Последнее сообщение отправлено игроку.")
+            except Exception as e:
+                print(
+                    f"Failed to send final message to player {data['target_telegram_id']}: {e}"
+                )
+                await message.answer(
+                    "⚠️ Не удалось отправить сообщение игроку, но удаление продолжается..."
+                )
+
+        # Delete the country
+        success = await game_engine.delete_country(target_country_id)
+
+        if success:
+            await message.answer(
+                f"✅ <b>Страна успешно удалена!</b>\n\n"
+                f"🏛️ <b>Удаленная страна:</b> {escape_html(target_country_name)}\n"
+                f"👤 <b>Игрок:</b> освобожден от страны\n\n"
+                f"Игрок может теперь зарегистрировать новую страну командой /register",
+                parse_mode="HTML",
+            )
+        else:
+            await message.answer(
+                "❌ Не удалось удалить страну. Возможно, она уже была удалена."
+            )
+
+        break
+
+    await state.clear()
+
+
 def register_admin_handlers(dp: Dispatcher) -> None:
     """Register admin handlers"""
     dp.message.register(game_stats_command, Command("game_stats"))
@@ -1312,8 +1604,14 @@ def register_admin_handlers(dp: Dispatcher) -> None:
     dp.message.register(update_game_command, Command("update_game"))
     dp.message.register(event_command, Command("event"))
     dp.message.register(gen_command, Command("gen"))
+    dp.message.register(delete_country_command, Command("delete_country"))
     dp.message.register(
         process_restart_confirmation, AdminStates.waiting_for_restart_confirmation
     )
     dp.message.register(process_event_message, AdminStates.waiting_for_event_message)
+    dp.message.register(
+        process_delete_country_confirmation,
+        AdminStates.waiting_for_delete_country_confirmation,
+    )
+    dp.message.register(process_final_message, AdminStates.waiting_for_final_message)
     dp.callback_query.register(process_gen_callback, AdminStates.waiting_for_gen_action)

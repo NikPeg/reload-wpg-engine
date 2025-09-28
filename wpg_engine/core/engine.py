@@ -231,6 +231,21 @@ class GameEngine:
         await self.db.refresh(country)
         return country
 
+    async def delete_country(self, country_id: int) -> bool:
+        """Delete a country and unassign all players from it"""
+        country = await self.get_country(country_id)
+        if not country:
+            return False
+
+        # Unassign all players from this country
+        for player in country.players:
+            player.country_id = None
+
+        # Delete the country
+        await self.db.delete(country)
+        await self.db.commit()
+        return True
+
     # Player management
     async def create_player(
         self,
