@@ -206,7 +206,7 @@ async def handle_player_message(
                 "вопрос": {"emoji": "❓", "desc": "Вопрос"},
                 "приказ": {"emoji": "⚡", "desc": "Приказ"},
                 "проект": {"emoji": "🏗️", "desc": "Проект"},
-                "иное": {"emoji": "💭", "desc": "Иное"}
+                "иное": {"emoji": "💭", "desc": "Иное"},
             }
 
             type_emoji = type_info.get(message_type, type_info["иное"])["emoji"]
@@ -218,9 +218,7 @@ async def handle_player_message(
                 f"<i>Автоматически определено ИИ</i>"
             )
 
-            await bot.send_message(
-                admin.telegram_id, type_message, parse_mode="HTML"
-            )
+            await bot.send_message(admin.telegram_id, type_message, parse_mode="HTML")
 
             # Step 3: Send original message to admin
             admin_message = (

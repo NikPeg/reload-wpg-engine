@@ -61,7 +61,7 @@ class TestMessageClassifier:
         result = await classifier.classify_message("Какой сейчас год?", "Россия")
         assert result == "вопрос"
 
-    @patch('wpg_engine.core.message_classifier.httpx.AsyncClient')
+    @patch("wpg_engine.core.message_classifier.httpx.AsyncClient")
     async def test_classify_message_api_error(self, mock_client, classifier):
         """Тест обработки ошибки API"""
         # Устанавливаем тестовые значения
@@ -106,12 +106,14 @@ class TestMessageClassificationExamples:
             "какой сейчас год?",
             "Какая страна на нас напала?",
             "С кем мы воюем?",
-            "Сколько у нас населения?"
+            "Сколько у нас населения?",
         ]
 
         for question in questions:
             # Проверяем, что промпт содержит правильные примеры
-            prompt = classifier._create_classification_prompt(question, "Тестовая страна")
+            prompt = classifier._create_classification_prompt(
+                question, "Тестовая страна"
+            )
             assert "какой сейчас год?" in prompt
             assert "какая страна на нас напала?" in prompt
 
@@ -120,35 +122,30 @@ class TestMessageClassificationExamples:
         commands = [
             "отправить разведчиков",
             "объявить войну Вирджинии",
-            "переименовать государство"
+            "переименовать государство",
         ]
 
         for command in commands:
-            prompt = classifier._create_classification_prompt(command, "Тестовая страна")
+            prompt = classifier._create_classification_prompt(
+                command, "Тестовая страна"
+            )
             assert "отправить разведчиков" in prompt
             assert "объявить войну Вирджинии" in prompt
 
     def test_project_examples(self, classifier):
         """Тест примеров проектов"""
-        projects = [
-            "захватить Вирджинию",
-            "построить ракету",
-            "перейти к демократии"
-        ]
+        projects = ["захватить Вирджинию", "построить ракету", "перейти к демократии"]
 
         for project in projects:
-            prompt = classifier._create_classification_prompt(project, "Тестовая страна")
+            prompt = classifier._create_classification_prompt(
+                project, "Тестовая страна"
+            )
             assert "захватить Вирджинию" in prompt
             assert "построить ракету" in prompt
 
     def test_other_examples(self, classifier):
         """Тест примеров 'иное'"""
-        others = [
-            "ахахха",
-            "понял",
-            "ну ладно",
-            "грустно"
-        ]
+        others = ["ахахха", "понял", "ну ладно", "грустно"]
 
         for other in others:
             prompt = classifier._create_classification_prompt(other, "Тестовая страна")

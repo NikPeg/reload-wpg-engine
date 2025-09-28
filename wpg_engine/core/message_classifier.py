@@ -14,7 +14,9 @@ class MessageClassifier:
         self.api_key = settings.ai.openrouter_api_key
         self.model = settings.ai.default_model
 
-    async def classify_message(self, message_content: str, sender_country_name: str) -> str:
+    async def classify_message(
+        self, message_content: str, sender_country_name: str
+    ) -> str:
         """
         Классифицировать сообщение игрока по типу
 
@@ -28,7 +30,9 @@ class MessageClassifier:
         if not self.api_key:
             return "иное"
 
-        prompt = self._create_classification_prompt(message_content, sender_country_name)
+        prompt = self._create_classification_prompt(
+            message_content, sender_country_name
+        )
 
         try:
             classification = await self._call_openrouter_api(prompt)
