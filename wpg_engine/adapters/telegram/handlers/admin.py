@@ -1333,13 +1333,12 @@ async def delete_country_command(message: Message, state: FSMContext) -> None:
             await message.answer("❌ Вы не зарегистрированы в игре.")
             return
 
-        # Get all countries in the same game
+        # Get all countries in the same game (including admin countries)
         result = await game_engine.db.execute(
             select(Player)
             .options(selectinload(Player.country))
             .where(Player.game_id == admin.game_id)
             .where(Player.country_id.isnot(None))
-            .where(Player.role == PlayerRole.PLAYER)
         )
         all_players = result.scalars().all()
 
