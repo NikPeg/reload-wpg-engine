@@ -163,10 +163,10 @@ class TestRAGSystemEnhanced:
         assert "СРОК ИСПОЛНЕНИЯ" in call_args
 
     @patch("wpg_engine.core.rag_system.MessageClassifier")
-    async def test_generate_admin_context_other(
+    async def test_generate_admin_context_other_no_rag(
         self, mock_classifier_class, rag_system, sample_countries_data
     ):
-        """Тест генерации контекста для прочих сообщений"""
+        """Тест что для типа 'иное' RAG не запускается"""
         # Настройка моков
         mock_classifier = AsyncMock()
         mock_classifier.classify_message.return_value = "иное"
@@ -177,7 +177,7 @@ class TestRAGSystemEnhanced:
             return_value=sample_countries_data
         )
         rag_system._get_previous_admin_message = AsyncMock(return_value=None)
-        rag_system._call_openrouter_api = AsyncMock(return_value="Анализ сообщения")
+        rag_system._call_openrouter_api = AsyncMock()
 
         # Вызов метода
         result = await rag_system.generate_admin_context(
@@ -185,12 +185,10 @@ class TestRAGSystemEnhanced:
         )
 
         # Проверки
-        assert result == "Анализ сообщения"
+        assert result == ""  # Пустая строка для типа "иное"
 
-        # Проверяем, что был вызван правильный промпт (содержит общие элементы)
-        call_args = rag_system._call_openrouter_api.call_args[0][0]
-        assert "отправил сообщение" in call_args
-        assert "понять контекст" in call_args
+        # Проверяем, что RAG API НЕ вызывался
+        rag_system._call_openrouter_api.assert_not_called()
 
     @patch("wpg_engine.core.rag_system.MessageClassifier")
     async def test_generate_admin_context_with_previous_message(

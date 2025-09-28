@@ -63,6 +63,16 @@ class RAGSystem:
             message_content, sender_country_name
         )
 
+        # For "иное" type messages, don't run RAG - just forward to admin
+        if message_type == "иное":
+            print("=" * 80)
+            print(f"🔍 RAG DEBUG: Тип сообщения: {message_type}")
+            print(
+                "❌ RAG не запускается для типа 'иное' - сообщение просто пересылается админу"
+            )
+            print("=" * 80)
+            return ""
+
         # Create appropriate analyzer based on message type
         analyzer = RAGAnalyzerFactory.create_analyzer(
             message_type, countries_data, sender_country_name

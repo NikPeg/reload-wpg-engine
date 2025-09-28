@@ -7,7 +7,6 @@ import pytest
 from wpg_engine.core.rag_analyzers import (
     BaseRAGAnalyzer,
     OrderAnalyzer,
-    OtherAnalyzer,
     ProjectAnalyzer,
     QuestionAnalyzer,
     RAGAnalyzerFactory,
@@ -217,33 +216,6 @@ class TestProjectAnalyzer:
         assert "СРОК ИСПОЛНЕНИЯ" in prompt
 
 
-class TestOtherAnalyzer:
-    """Тесты для анализатора прочих сообщений"""
-
-    def test_create_analysis_prompt(self, sample_countries_data):
-        """Тест создания промпта для прочего сообщения"""
-        analyzer = OtherAnalyzer(sample_countries_data, "Тестовая Страна")
-        message = "Понятно, спасибо"
-
-        prompt = analyzer.create_analysis_prompt(message)
-
-        assert "отправил сообщение" in prompt
-        assert message in prompt
-        assert "понять контекст сообщения" in prompt
-        assert "возможном значении" in prompt
-
-    def test_create_analysis_prompt_with_context(self, sample_countries_data):
-        """Тест создания промпта для прочего сообщения с контекстом"""
-        analyzer = OtherAnalyzer(sample_countries_data, "Тестовая Страна")
-        message = "Хорошо"
-        previous_message = "Ваш приказ выполнен"
-
-        prompt = analyzer.create_analysis_prompt(message, previous_message)
-
-        assert "КОНТЕКСТ:" in prompt
-        assert previous_message in prompt
-
-
 class TestRAGAnalyzerFactory:
     """Тесты для фабрики RAG анализаторов"""
 
@@ -273,19 +245,16 @@ class TestRAGAnalyzerFactory:
 
         assert isinstance(analyzer, ProjectAnalyzer)
 
-    def test_create_other_analyzer(self, sample_countries_data):
-        """Тест создания анализатора прочих сообщений"""
-        analyzer = RAGAnalyzerFactory.create_analyzer(
-            "иное", sample_countries_data, "Тестовая Страна"
-        )
+    def test_create_unsupported_type_analyzer(self, sample_countries_data):
+        """Тест создания анализатора для неподдерживаемого типа"""
+        with pytest.raises(ValueError, match="Unsupported message type"):
+            RAGAnalyzerFactory.create_analyzer(
+                "неизвестный_тип", sample_countries_data, "Тестовая Страна"
+            )
 
-        assert isinstance(analyzer, OtherAnalyzer)
-
-    def test_create_unknown_type_analyzer(self, sample_countries_data):
-        """Тест создания анализатора для неизвестного типа"""
-        analyzer = RAGAnalyzerFactory.create_analyzer(
-            "неизвестный_тип", sample_countries_data, "Тестовая Страна"
-        )
-
-        # Должен вернуть OtherAnalyzer по умолчанию
-        assert isinstance(analyzer, OtherAnalyzer)
+    def test_create_other_type_analyzer(self, sample_countries_data):
+        """Тест создания анализатора для типа 'иное' - должен вызвать ошибку"""
+        with pytest.raises(ValueError, match="Unsupported message type"):
+            RAGAnalyzerFactory.create_analyzer(
+                "иное", sample_countries_data, "Тестовая Страна"
+            )

@@ -156,35 +156,6 @@ class ProjectAnalyzer(BaseRAGAnalyzer):
 Отвечай на русском языке. Будь кратким и информативным."""
 
 
-class OtherAnalyzer(BaseRAGAnalyzer):
-    """Анализатор для прочих сообщений игроков"""
-
-    def create_analysis_prompt(
-        self, message: str, previous_admin_message: str | None = None
-    ) -> str:
-        context_section = self._format_context_section(previous_admin_message)
-        countries_info = self._format_countries_info()
-
-        return f"""Ты помощник администратора многопользовательской стратегической игры.
-{context_section}
-Игрок из страны "{self.sender_country}" отправил сообщение:
-"{message}"
-
-Доступные страны в игре:
-{countries_info}
-
-Твоя задача:
-1. Проанализировать сообщение игрока{" (учитывая контекст предыдущих сообщений)" if previous_admin_message else ""}
-2. Определить, какие страны упоминаются или подразумеваются в сообщении (включая синонимы)
-3. Предоставить администратору краткую справку по релевантным странам
-
-Создай краткую справку для администратора, которая поможет ему понять контекст сообщения. Сосредоточься на:
-- релевантных аспектах упомянутых стран в контексте сообщения
-- возможном значении или подтексте сообщения
-
-Отвечай на русском языке. Будь кратким и информативным."""
-
-
 class RAGAnalyzerFactory:
     """Фабрика для создания анализаторов RAG"""
 
@@ -196,19 +167,24 @@ class RAGAnalyzerFactory:
         Создать анализатор для указанного типа сообщения
 
         Args:
-            message_type: Тип сообщения ("вопрос", "приказ", "проект", "иное")
+            message_type: Тип сообщения ("вопрос", "приказ", "проект")
             countries_data: Данные о странах
             sender_country: Страна отправителя
 
         Returns:
             Соответствующий анализатор
+
+        Raises:
+            ValueError: Если тип сообщения не поддерживается
         """
         analyzers = {
             "вопрос": QuestionAnalyzer,
             "приказ": OrderAnalyzer,
             "проект": ProjectAnalyzer,
-            "иное": OtherAnalyzer,
         }
 
-        analyzer_class = analyzers.get(message_type, OtherAnalyzer)
+        if message_type not in analyzers:
+            raise ValueError(f"Unsupported message type: {message_type}")
+
+        analyzer_class = analyzers[message_type]
         return analyzer_class(countries_data, sender_country)
