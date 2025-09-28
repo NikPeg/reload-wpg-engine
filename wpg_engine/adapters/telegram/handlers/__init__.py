@@ -20,5 +20,5 @@ def register_handlers(dp: Dispatcher) -> None:
     register_registration_handlers(dp)
     register_player_handlers(dp)
     register_send_handlers(dp)
-    register_admin_handlers(dp)
+    register_admin_handlers(dp)  # Admin handlers include FSM state handlers
     register_message_handlers(dp)  # Register last to catch all non-command messages
