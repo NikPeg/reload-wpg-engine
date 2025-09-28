@@ -3,6 +3,7 @@ Message handlers for player-admin communication
 """
 
 from aiogram import Dispatcher
+from aiogram.fsm.context import FSMContext
 from aiogram.types import Message
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
@@ -124,10 +125,16 @@ def _split_long_text(text: str, max_length: int) -> list[str]:
     return parts
 
 
-async def handle_text_message(message: Message) -> None:
+async def handle_text_message(message: Message, state: FSMContext) -> None:
     """Handle all text messages that are not commands"""
     user_id = message.from_user.id
     content = message.text.strip()
+
+    # Check if user is in any FSM state - if so, skip this handler
+    # to let FSM handlers process the message
+    current_state = await state.get_state()
+    if current_state is not None:
+        return
 
     # Skip if message is too short or too long
     if len(content) < 3:
