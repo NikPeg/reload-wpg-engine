@@ -197,7 +197,19 @@ async def handle_player_message(
             country_name = player.country.name if player.country else "без страны"
             bot = message.bot
 
-            # Step 1: Classify message type using LLM
+            # Step 1: Send original message to admin first
+            admin_message = (
+                f"💬 <b>Новое сообщение от игрока</b>\n\n"
+                f"<b>От:</b> {escape_html(player.display_name)} (ID: {player.telegram_id})\n"
+                f"<b>Страна:</b> {escape_html(country_name)}\n\n"
+                f"<b>Сообщение:</b>\n{escape_html(content)}"
+            )
+
+            sent_message = await bot.send_message(
+                admin.telegram_id, admin_message, parse_mode="HTML"
+            )
+
+            # Step 2: Classify message type using LLM
             classifier = MessageClassifier()
             message_type = await classifier.classify_message(content, country_name)
 
@@ -212,25 +224,13 @@ async def handle_player_message(
             type_emoji = type_info.get(message_type, type_info["иное"])["emoji"]
             type_desc = type_info.get(message_type, type_info["иное"])["desc"]
 
-            # Step 2: Send message type classification to admin
+            # Step 3: Send message type classification to admin after the message
             type_message = (
                 f"{type_emoji} <b>Тип сообщения: {type_desc}</b>\n"
                 f"<i>Автоматически определено ИИ</i>"
             )
 
             await bot.send_message(admin.telegram_id, type_message, parse_mode="HTML")
-
-            # Step 3: Send original message to admin
-            admin_message = (
-                f"💬 <b>Новое сообщение от игрока</b>\n\n"
-                f"<b>От:</b> {escape_html(player.display_name)} (ID: {player.telegram_id})\n"
-                f"<b>Страна:</b> {escape_html(country_name)}\n\n"
-                f"<b>Сообщение:</b>\n{escape_html(content)}"
-            )
-
-            sent_message = await bot.send_message(
-                admin.telegram_id, admin_message, parse_mode="HTML"
-            )
 
             # Step 4: Generate and send RAG context as reply to the original message
             if player.country:
