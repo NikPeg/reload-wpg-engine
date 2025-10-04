@@ -85,11 +85,11 @@ class TestMessageClassifier:
 
         assert message in prompt
         assert country in prompt
-        assert "вопрос" in prompt
-        assert "приказ" in prompt
-        assert "проект" in prompt
-        assert "иное" in prompt
-        assert "Тип сообщения:" in prompt
+        assert "ВОПРОС" in prompt
+        assert "ПРИКАЗ" in prompt
+        assert "ПРОЕКТ" in prompt
+        assert "ИНОЕ" in prompt
+        assert "Тип:" in prompt
 
 
 # Интеграционные тесты для проверки примеров из задания
@@ -114,8 +114,8 @@ class TestMessageClassificationExamples:
             prompt = classifier._create_classification_prompt(
                 question, "Тестовая страна"
             )
-            assert "какой сейчас год?" in prompt
-            assert "какая страна на нас напала?" in prompt
+            assert "какой год?" in prompt.lower()
+            assert "кто напал?" in prompt.lower()
 
     def test_command_examples(self, classifier):
         """Тест примеров приказов"""
@@ -129,8 +129,8 @@ class TestMessageClassificationExamples:
             prompt = classifier._create_classification_prompt(
                 command, "Тестовая страна"
             )
-            assert "отправить разведчиков" in prompt
-            assert "объявить войну Вирджинии" in prompt
+            assert "атаковать" in prompt.lower()
+            assert "объявить войну" in prompt.lower()
 
     def test_project_examples(self, classifier):
         """Тест примеров проектов"""
@@ -140,8 +140,8 @@ class TestMessageClassificationExamples:
             prompt = classifier._create_classification_prompt(
                 project, "Тестовая страна"
             )
-            assert "захватить Вирджинию" in prompt
-            assert "построить ракету" in prompt
+            assert "захватить континент" in prompt.lower()
+            assert "построить космодром" in prompt.lower()
 
     def test_other_examples(self, classifier):
         """Тест примеров 'иное'"""
@@ -149,5 +149,5 @@ class TestMessageClassificationExamples:
 
         for other in others:
             prompt = classifier._create_classification_prompt(other, "Тестовая страна")
-            assert "ахахха" in prompt
-            assert "понял" in prompt
+            assert "хаха" in prompt.lower()
+            assert "понял" in prompt.lower()
