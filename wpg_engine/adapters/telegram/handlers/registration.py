@@ -449,7 +449,10 @@ async def complete_registration(message: Message, state: FSMContext) -> None:
 
         # Determine player role
         player_role = await determine_player_role(
-            telegram_id=data["user_id"], game_id=data["game_id"], db=game_engine.db
+            telegram_id=data["user_id"],
+            game_id=data["game_id"],
+            db=game_engine.db,
+            chat_id=message.chat.id,
         )
 
         # Create player with determined role

@@ -145,7 +145,7 @@ async def world_command(message: Message) -> None:
         # Check if user is admin
         from wpg_engine.core.admin_utils import is_admin
 
-        user_is_admin = await is_admin(user_id, game_engine.db)
+        user_is_admin = await is_admin(user_id, game_engine.db, message.chat.id)
 
         # Get all countries in the game
         game = await game_engine.get_game(player.game_id)

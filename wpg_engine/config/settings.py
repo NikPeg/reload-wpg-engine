@@ -31,10 +31,20 @@ class TelegramSettings(BaseSettings):
         default_factory=lambda: os.getenv("TG_WEBHOOK_URL"), description="Webhook URL"
     )
     admin_id: int | None = Field(
-        default=None, alias="TG_ADMIN_ID", description="Admin Telegram ID"
+        default=None,
+        alias="TG_ADMIN_ID",
+        description="Admin Telegram ID (positive for user, negative for chat)",
     )
 
     model_config = SettingsConfigDict(env_prefix="TG_", extra="allow")
+
+    def is_admin_chat(self) -> bool:
+        """Check if admin_id represents a chat (negative value)"""
+        return self.admin_id is not None and self.admin_id < 0
+
+    def is_admin_user(self) -> bool:
+        """Check if admin_id represents a user (positive value)"""
+        return self.admin_id is not None and self.admin_id > 0
 
 
 class VKSettings(BaseSettings):

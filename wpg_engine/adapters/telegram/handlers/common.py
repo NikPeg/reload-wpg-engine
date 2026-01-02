@@ -16,6 +16,7 @@ from wpg_engine.models import Player, PlayerRole, get_db
 async def start_command(message: Message) -> None:
     """Handle /start command"""
     user_id = message.from_user.id
+    chat_id = message.chat.id
 
     async for db in get_db():
         game_engine = GameEngine(db)
@@ -29,12 +30,10 @@ async def start_command(message: Message) -> None:
         )
         player = result.scalar_one_or_none()
 
-        # Check if user is admin (from .env)
-        from wpg_engine.config.settings import settings
+        # Check if user is admin (from .env - supports both user and chat)
+        from wpg_engine.core.admin_utils import is_admin_from_env
 
-        is_admin_user = (
-            settings.telegram.admin_id and user_id == settings.telegram.admin_id
-        )
+        is_admin_user = is_admin_from_env(user_id, chat_id)
 
         # Check if any games exist
         from wpg_engine.models import Game

@@ -159,12 +159,13 @@ class AdminStates(StatesGroup):
 async def game_stats_command(message: Message) -> None:
     """Handle /game_stats command"""
     user_id = message.from_user.id
+    chat_id = message.chat.id
 
     async for db in get_db():
         game_engine = GameEngine(db)
 
         # Check if user is admin
-        if not await is_admin(user_id, game_engine.db):
+        if not await is_admin(user_id, game_engine.db, chat_id):
             await message.answer("❌ У вас нет прав администратора.")
             return
 
@@ -195,12 +196,13 @@ async def game_stats_command(message: Message) -> None:
 async def active_command(message: Message) -> None:
     """Handle /active command - show message statistics by countries for the last week"""
     user_id = message.from_user.id
+    chat_id = message.chat.id
 
     async for db in get_db():
         game_engine = GameEngine(db)
 
         # Check if user is admin
-        if not await is_admin(user_id, game_engine.db):
+        if not await is_admin(user_id, game_engine.db, chat_id):
             await message.answer("❌ У вас нет прав администратора.")
             return
 
@@ -258,17 +260,18 @@ async def active_command(message: Message) -> None:
 async def restart_game_command(message: Message, state: FSMContext) -> None:
     """Handle /restart_game command"""
     user_id = message.from_user.id
+    chat_id = message.chat.id
     args = message.text.split(" ", 1)
 
     async for db in get_db():
         game_engine = GameEngine(db)
 
         # Check if user is admin
-        if not await is_admin(user_id, game_engine.db):
-            # Check if user is admin from .env
-            from wpg_engine.config.settings import settings
+        if not await is_admin(user_id, game_engine.db, chat_id):
+            # Check if user is admin from .env (for compatibility)
+            from wpg_engine.core.admin_utils import is_admin_from_env
 
-            if not settings.telegram.admin_id or user_id != settings.telegram.admin_id:
+            if not is_admin_from_env(user_id, chat_id):
                 await message.answer("❌ У вас нет прав администратора.")
                 return
 
@@ -457,13 +460,14 @@ async def process_restart_confirmation(message: Message, state: FSMContext) -> N
 async def update_game_command(message: Message) -> None:
     """Handle /update_game command - update game settings"""
     user_id = message.from_user.id
+    chat_id = message.chat.id
     args = message.text.split(" ", 1)
 
     async for db in get_db():
         game_engine = GameEngine(db)
 
         # Check if user is admin
-        if not await is_admin(user_id, game_engine.db):
+        if not await is_admin(user_id, game_engine.db, chat_id):
             await message.answer("❌ У вас нет прав администратора.")
             return
 
@@ -596,13 +600,14 @@ async def update_game_command(message: Message) -> None:
 async def event_command(message: Message, state: FSMContext) -> None:
     """Handle /event command - send event message to players"""
     user_id = message.from_user.id
+    chat_id = message.chat.id
     args = message.text.split(" ", 1)  # /event [country_name]
 
     async for db in get_db():
         game_engine = GameEngine(db)
 
         # Check if user is admin
-        if not await is_admin(user_id, game_engine.db):
+        if not await is_admin(user_id, game_engine.db, chat_id):
             await message.answer("❌ У вас нет прав администратора.")
             return
 
@@ -945,13 +950,14 @@ async def generate_game_event(
 async def gen_command(message: Message, state: FSMContext) -> None:
     """Handle /gen command - generate game event"""
     user_id = message.from_user.id
+    chat_id = message.chat.id
     args = message.text.split(" ", 1)  # /gen [country_name]
 
     async for db in get_db():
         game_engine = GameEngine(db)
 
         # Check if user is admin
-        if not await is_admin(user_id, game_engine.db):
+        if not await is_admin(user_id, game_engine.db, chat_id):
             await message.answer("❌ У вас нет прав администратора.")
             return
 
@@ -1097,12 +1103,14 @@ async def process_gen_callback(
         return
 
     user_id = callback_query.from_user.id
+    # Get chat_id from callback query message
+    chat_id = callback_query.message.chat.id if callback_query.message else None
 
     async for db in get_db():
         game_engine = GameEngine(db)
 
         # Check if user is admin
-        if not await is_admin(user_id, game_engine.db):
+        if not await is_admin(user_id, game_engine.db, chat_id):
             await callback_query.answer("❌ У вас нет прав администратора.")
             return
 
@@ -1309,13 +1317,14 @@ async def process_gen_callback(
 async def delete_country_command(message: Message, state: FSMContext) -> None:
     """Handle /delete_country command"""
     user_id = message.from_user.id
+    chat_id = message.chat.id
     args = message.text.split(" ", 1)  # /delete_country [country_name]
 
     async for db in get_db():
         game_engine = GameEngine(db)
 
         # Check if user is admin
-        if not await is_admin(user_id, game_engine.db):
+        if not await is_admin(user_id, game_engine.db, chat_id):
             await message.answer("❌ У вас нет прав администратора.")
             return
 
@@ -1452,12 +1461,13 @@ async def process_delete_country_confirmation(
     target_country_name = data["target_country_name"]
 
     user_id = message.from_user.id
+    chat_id = message.chat.id
 
     async for db in get_db():
         game_engine = GameEngine(db)
 
         # Check if user is still admin
-        if not await is_admin(user_id, game_engine.db):
+        if not await is_admin(user_id, game_engine.db, chat_id):
             await message.answer("❌ У вас нет прав администратора.")
             await state.clear()
             return
@@ -1506,12 +1516,13 @@ async def process_final_message(message: Message, state: FSMContext) -> None:
     admin_id = data["admin_id"]
 
     user_id = message.from_user.id
+    chat_id = message.chat.id
 
     async for db in get_db():
         game_engine = GameEngine(db)
 
         # Check if user is still admin
-        if not await is_admin(user_id, game_engine.db):
+        if not await is_admin(user_id, game_engine.db, chat_id):
             await message.answer("❌ У вас нет прав администратора.")
             await state.clear()
             return
