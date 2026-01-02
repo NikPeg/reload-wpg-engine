@@ -107,51 +107,51 @@ jobs:
     - name: Deploy to Yandex Cloud
       run: |
         # Create deployment script
-        cat > deploy.sh << 'EOF'
+        cat > deploy.sh << EOF
         #!/bin/bash
         set -e
         
         # Variables
         IMAGE_URL="${{ env.REGISTRY }}/${{ secrets.YC_REGISTRY_ID }}/${{ env.IMAGE_NAME }}:latest"
         CONTAINER_NAME="wpg-engine-bot"
-        DATA_DIR="$HOME/wpg-engine/data"
-        LOGS_DIR="$HOME/wpg-engine/logs"
+        DATA_DIR="\\\$HOME/wpg-engine/data"
+        LOGS_DIR="\\\$HOME/wpg-engine/logs"
         
         # Stop and remove existing container
-        docker stop $CONTAINER_NAME || true
-        docker rm $CONTAINER_NAME || true
+        docker stop \$CONTAINER_NAME || true
+        docker rm \$CONTAINER_NAME || true
         
         # Create directories in user home (no sudo needed)
-        mkdir -p "$DATA_DIR" "$LOGS_DIR"
+        mkdir -p "\$DATA_DIR" "\$LOGS_DIR"
         
         # Login to Yandex Container Registry
         echo "Logging in to Yandex Container Registry..."
         echo '${{ secrets.YC_SA_JSON_CREDENTIALS }}' | docker login --username json_key --password-stdin ${{ env.REGISTRY }}
         
         # Pull new image
-        docker pull $IMAGE_URL
+        docker pull \$IMAGE_URL
         
         # Get the UID/GID of wpgbot user from the container and set proper permissions
-        WPGBOT_UID=$(docker run --rm $IMAGE_URL id -u wpgbot 2>/dev/null || echo "999")
-        WPGBOT_GID=$(docker run --rm $IMAGE_URL id -g wpgbot 2>/dev/null || echo "999")
+        WPGBOT_UID=\$(docker run --rm \$IMAGE_URL id -u wpgbot 2>/dev/null || echo "999")
+        WPGBOT_GID=\$(docker run --rm \$IMAGE_URL id -g wpgbot 2>/dev/null || echo "999")
         
-        echo "Setting permissions for wpgbot user (UID: $WPGBOT_UID, GID: $WPGBOT_GID)"
-        sudo chown -R $WPGBOT_UID:$WPGBOT_GID "$DATA_DIR" "$LOGS_DIR"
-        chmod -R 755 "$DATA_DIR" "$LOGS_DIR"
+        echo "Setting permissions for wpgbot user (UID: \$WPGBOT_UID, GID: \$WPGBOT_GID)"
+        sudo chown -R \$WPGBOT_UID:\$WPGBOT_GID "\$DATA_DIR" "\$LOGS_DIR"
+        chmod -R 755 "\$DATA_DIR" "\$LOGS_DIR"
         
         # Run new container
-        docker run -d \
-          --name $CONTAINER_NAME \
-          --restart unless-stopped \
-          -e TG_TOKEN="${{ secrets.TG_TOKEN || '' }}" \
-          -e TG_ADMIN_ID="${{ secrets.TG_ADMIN_ID || '' }}" \
-          -e AI_OPENROUTER_API_KEY="${{ secrets.AI_OPENROUTER_API_KEY || '' }}" \
-          -e AI_DEFAULT_MODEL="${{ secrets.AI_DEFAULT_MODEL || 'deepseek/deepseek-chat-v3-0324' }}" \
-          -e DB_URL="sqlite:///./data/wpg_engine.db" \
-          -e LOG_LEVEL="INFO" \
-          -v "$DATA_DIR:/app/data" \
-          -v "$LOGS_DIR:/app/logs" \
-          $IMAGE_URL
+        docker run -d \\
+          --name \$CONTAINER_NAME \\
+          --restart unless-stopped \\
+          -e TG_TOKEN="${{ secrets.TG_TOKEN || '' }}" \\
+          -e TG_ADMIN_ID="${{ secrets.TG_ADMIN_ID || '' }}" \\
+          -e AI_OPENROUTER_API_KEY="${{ secrets.AI_OPENROUTER_API_KEY || '' }}" \\
+          -e AI_DEFAULT_MODEL="${{ secrets.AI_DEFAULT_MODEL || 'deepseek/deepseek-chat-v3-0324' }}" \\
+          -e DB_URL="sqlite:///./data/wpg_engine.db" \\
+          -e LOG_LEVEL="INFO" \\
+          -v "\$DATA_DIR:/app/data" \\
+          -v "\$LOGS_DIR:/app/logs" \\
+          \$IMAGE_URL
         
         # Clean up old images
         docker image prune -f
