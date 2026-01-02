@@ -3,8 +3,8 @@ version: '3.8'
 services:
   wpg-bot-dev:
     build:
-      context: .
-      dockerfile: Dockerfile
+      context: ..
+      dockerfile: deploy/Dockerfile
       target: builder
     container_name: wpg-engine-bot-dev
     restart: "no"
@@ -22,9 +22,9 @@ services:
       - LOG_LEVEL=DEBUG
     volumes:
       # Mount source code for development
-      - .:/app
-      - ./data:/app/data
-      - ./logs:/app/logs
+      - ..:/app
+      - ../data:/app/data
+      - ../logs:/app/logs
     networks:
       - wpg-dev-network
     command: ["python", "main.py"]

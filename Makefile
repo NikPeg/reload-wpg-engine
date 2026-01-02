@@ -37,16 +37,16 @@ help:
 # Development commands
 build:
 	@echo "🔨 Building Docker image..."
-	docker build -t wpg-engine .
+	docker build -t wpg-engine -f deploy/Dockerfile .
 
 run: build
 	@echo "🚀 Starting with Docker Compose..."
-	docker-compose up -d
+	docker-compose -f deploy/docker-compose.yml up -d
 	@echo "✅ Started! Use 'make logs' to view logs"
 
 run-dev:
 	@echo "🚀 Starting in development mode..."
-	docker-compose -f docker-compose.dev.yml up -d
+	docker-compose -f deploy/docker-compose.dev.yml up -d
 	@echo "✅ Started in dev mode! Use 'make logs' to view logs"
 
 test:
@@ -83,8 +83,8 @@ format:
 
 clean:
 	@echo "🧹 Cleaning up..."
-	docker-compose down --remove-orphans
-	docker-compose -f docker-compose.dev.yml down --remove-orphans
+	docker-compose -f deploy/docker-compose.yml down --remove-orphans
+	docker-compose -f deploy/docker-compose.dev.yml down --remove-orphans
 	@./scripts/local-test.sh clean
 
 # Deployment commands
@@ -143,12 +143,12 @@ env:
 up: run
 down:
 	@echo "🛑 Stopping containers..."
-	docker-compose down
+	docker-compose -f deploy/docker-compose.yml down
 
 up-dev: run-dev
 down-dev:
 	@echo "🛑 Stopping dev containers..."
-	docker-compose -f docker-compose.dev.yml down
+	docker-compose -f deploy/docker-compose.dev.yml down
 
 # Quick commands
 quick-test: test-local
@@ -157,11 +157,11 @@ quick-deploy: test deploy-prod
 # Database commands
 migrate:
 	@echo "🗄️  Running migrations..."
-	python run_migrations.py
+	python scripts/run_migrations.py
 
 recreate-db:
 	@echo "🗄️  Recreating database..."
-	python recreate_database.py
+	python scripts/recreate_database.py
 
 # Local development
 local-run:

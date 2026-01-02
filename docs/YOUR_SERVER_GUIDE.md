@@ -169,7 +169,7 @@ yc compute ssh --id YOUR_SERVER_ID --command "docker image prune -f"
 ```bash
 # Пересоздать базу данных
 yc compute ssh --id YOUR_SERVER_ID --command "
-docker exec wpg-engine-bot python recreate_database.py
+docker exec wpg-engine-bot python scripts/recreate_database.py
 "
 ```
 

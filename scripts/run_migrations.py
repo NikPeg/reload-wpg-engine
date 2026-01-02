@@ -9,11 +9,11 @@ import os
 import sys
 from pathlib import Path
 
-from migrations.migration_runner import migration_runner
-
 # Add project root to path
-project_root = Path(__file__).parent
+project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
+
+from migrations.migration_runner import migration_runner
 
 
 def load_migration(file_path):

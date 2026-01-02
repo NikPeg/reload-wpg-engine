@@ -49,15 +49,15 @@ make run    # Переустановит все пакеты
 ```bash
 # Изменили Dockerfile (добавили системные пакеты и т.д.)
 make down
-docker-compose build --no-cache
-docker-compose up -d
+docker-compose -f deploy/docker-compose.yml build --no-cache
+docker-compose -f deploy/docker-compose.yml up -d
 ```
 
 ### При странном поведении
 ```bash
 # Принудительная очистка всего кэша
 make clean
-docker build --no-cache -t wpg-engine .
+docker build --no-cache -f deploy/Dockerfile -t wpg-engine .
 make run
 ```
 
@@ -84,8 +84,8 @@ make run
 |----------|---------|
 | Изменил код | `make run` |
 | Добавил зависимость | `make down && make run` |
-| Изменил Dockerfile | `docker-compose build --no-cache && docker-compose up -d` |
-| Что-то сломалось | `make clean && docker build --no-cache -t wpg-engine . && make run` |
+| Изменил Dockerfile | `docker-compose -f deploy/docker-compose.yml build --no-cache && docker-compose -f deploy/docker-compose.yml up -d` |
+| Что-то сломалось | `make clean && docker build --no-cache -f deploy/Dockerfile -t wpg-engine . && make run` |
 
 ## 🎯 Полезные команды для отладки
 
@@ -116,8 +116,8 @@ docker system prune -a
 ```bash
 # Решение: принудительная пересборка
 make down
-docker-compose build --no-cache
-docker-compose up -d
+docker-compose -f deploy/docker-compose.yml build --no-cache
+docker-compose -f deploy/docker-compose.yml up -d
 ```
 
 ### Проблема: Долгая сборка каждый раз
@@ -129,4 +129,4 @@ docker-compose up -d
 ### Проблема: Ошибки типа "file not found" в контейнере
 ```bash
 # Возможно используется старый кэш, очистите его
-docker build --no-cache -t wpg-engine .
+docker build --no-cache -f deploy/Dockerfile -t wpg-engine .
