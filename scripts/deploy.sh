@@ -119,6 +119,7 @@ docker pull \$IMAGE_URL
 echo "📁 Creating directories..."
 sudo mkdir -p \$DATA_DIR \$LOGS_DIR
 sudo chown -R \$(whoami):\$(whoami) /opt/wpg-engine/$ENVIRONMENT
+sudo chmod -R 755 /opt/wpg-engine/$ENVIRONMENT
 
 echo "🚀 Starting new container..."
 docker run -d \\
