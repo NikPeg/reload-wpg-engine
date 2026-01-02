@@ -131,6 +131,9 @@ jobs:
         # Pull new image
         docker pull \$IMAGE_URL
         
+        # Tag the image locally for reference
+        docker tag \$IMAGE_URL wpg-engine-bot:latest
+        
         # Get the UID/GID of wpgbot user from the container and set proper permissions
         WPGBOT_UID=\$(docker run --rm \$IMAGE_URL id -u wpgbot 2>/dev/null || echo "999")
         WPGBOT_GID=\$(docker run --rm \$IMAGE_URL id -g wpgbot 2>/dev/null || echo "999")

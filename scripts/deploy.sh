@@ -116,6 +116,9 @@ docker rm -f \$CONTAINER_NAME 2>/dev/null || true
 echo "📥 Pulling new image..."
 docker pull \$IMAGE_URL
 
+echo "🏷️  Tagging image..."
+docker tag \$IMAGE_URL wpg-engine-bot:$IMAGE_TAG
+
 echo "📁 Creating directories..."
 mkdir -p \$DATA_DIR \$LOGS_DIR
 chmod -R 755 \$DATA_DIR \$LOGS_DIR
