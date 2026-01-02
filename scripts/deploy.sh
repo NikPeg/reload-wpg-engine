@@ -106,8 +106,8 @@ set -e
 # Variables
 IMAGE_URL="$image_name"
 CONTAINER_NAME="$CONTAINER_NAME"
-DATA_DIR="/opt/wpg-engine/$ENVIRONMENT/data"
-LOGS_DIR="/opt/wpg-engine/$ENVIRONMENT/logs"
+DATA_DIR="\$HOME/wpg-engine/$ENVIRONMENT/data"
+LOGS_DIR="\$HOME/wpg-engine/$ENVIRONMENT/logs"
 
 echo "🔄 Stopping existing container..."
 docker stop \$CONTAINER_NAME 2>/dev/null || true
@@ -117,9 +117,8 @@ echo "📥 Pulling new image..."
 docker pull \$IMAGE_URL
 
 echo "📁 Creating directories..."
-sudo mkdir -p \$DATA_DIR \$LOGS_DIR
-sudo chown -R \$(whoami):\$(whoami) /opt/wpg-engine/$ENVIRONMENT
-sudo chmod -R 755 /opt/wpg-engine/$ENVIRONMENT
+mkdir -p \$DATA_DIR \$LOGS_DIR
+chmod -R 755 \$DATA_DIR \$LOGS_DIR
 
 echo "🚀 Starting new container..."
 docker run -d \\
