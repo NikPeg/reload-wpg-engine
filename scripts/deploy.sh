@@ -111,7 +111,7 @@ LOGS_DIR="\$HOME/wpg-engine/$ENVIRONMENT/logs"
 
 echo "🔄 Stopping existing container..."
 docker stop \$CONTAINER_NAME 2>/dev/null || true
-docker rm \$CONTAINER_NAME 2>/dev/null || true
+docker rm -f \$CONTAINER_NAME 2>/dev/null || true
 
 echo "📥 Pulling new image..."
 docker pull \$IMAGE_URL
