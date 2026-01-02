@@ -321,7 +321,7 @@ asyncio.run(next(get_db()).__anext__())
 "
 
 # Пересоздать базу данных
-docker exec wpg-engine-bot python recreate_database.py
+docker exec wpg-engine-bot python scripts/recreate_database.py
 ```
 
 ### Проблемы с сетью
