@@ -2,17 +2,15 @@
 RAG (Retrieval-Augmented Generation) system for admin assistance
 """
 
-import asyncio
 import logging
 from typing import Any
 
-import httpx
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from wpg_engine.config.settings import settings
 from wpg_engine.core.message_classifier import MessageClassifier
+from wpg_engine.core.openrouter_client import OpenRouterClient
 from wpg_engine.core.rag_analyzers import RAGAnalyzerFactory
 from wpg_engine.models import Country, Message
 
@@ -24,9 +22,7 @@ class RAGSystem:
 
     def __init__(self, db: AsyncSession):
         self.db = db
-        # Используем стандартные настройки
-        self.api_key = settings.ai.openrouter_api_key
-        self.model = settings.ai.default_model
+        self.client = OpenRouterClient()
         self.classifier = MessageClassifier()
 
     async def generate_admin_context(
@@ -48,7 +44,7 @@ class RAGSystem:
         Returns:
             Context string for admin
         """
-        if not self.api_key:
+        if not self.client.api_key:
             return ""
 
         # Get all countries data from the game
@@ -103,8 +99,14 @@ class RAGSystem:
         logger.info("=" * 80)
 
         try:
-            # Get analysis from LLM
-            context = await self._call_openrouter_api(prompt)
+            # Get analysis from LLM using shared client
+            context = await self.client.call_api(
+                prompt=prompt,
+                max_tokens=1000,
+                temperature=0.3,
+                max_retries=2,
+                timeout_seconds=60.0,
+            )
             return context
         except Exception as e:
             logger.error(
@@ -187,100 +189,3 @@ class RAGSystem:
 
         logger.debug("❌ DEBUG: Сообщения админа не найдены")
         return None
-
-    async def _call_openrouter_api(self, prompt: str) -> str:
-        """Call OpenRouter API with retry logic for timeouts"""
-        url = "https://openrouter.ai/api/v1/chat/completions"
-
-        headers = {
-            "Authorization": f"Bearer {self.api_key}",
-            "Content-Type": "application/json",
-        }
-
-        data = {
-            "model": self.model,
-            "messages": [{"role": "user", "content": prompt}],
-            "max_tokens": 1000,  # Увеличено для более полных ответов
-            "temperature": 0.3,  # Низкая температура для более точных ответов
-        }
-
-        # Настройка timeout: 60 секунд на чтение ответа
-        timeout = httpx.Timeout(
-            connect=10.0,  # Время на установку соединения
-            read=60.0,  # Время на чтение ответа
-            write=10.0,  # Время на отправку запроса
-            pool=5.0,  # Время на получение соединения из пула
-        )
-
-        max_attempts = 3  # Первая попытка + 2 повтора
-        last_exception = None
-
-        for attempt in range(1, max_attempts + 1):
-            try:
-                async with httpx.AsyncClient(timeout=timeout) as client:
-                    logger.info(
-                        f"🔄 Отправка запроса к OpenRouter API (model: {self.model}, попытка {attempt}/{max_attempts})"
-                    )
-                    response = await client.post(url, json=data, headers=headers)
-
-                    logger.info(
-                        f"📡 OpenRouter API ответ - статус: {response.status_code}"
-                    )
-
-                    # Логируем детали ошибки, если статус не 2xx
-                    if response.status_code >= 400:
-                        logger.error(f"❌ OpenRouter API ошибка {response.status_code}")
-                        logger.error(f"Response headers: {dict(response.headers)}")
-                        try:
-                            error_body = response.json()
-                            logger.error(f"Response body: {error_body}")
-                        except Exception:
-                            logger.error(f"Response text: {response.text[:500]}")
-
-                    response.raise_for_status()
-
-                    result = response.json()
-                    content = result["choices"][0]["message"]["content"].strip()
-                    logger.info(
-                        f"✅ OpenRouter API успешно вернул ответ (длина: {len(content)} символов)"
-                    )
-                    return content
-
-            except (httpx.TimeoutException, httpx.ReadTimeout) as e:
-                last_exception = e
-                logger.warning(
-                    f"⏱️ Timeout при запросе к OpenRouter API (попытка {attempt}/{max_attempts}): {e}"
-                )
-                if attempt < max_attempts:
-                    logger.info("🔄 Повторная попытка через 2 секунды...")
-                    await asyncio.sleep(2)  # Небольшая задержка перед повтором
-                else:
-                    logger.error(f"❌ Все {max_attempts} попытки завершились timeout")
-            except httpx.HTTPStatusError as e:
-                logger.error(
-                    f"❌ HTTP ошибка от OpenRouter API: {e.response.status_code}"
-                )
-                logger.error(f"URL: {e.request.url}")
-                logger.error(f"Response: {e.response.text[:500]}")
-                raise  # HTTP ошибки не ретраим
-            except httpx.RequestError as e:
-                logger.error(
-                    f"❌ Ошибка сети при запросе к OpenRouter API: {type(e).__name__}: {e}"
-                )
-                raise  # Ошибки сети не ретраим
-            except KeyError as e:
-                logger.error(
-                    f"❌ Неожиданный формат ответа от OpenRouter API: отсутствует ключ {e}"
-                )
-                logger.error(f"Response: {result if 'result' in locals() else 'N/A'}")
-                raise  # Ошибки формата не ретраим
-            except Exception as e:
-                logger.error(
-                    f"❌ Неожиданная ошибка при вызове OpenRouter API: {type(e).__name__}: {e}"
-                )
-                logger.exception("Full traceback:")
-                raise  # Неожиданные ошибки не ретраим
-
-        # Если все попытки завершились timeout, пробрасываем последнее исключение
-        if last_exception:
-            raise last_exception

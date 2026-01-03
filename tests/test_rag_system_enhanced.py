@@ -80,7 +80,7 @@ class TestRAGSystemEnhanced:
             return_value=sample_countries_data
         )
         rag_system._get_previous_admin_message = AsyncMock(return_value=None)
-        rag_system._call_openrouter_api = AsyncMock(return_value="Тестовый ответ")
+        rag_system.client.call_api = AsyncMock(return_value="Тестовый ответ")
 
         # Вызов метода
         result = await rag_system.generate_admin_context(
@@ -92,10 +92,10 @@ class TestRAGSystemEnhanced:
         mock_classifier.classify_message.assert_called_once_with(
             "Какая у нас экономика?", "Тестовая Страна"
         )
-        rag_system._call_openrouter_api.assert_called_once()
+        rag_system.client.call_api.assert_called_once()
 
         # Проверяем, что был вызван правильный промпт (содержит специфичные для вопроса элементы)
-        call_args = rag_system._call_openrouter_api.call_args[0][0]
+        call_args = rag_system.client.call_api.call_args[1]["prompt"]
         assert "задал ВОПРОС" in call_args
         assert "дать точный ответ" in call_args
 
@@ -114,7 +114,7 @@ class TestRAGSystemEnhanced:
             return_value=sample_countries_data
         )
         rag_system._get_previous_admin_message = AsyncMock(return_value=None)
-        rag_system._call_openrouter_api = AsyncMock(return_value="Анализ приказа")
+        rag_system.client.call_api = AsyncMock(return_value="Анализ приказа")
 
         # Вызов метода
         result = await rag_system.generate_admin_context(
@@ -128,7 +128,7 @@ class TestRAGSystemEnhanced:
         )
 
         # Проверяем, что был вызван правильный промпт (содержит специфичные для приказа элементы)
-        call_args = rag_system._call_openrouter_api.call_args[0][0]
+        call_args = rag_system.client.call_api.call_args[1]["prompt"]
         assert "отдал ПРИКАЗ" in call_args
         assert "ВЕРОЯТНОСТЬ УСПЕХА" in call_args
 
@@ -147,7 +147,7 @@ class TestRAGSystemEnhanced:
             return_value=sample_countries_data
         )
         rag_system._get_previous_admin_message = AsyncMock(return_value=None)
-        rag_system._call_openrouter_api = AsyncMock(return_value="Анализ проекта")
+        rag_system.client.call_api = AsyncMock(return_value="Анализ проекта")
 
         # Вызов метода
         result = await rag_system.generate_admin_context(
@@ -158,7 +158,7 @@ class TestRAGSystemEnhanced:
         assert result == "Анализ проекта"
 
         # Проверяем, что был вызван правильный промпт (содержит специфичные для проекта элементы)
-        call_args = rag_system._call_openrouter_api.call_args[0][0]
+        call_args = rag_system.client.call_api.call_args[1]["prompt"]
         assert "предложил ПРОЕКТ" in call_args
         assert "СРОК ИСПОЛНЕНИЯ" in call_args
 
@@ -177,7 +177,7 @@ class TestRAGSystemEnhanced:
             return_value=sample_countries_data
         )
         rag_system._get_previous_admin_message = AsyncMock(return_value=None)
-        rag_system._call_openrouter_api = AsyncMock()
+        rag_system.client.call_api = AsyncMock()
 
         # Вызов метода
         result = await rag_system.generate_admin_context(
@@ -188,7 +188,7 @@ class TestRAGSystemEnhanced:
         assert result == ""  # Пустая строка для типа "иное"
 
         # Проверяем, что RAG API НЕ вызывался
-        rag_system._call_openrouter_api.assert_not_called()
+        rag_system.client.call_api.assert_not_called()
 
     @patch("wpg_engine.core.rag_system.MessageClassifier")
     async def test_generate_admin_context_with_previous_message(
@@ -207,7 +207,7 @@ class TestRAGSystemEnhanced:
         rag_system._get_previous_admin_message = AsyncMock(
             return_value="Предыдущее сообщение админа"
         )
-        rag_system._call_openrouter_api = AsyncMock(return_value="Контекстный ответ")
+        rag_system.client.call_api = AsyncMock(return_value="Контекстный ответ")
 
         # Вызов метода
         result = await rag_system.generate_admin_context(
@@ -218,7 +218,7 @@ class TestRAGSystemEnhanced:
         assert result == "Контекстный ответ"
 
         # Проверяем, что контекст включен в промпт
-        call_args = rag_system._call_openrouter_api.call_args[0][0]
+        call_args = rag_system.client.call_api.call_args[1]["prompt"]
         assert "КОНТЕКСТ:" in call_args
         assert "Предыдущее сообщение админа" in call_args
         assert "(учитывая контекст предыдущих сообщений)" in call_args
@@ -268,7 +268,7 @@ class TestRAGSystemEnhanced:
             return_value=sample_countries_data
         )
         rag_system._get_previous_admin_message = AsyncMock(return_value=None)
-        rag_system._call_openrouter_api = AsyncMock(side_effect=Exception("API Error"))
+        rag_system.client.call_api = AsyncMock(side_effect=Exception("API Error"))
 
         result = await rag_system.generate_admin_context(
             "Тест", "Тестовая Страна", 1, 1

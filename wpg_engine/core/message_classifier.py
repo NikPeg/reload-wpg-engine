@@ -2,12 +2,9 @@
 Классификатор типов сообщений игроков с использованием LLM
 """
 
-import asyncio
 import logging
 
-import httpx
-
-from wpg_engine.config.settings import settings
+from wpg_engine.core.openrouter_client import OpenRouterClient
 
 logger = logging.getLogger(__name__)
 
@@ -16,8 +13,7 @@ class MessageClassifier:
     """Классификатор для определения типа сообщения игрока"""
 
     def __init__(self):
-        self.api_key = settings.ai.openrouter_api_key
-        self.model = settings.ai.default_model
+        self.client = OpenRouterClient()
 
     async def classify_message(
         self, message_content: str, sender_country_name: str
@@ -32,7 +28,7 @@ class MessageClassifier:
         Returns:
             Тип сообщения: "вопрос", "приказ", "проект", "иное"
         """
-        if not self.api_key:
+        if not self.client.api_key:
             return "иное"
 
         prompt = self._create_classification_prompt(
@@ -40,7 +36,14 @@ class MessageClassifier:
         )
 
         try:
-            classification = await self._call_openrouter_api(prompt)
+            # Используем короткий max_tokens и низкую температуру для классификации
+            classification = await self.client.call_api(
+                prompt=prompt,
+                max_tokens=10,
+                temperature=0.1,
+                max_retries=2,
+                timeout_seconds=60.0,
+            )
             # Нормализуем ответ к одному из четырех типов
             return self._normalize_classification(classification)
         except Exception as e:
@@ -97,83 +100,3 @@ class MessageClassifier:
             return "проект"
         else:
             return "иное"
-
-    async def _call_openrouter_api(self, prompt: str, max_retries: int = 2) -> str:
-        """Вызвать OpenRouter API для классификации с повторными попытками при timeout"""
-        url = "https://openrouter.ai/api/v1/chat/completions"
-
-        headers = {
-            "Authorization": f"Bearer {self.api_key}",
-            "Content-Type": "application/json",
-        }
-
-        data = {
-            "model": self.model,
-            "messages": [{"role": "user", "content": prompt}],
-            "max_tokens": 10,  # Короткий ответ - только тип
-            "temperature": 0.1,  # Очень низкая температура для стабильности
-        }
-
-        for attempt in range(max_retries + 1):
-            try:
-                async with httpx.AsyncClient(timeout=60.0) as client:
-                    logger.debug(
-                        f"🔄 Отправка запроса классификации к OpenRouter API (model: {self.model}, попытка {attempt + 1}/{max_retries + 1})"
-                    )
-                    response = await client.post(url, json=data, headers=headers)
-
-                    logger.debug(
-                        f"📡 OpenRouter API ответ классификации - статус: {response.status_code}"
-                    )
-
-                    # Логируем детали ошибки, если статус не 2xx
-                    if response.status_code >= 400:
-                        logger.error(
-                            f"❌ OpenRouter API ошибка классификации {response.status_code}"
-                        )
-                        logger.error(f"Response headers: {dict(response.headers)}")
-                        try:
-                            error_body = response.json()
-                            logger.error(f"Response body: {error_body}")
-                        except Exception:
-                            logger.error(f"Response text: {response.text[:500]}")
-
-                    response.raise_for_status()
-
-                    result = response.json()
-                    content = result["choices"][0]["message"]["content"].strip()
-                    logger.debug(f"✅ Классификация получена: {content}")
-                    return content
-
-            except httpx.TimeoutException as e:
-                if attempt < max_retries:
-                    logger.warning(
-                        f"⏱️ Timeout при классификации сообщения (попытка {attempt + 1}/{max_retries + 1}), повторяю через 2 секунды..."
-                    )
-                    await asyncio.sleep(2)
-                    continue
-                else:
-                    logger.error(
-                        f"⏱️ Timeout при классификации сообщения после {max_retries + 1} попыток: {e}"
-                    )
-                    raise
-            except httpx.HTTPStatusError as e:
-                logger.error(f"❌ HTTP ошибка при классификации: {e.response.status_code}")
-                logger.error(f"URL: {e.request.url}")
-                logger.error(f"Response: {e.response.text[:500]}")
-                raise
-            except httpx.RequestError as e:
-                logger.error(f"❌ Ошибка сети при классификации: {type(e).__name__}: {e}")
-                raise
-            except KeyError as e:
-                logger.error(
-                    f"❌ Неожиданный формат ответа классификации: отсутствует ключ {e}"
-                )
-                logger.error(f"Response: {result if 'result' in locals() else 'N/A'}")
-                raise
-            except Exception as e:
-                logger.error(
-                    f"❌ Неожиданная ошибка при классификации: {type(e).__name__}: {e}"
-                )
-                logger.exception("Full traceback:")
-                raise

@@ -37,36 +37,36 @@ class TestMessageClassifier:
     async def test_classify_message_no_api_key(self, classifier):
         """Тест классификации без API ключа"""
         # Временно устанавливаем api_key в None
-        original_api_key = classifier.api_key
-        classifier.api_key = None
+        original_api_key = classifier.client.api_key
+        classifier.client.api_key = None
 
         result = await classifier.classify_message("Какой сейчас год?", "Россия")
         assert result == "иное"
 
         # Восстанавливаем оригинальное значение
-        classifier.api_key = original_api_key
+        classifier.client.api_key = original_api_key
 
     async def test_classify_message_success(self, classifier):
-        """Тест успешной классификации через мокинг метода _call_openrouter_api"""
+        """Тест успешной классификации через мокинг метода call_api"""
         # Устанавливаем тестовые значения
-        classifier.api_key = "test_key"
-        classifier.model = "test_model"
+        classifier.client.api_key = "test_key"
+        classifier.client.model = "test_model"
 
-        # Мокаем метод _call_openrouter_api напрямую
-        async def mock_api_call(prompt):
+        # Мокаем метод call_api напрямую
+        async def mock_api_call(*args, **kwargs):
             return "вопрос"
 
-        classifier._call_openrouter_api = mock_api_call
+        classifier.client.call_api = mock_api_call
 
         result = await classifier.classify_message("Какой сейчас год?", "Россия")
         assert result == "вопрос"
 
-    @patch("wpg_engine.core.message_classifier.httpx.AsyncClient")
+    @patch("wpg_engine.core.openrouter_client.httpx.AsyncClient")
     async def test_classify_message_api_error(self, mock_client, classifier):
         """Тест обработки ошибки API"""
         # Устанавливаем тестовые значения
-        classifier.api_key = "test_key"
-        classifier.model = "test_model"
+        classifier.client.api_key = "test_key"
+        classifier.client.model = "test_model"
 
         # Мокаем ошибку API
         mock_client_instance = AsyncMock()

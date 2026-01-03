@@ -725,9 +725,9 @@ async def process_event_message(message: Message, state: FSMContext) -> None:
         )
         return
 
-    if len(message_content) > 2000:
+    if len(message_content) > 4096:
         await message.answer(
-            "❌ Сообщение слишком длинное (максимум 2000 символов). Попробуйте еще раз или напишите <code>cancel</code> для отмены:",
+            "❌ Сообщение слишком длинное (максимум 4096 символов). Попробуйте еще раз или напишите <code>cancel</code> для отмены:",
             parse_mode="HTML",
         )
         return
@@ -933,7 +933,13 @@ async def generate_game_event(
 
     try:
         logger.info(f"🎲 Начало генерации события (тон: {selected_tone})")
-        event_text = await rag_system._call_openrouter_api(prompt)
+        event_text = await rag_system.client.call_api(
+            prompt=prompt,
+            max_tokens=1000,
+            temperature=0.3,
+            max_retries=2,
+            timeout_seconds=60.0,
+        )
         logger.info(
             f"✅ Событие успешно сгенерировано (длина: {len(event_text)} символов)"
         )
@@ -1559,9 +1565,9 @@ async def process_final_message(message: Message, state: FSMContext) -> None:
             and final_message_text.lower() != "skip"
             and len(final_message_text) >= 3
         ):
-            if len(final_message_text) > 2000:
+            if len(final_message_text) > 4096:
                 await message.answer(
-                    "❌ Сообщение слишком длинное (максимум 2000 символов). Попробуйте еще раз или напишите <code>skip</code> для пропуска:",
+                    "❌ Сообщение слишком длинное (максимум 4096 символов). Попробуйте еще раз или напишите <code>skip</code> для пропуска:",
                     parse_mode="HTML",
                 )
                 return
@@ -1895,6 +1901,26 @@ async def add_example_command(message: Message, state: FSMContext) -> None:
         )
 
 
+async def random_command(message: Message) -> None:
+    """Handle /random command - return random percentage from 0 to 100"""
+    user_id = message.from_user.id
+
+    async with get_db() as db:
+        game_engine = GameEngine(db)
+
+        # Check if user is admin
+        if not await is_admin(user_id, game_engine.db, message.chat.id):
+            await message.answer("❌ У вас нет прав администратора.")
+            return
+
+        # Generate random percentage from 0 to 100 (inclusive)
+        import random
+
+        percentage = random.randint(0, 100)
+
+        await message.answer(f"🎲 {percentage}%")
+
+
 async def process_example_message(message: Message, state: FSMContext) -> None:
     """Process example message from admin - NO LONGER USED"""
     # This function is no longer needed but kept for backward compatibility
@@ -1916,6 +1942,7 @@ def register_admin_handlers(dp: Dispatcher) -> None:
     dp.message.register(delete_country_command, Command("delete_country"))
     dp.message.register(delete_user_command, Command("delete_user"))
     dp.message.register(add_example_command, Command("add_example"))
+    dp.message.register(random_command, Command("random"))
     dp.message.register(
         process_restart_confirmation, AdminStates.waiting_for_restart_confirmation
     )
