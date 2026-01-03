@@ -2,6 +2,7 @@
 Классификатор типов сообщений игроков с использованием LLM
 """
 
+import asyncio
 import logging
 
 import httpx
@@ -97,8 +98,8 @@ class MessageClassifier:
         else:
             return "иное"
 
-    async def _call_openrouter_api(self, prompt: str) -> str:
-        """Вызвать OpenRouter API для классификации"""
+    async def _call_openrouter_api(self, prompt: str, max_retries: int = 2) -> str:
+        """Вызвать OpenRouter API для классификации с повторными попытками при timeout"""
         url = "https://openrouter.ai/api/v1/chat/completions"
 
         headers = {
@@ -113,56 +114,66 @@ class MessageClassifier:
             "temperature": 0.1,  # Очень низкая температура для стабильности
         }
 
-        try:
-            async with httpx.AsyncClient(timeout=15.0) as client:
-                logger.debug(
-                    f"🔄 Отправка запроса классификации к OpenRouter API (model: {self.model})"
-                )
-                response = await client.post(url, json=data, headers=headers)
-
-                logger.debug(
-                    f"📡 OpenRouter API ответ классификации - статус: {response.status_code}"
-                )
-
-                # Логируем детали ошибки, если статус не 2xx
-                if response.status_code >= 400:
-                    logger.error(
-                        f"❌ OpenRouter API ошибка классификации {response.status_code}"
+        for attempt in range(max_retries + 1):
+            try:
+                async with httpx.AsyncClient(timeout=60.0) as client:
+                    logger.debug(
+                        f"🔄 Отправка запроса классификации к OpenRouter API (model: {self.model}, попытка {attempt + 1}/{max_retries + 1})"
                     )
-                    logger.error(f"Response headers: {dict(response.headers)}")
-                    try:
-                        error_body = response.json()
-                        logger.error(f"Response body: {error_body}")
-                    except Exception:
-                        logger.error(f"Response text: {response.text[:500]}")
+                    response = await client.post(url, json=data, headers=headers)
 
-                response.raise_for_status()
+                    logger.debug(
+                        f"📡 OpenRouter API ответ классификации - статус: {response.status_code}"
+                    )
 
-                result = response.json()
-                content = result["choices"][0]["message"]["content"].strip()
-                logger.debug(f"✅ Классификация получена: {content}")
-                return content
+                    # Логируем детали ошибки, если статус не 2xx
+                    if response.status_code >= 400:
+                        logger.error(
+                            f"❌ OpenRouter API ошибка классификации {response.status_code}"
+                        )
+                        logger.error(f"Response headers: {dict(response.headers)}")
+                        try:
+                            error_body = response.json()
+                            logger.error(f"Response body: {error_body}")
+                        except Exception:
+                            logger.error(f"Response text: {response.text[:500]}")
 
-        except httpx.TimeoutException as e:
-            logger.error(f"⏱️ Timeout при классификации сообщения: {e}")
-            raise
-        except httpx.HTTPStatusError as e:
-            logger.error(f"❌ HTTP ошибка при классификации: {e.response.status_code}")
-            logger.error(f"URL: {e.request.url}")
-            logger.error(f"Response: {e.response.text[:500]}")
-            raise
-        except httpx.RequestError as e:
-            logger.error(f"❌ Ошибка сети при классификации: {type(e).__name__}: {e}")
-            raise
-        except KeyError as e:
-            logger.error(
-                f"❌ Неожиданный формат ответа классификации: отсутствует ключ {e}"
-            )
-            logger.error(f"Response: {result if 'result' in locals() else 'N/A'}")
-            raise
-        except Exception as e:
-            logger.error(
-                f"❌ Неожиданная ошибка при классификации: {type(e).__name__}: {e}"
-            )
-            logger.exception("Full traceback:")
-            raise
+                    response.raise_for_status()
+
+                    result = response.json()
+                    content = result["choices"][0]["message"]["content"].strip()
+                    logger.debug(f"✅ Классификация получена: {content}")
+                    return content
+
+            except httpx.TimeoutException as e:
+                if attempt < max_retries:
+                    logger.warning(
+                        f"⏱️ Timeout при классификации сообщения (попытка {attempt + 1}/{max_retries + 1}), повторяю через 2 секунды..."
+                    )
+                    await asyncio.sleep(2)
+                    continue
+                else:
+                    logger.error(
+                        f"⏱️ Timeout при классификации сообщения после {max_retries + 1} попыток: {e}"
+                    )
+                    raise
+            except httpx.HTTPStatusError as e:
+                logger.error(f"❌ HTTP ошибка при классификации: {e.response.status_code}")
+                logger.error(f"URL: {e.request.url}")
+                logger.error(f"Response: {e.response.text[:500]}")
+                raise
+            except httpx.RequestError as e:
+                logger.error(f"❌ Ошибка сети при классификации: {type(e).__name__}: {e}")
+                raise
+            except KeyError as e:
+                logger.error(
+                    f"❌ Неожиданный формат ответа классификации: отсутствует ключ {e}"
+                )
+                logger.error(f"Response: {result if 'result' in locals() else 'N/A'}")
+                raise
+            except Exception as e:
+                logger.error(
+                    f"❌ Неожиданная ошибка при классификации: {type(e).__name__}: {e}"
+                )
+                logger.exception("Full traceback:")
+                raise
