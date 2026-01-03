@@ -23,7 +23,7 @@ class AddMaxPopulationMigration(Migration):
             text("PRAGMA table_info(games)")
         )
         columns = [row[1] for row in result.fetchall()]
-        
+
         if "max_population" not in columns:
             await session.execute(
                 text(
