@@ -496,6 +496,9 @@ async def complete_registration(message: Message, state: FSMContext) -> None:
 
         if admin and admin.telegram_id:
             try:
+                # Import settings to check if admin_id is a chat
+                from wpg_engine.config.settings import settings
+
                 # Calculate total points spent
                 total_points = (
                     data["economy"]
@@ -540,8 +543,15 @@ async def complete_registration(message: Message, state: FSMContext) -> None:
 
                 # Send to admin
                 bot = message.bot
+
+                # Determine target chat_id based on admin_id configuration
+                target_chat_id = admin.telegram_id
+                if settings.telegram.is_admin_chat():
+                    # If admin_id is a chat (negative), send to that chat
+                    target_chat_id = settings.telegram.admin_id
+
                 await bot.send_message(
-                    admin.telegram_id, registration_message, parse_mode="HTML"
+                    target_chat_id, registration_message, parse_mode="HTML"
                 )
 
             except Exception as e:

@@ -221,6 +221,9 @@ async def process_message_content(message: Message, state: FSMContext) -> None:
         )
 
         # Send copy to admin if admin exists and is not the sender or recipient
+        # Import settings to check if admin_id is a chat
+        from wpg_engine.config.settings import settings
+
         if (
             admin_player
             and admin_player.telegram_id != sender.telegram_id
@@ -234,8 +237,14 @@ async def process_message_content(message: Message, state: FSMContext) -> None:
                     f"<b>Сообщение:</b>\n{escape_html(message_content)}"
                 )
 
+                # Determine target chat_id based on admin_id configuration
+                target_chat_id = admin_player.telegram_id
+                if settings.telegram.is_admin_chat():
+                    # If admin_id is a chat (negative), send to that chat
+                    target_chat_id = settings.telegram.admin_id
+
                 await bot.send_message(
-                    admin_player.telegram_id,
+                    target_chat_id,
                     admin_message,
                     parse_mode="HTML",
                 )

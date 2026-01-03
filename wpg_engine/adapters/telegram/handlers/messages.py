@@ -205,6 +205,15 @@ async def handle_player_message(
             country_name = player.country.name if player.country else "без страны"
             bot = message.bot
 
+            # Import settings to check if admin_id is a chat
+            from wpg_engine.config.settings import settings
+
+            # Determine target chat_id based on admin_id configuration
+            target_chat_id = admin.telegram_id
+            if settings.telegram.is_admin_chat():
+                # If admin_id is a chat (negative), send to that chat
+                target_chat_id = settings.telegram.admin_id
+
             # Step 1: Send original message to admin first
             admin_message = (
                 f"💬 <b>Новое сообщение от игрока</b>\n\n"
@@ -214,7 +223,7 @@ async def handle_player_message(
             )
 
             sent_message = await bot.send_message(
-                admin.telegram_id, admin_message, parse_mode="HTML"
+                target_chat_id, admin_message, parse_mode="HTML"
             )
 
             # Step 2: Classify message type using LLM
@@ -238,7 +247,7 @@ async def handle_player_message(
                 f"<i>Автоматически определено ИИ</i>"
             )
 
-            await bot.send_message(admin.telegram_id, type_message, parse_mode="HTML")
+            await bot.send_message(target_chat_id, type_message, parse_mode="HTML")
 
             # Step 4: Generate and send RAG context as reply to the original message
             if player.country:
@@ -250,7 +259,7 @@ async def handle_player_message(
                 # Send RAG context as reply to admin's message if available
                 if rag_context:
                     await _send_long_message(
-                        bot, admin.telegram_id, rag_context, sent_message.message_id
+                        bot, target_chat_id, rag_context, sent_message.message_id
                     )
 
             # Step 5: Save message to database with admin's telegram message ID
