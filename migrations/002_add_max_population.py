@@ -18,17 +18,25 @@ class AddMaxPopulationMigration(Migration):
 
     async def up(self, session: AsyncSession) -> None:
         """Add max_population column to games table"""
-        await session.execute(
-            text(
-                """
-            ALTER TABLE games
-            ADD COLUMN max_population INTEGER DEFAULT 10000000 NOT NULL
-        """
-            )
+        # Check if column already exists
+        result = await session.execute(
+            text("PRAGMA table_info(games)")
         )
-        await session.commit()
-
-        print("Added max_population column to games table")
+        columns = [row[1] for row in result.fetchall()]
+        
+        if "max_population" not in columns:
+            await session.execute(
+                text(
+                    """
+                ALTER TABLE games
+                ADD COLUMN max_population INTEGER DEFAULT 10000000 NOT NULL
+            """
+                )
+            )
+            await session.commit()
+            print("Added max_population column to games table")
+        else:
+            print("max_population column already exists, skipping")
 
     async def down(self, session: AsyncSession) -> None:
         """Remove max_population column from games table"""
