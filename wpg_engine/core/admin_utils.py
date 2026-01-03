@@ -10,27 +10,22 @@ from wpg_engine.config.settings import settings
 from wpg_engine.models import Player, PlayerRole
 
 
-def is_admin_from_env(telegram_id: int, chat_id: int | None = None) -> bool:
+def is_admin_chat(chat_id: int | None = None) -> bool:
     """
-    Check if user/chat is admin based on environment variables.
+    Check if chat is admin chat based on environment variables.
 
     Args:
-        telegram_id: User's Telegram ID
         chat_id: Chat ID (if message is from a chat/group)
 
     Returns:
-        True if user or chat is admin
+        True if chat is admin chat
     """
-    if not settings.telegram.admin_id:
+    if not settings.telegram.admin_id or chat_id is None:
         return False
 
     # If admin_id is negative (chat), check if message is from that chat
     if settings.telegram.is_admin_chat():
-        return chat_id is not None and chat_id == settings.telegram.admin_id
-
-    # If admin_id is positive (user), check if user matches
-    if settings.telegram.is_admin_user():
-        return telegram_id == settings.telegram.admin_id
+        return chat_id == settings.telegram.admin_id
 
     return False
 
@@ -40,7 +35,7 @@ async def determine_player_role(
 ) -> PlayerRole:
     """
     Determine player role based on:
-    1. Admin IDs from environment variables (user or chat)
+    1. Check if message is from admin chat (TG_ADMIN_ID)
     2. Auto-assign admin to first player in game
 
     Args:
@@ -50,8 +45,8 @@ async def determine_player_role(
         chat_id: Chat ID (if message is from a chat/group)
     """
 
-    # Check if user is admin from .env (supports both user and chat admin)
-    if is_admin_from_env(telegram_id, chat_id):
+    # Check if message is from admin chat
+    if is_admin_chat(chat_id):
         return PlayerRole.ADMIN
 
     # Check if this is the first player in the game
@@ -71,32 +66,17 @@ async def determine_player_role(
     return PlayerRole.PLAYER
 
 
-async def is_admin(
-    telegram_id: int, db: AsyncSession, chat_id: int | None = None
-) -> bool:
+async def is_admin(telegram_id: int, db: AsyncSession) -> bool:
     """
-    Check if user is admin.
-
-    Priority:
-    1. Check environment variables (TG_ADMIN_ID)
-       - If admin_id is negative (chat), ANY user from that chat is admin
-       - If admin_id is positive (user), only that specific user is admin
-    2. Check database - if user has ADMIN role in any game
+    Check if user is admin by checking database role.
 
     Args:
         telegram_id: User's Telegram ID
         db: Database session
-        chat_id: Chat ID (if message is from a chat/group)
 
     Returns:
-        True if user is admin (either from env or from database)
+        True if user has ADMIN role in database
     """
-    # First check environment variables (for admin user or admin chat)
-    # This is the primary check - if TG_ADMIN_ID is set, it takes precedence
-    if is_admin_from_env(telegram_id, chat_id):
-        return True
-
-    # Then check database - if user has ADMIN role
     result = await db.execute(
         select(Player).where(Player.telegram_id == telegram_id).limit(1)
     )
@@ -105,59 +85,17 @@ async def is_admin(
     return player is not None and player.role == PlayerRole.ADMIN
 
 
-async def get_admin_player(
-    telegram_id: int, db: AsyncSession, chat_id: int | None = None
-) -> Player | None:
+async def get_admin_player(telegram_id: int, db: AsyncSession) -> Player | None:
     """
     Get admin player for admin operations.
-
-    For admin chat: returns ANY admin player from the game (since all users in admin chat are admins)
-    For admin user: returns the specific admin player
-    For DB admin: returns the specific admin player
 
     Args:
         telegram_id: User's Telegram ID
         db: Database session
-        chat_id: Chat ID (if message is from a chat/group)
 
     Returns:
         Player object with ADMIN role (with preloaded game and country) or None
     """
-    # Check if user is admin from environment
-    if is_admin_from_env(telegram_id, chat_id):
-        # If admin is from chat (negative ID), get ANY admin player from the game
-        if settings.telegram.is_admin_chat():
-            result = await db.execute(
-                select(Player)
-                .options(selectinload(Player.game), selectinload(Player.country))
-                .where(Player.role == PlayerRole.ADMIN)
-                .limit(1)
-            )
-            return result.scalar_one_or_none()
-
-        # If admin is specific user (positive ID), try to get their player record
-        result = await db.execute(
-            select(Player)
-            .options(selectinload(Player.game), selectinload(Player.country))
-            .where(Player.telegram_id == telegram_id)
-            .where(Player.role == PlayerRole.ADMIN)
-            .limit(1)
-        )
-        admin = result.scalar_one_or_none()
-
-        # If specific admin user is not registered, get ANY admin player
-        if not admin:
-            result = await db.execute(
-                select(Player)
-                .options(selectinload(Player.game), selectinload(Player.country))
-                .where(Player.role == PlayerRole.ADMIN)
-                .limit(1)
-            )
-            return result.scalar_one_or_none()
-
-        return admin
-
-    # Not admin from env, check database
     result = await db.execute(
         select(Player)
         .options(selectinload(Player.game), selectinload(Player.country))

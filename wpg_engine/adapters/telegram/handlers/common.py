@@ -9,7 +9,6 @@ from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
 from wpg_engine.adapters.telegram.utils import escape_html
-from wpg_engine.config.settings import settings
 from wpg_engine.core.engine import GameEngine
 from wpg_engine.models import Player, PlayerRole, get_db
 
@@ -17,36 +16,23 @@ from wpg_engine.models import Player, PlayerRole, get_db
 async def start_command(message: Message) -> None:
     """Handle /start command"""
     user_id = message.from_user.id
-    chat_id = message.chat.id
 
     async for db in get_db():
         game_engine = GameEngine(db)
 
-        # Check if user is admin (from .env - supports both user and chat)
-        from wpg_engine.core.admin_utils import is_admin_from_env
+        # Check if user is admin (from DB)
+        from wpg_engine.core.admin_utils import is_admin
 
-        is_admin_user = is_admin_from_env(user_id, chat_id)
+        is_admin_user = await is_admin(user_id, game_engine.db)
 
         # Check if user is already registered
-        # For admin chat, we need to find ANY admin player, not by specific telegram_id
-        if is_admin_user and settings.telegram.is_admin_chat():
-            # Admin chat mode: find any admin player
-            result = await game_engine.db.execute(
-                select(Player)
-                .options(selectinload(Player.game), selectinload(Player.country))
-                .where(Player.role == PlayerRole.ADMIN)
-                .limit(1)
-            )
-            player = result.scalar_one_or_none()
-        else:
-            # Normal mode: find player by telegram_id
-            result = await game_engine.db.execute(
-                select(Player)
-                .options(selectinload(Player.game), selectinload(Player.country))
-                .where(Player.telegram_id == user_id)
-                .limit(1)
-            )
-            player = result.scalar_one_or_none()
+        result = await game_engine.db.execute(
+            select(Player)
+            .options(selectinload(Player.game), selectinload(Player.country))
+            .where(Player.telegram_id == user_id)
+            .limit(1)
+        )
+        player = result.scalar_one_or_none()
 
         # Check if any games exist
         from wpg_engine.models import Game
@@ -56,7 +42,7 @@ async def start_command(message: Message) -> None:
 
         break
 
-    # Check if user is admin from .env (before checking player in DB)
+    # Check if user is admin from DB (before checking player in DB)
     if is_admin_user:
         # Admin user - show admin panel regardless of registration
         if player and player.role == PlayerRole.ADMIN and player.game:
@@ -77,7 +63,8 @@ async def start_command(message: Message) -> None:
                 f"• /restart_game - перезапустить игру (полная очистка)\n"
                 f"• /event - отправить сообщение всем игрокам\n"
                 f"• /gen - сгенерировать игровое событие (с ИИ)\n"
-                f"• /delete_country - удалить страну (с подтверждением)\n\n"
+                f"• /delete_country - удалить страну (с подтверждением)\n"
+                f"• /delete_user - удалить пользователя (с подтверждением)\n\n"
                 f"<b>Просмотр информации:</b>\n"
                 f"• /world - информация о всех странах\n"
                 f"• /world название_страны - подробная информация о конкретной стране\n\n"
@@ -135,7 +122,8 @@ async def start_command(message: Message) -> None:
                 f"• /restart_game - перезапустить игру (полная очистка)\n"
                 f"• /event - отправить сообщение всем игрокам\n"
                 f"• /gen - сгенерировать игровое событие (с ИИ)\n"
-                f"• /delete_country - удалить страну (с подтверждением)\n\n"
+                f"• /delete_country - удалить страну (с подтверждением)\n"
+                f"• /delete_user - удалить пользователя (с подтверждением)\n\n"
                 f"<b>Просмотр информации:</b>\n"
                 f"• /world - информация о всех странах\n"
                 f"• /world название_страны - подробная информация о конкретной стране\n\n"
@@ -248,6 +236,7 @@ async def help_command(message: Message) -> None:
             "/event - отправить сообщение всем игрокам\n"
             "/gen - сгенерировать игровое событие (с ИИ)\n"
             "/delete_country - удалить страну (с подтверждением)\n"
+            "/delete_user - удалить пользователя (с подтверждением)\n"
             "/help - справка по командам\n\n"
             "<b>Просмотр информации:</b>\n"
             "/world - информация о всех странах\n"

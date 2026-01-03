@@ -149,6 +149,7 @@ class AdminStates(StatesGroup):
     waiting_for_gen_action = State()
     waiting_for_delete_country_confirmation = State()
     waiting_for_final_message = State()
+    waiting_for_delete_user_confirmation = State()
 
 
 # Removed admin_command - functionality merged into /start command
@@ -165,7 +166,7 @@ async def game_stats_command(message: Message) -> None:
         game_engine = GameEngine(db)
 
         # Check if user is admin
-        if not await is_admin(user_id, game_engine.db, chat_id):
+        if not await is_admin(user_id, game_engine.db):
             await message.answer("❌ У вас нет прав администратора.")
             return
 
@@ -202,7 +203,7 @@ async def active_command(message: Message) -> None:
         game_engine = GameEngine(db)
 
         # Check if user is admin
-        if not await is_admin(user_id, game_engine.db, chat_id):
+        if not await is_admin(user_id, game_engine.db):
             await message.answer("❌ У вас нет прав администратора.")
             return
 
@@ -256,14 +257,13 @@ async def active_command(message: Message) -> None:
 async def restart_game_command(message: Message, state: FSMContext) -> None:
     """Handle /restart_game command"""
     user_id = message.from_user.id
-    chat_id = message.chat.id
     args = message.text.split(" ", 1)
 
     async for db in get_db():
         game_engine = GameEngine(db)
 
         # Check if user is admin
-        if not await is_admin(user_id, game_engine.db, chat_id):
+        if not await is_admin(user_id, game_engine.db):
             await message.answer("❌ У вас нет прав администратора.")
             return
 
@@ -437,7 +437,7 @@ async def update_game_command(message: Message) -> None:
         game_engine = GameEngine(db)
 
         # Check if user is admin
-        if not await is_admin(user_id, game_engine.db, chat_id):
+        if not await is_admin(user_id, game_engine.db):
             await message.answer("❌ У вас нет прав администратора.")
             return
 
@@ -573,7 +573,7 @@ async def event_command(message: Message, state: FSMContext) -> None:
         game_engine = GameEngine(db)
 
         # Check if user is admin
-        if not await is_admin(user_id, game_engine.db, chat_id):
+        if not await is_admin(user_id, game_engine.db):
             await message.answer("❌ У вас нет прав администратора.")
             return
 
@@ -912,7 +912,7 @@ async def gen_command(message: Message, state: FSMContext) -> None:
         game_engine = GameEngine(db)
 
         # Check if user is admin
-        if not await is_admin(user_id, game_engine.db, chat_id):
+        if not await is_admin(user_id, game_engine.db):
             await message.answer("❌ У вас нет прав администратора.")
             return
 
@@ -1060,7 +1060,7 @@ async def process_gen_callback(
         game_engine = GameEngine(db)
 
         # Check if user is admin
-        if not await is_admin(user_id, game_engine.db, chat_id):
+        if not await is_admin(user_id, game_engine.db):
             await callback_query.answer("❌ У вас нет прав администратора.")
             return
 
@@ -1267,7 +1267,7 @@ async def delete_country_command(message: Message, state: FSMContext) -> None:
         game_engine = GameEngine(db)
 
         # Check if user is admin
-        if not await is_admin(user_id, game_engine.db, chat_id):
+        if not await is_admin(user_id, game_engine.db):
             await message.answer("❌ У вас нет прав администратора.")
             return
 
@@ -1405,7 +1405,7 @@ async def process_delete_country_confirmation(
         game_engine = GameEngine(db)
 
         # Check if user is still admin
-        if not await is_admin(user_id, game_engine.db, chat_id):
+        if not await is_admin(user_id, game_engine.db):
             await message.answer("❌ У вас нет прав администратора.")
             await state.clear()
             return
@@ -1454,7 +1454,7 @@ async def process_final_message(message: Message, state: FSMContext) -> None:
         game_engine = GameEngine(db)
 
         # Check if user is still admin
-        if not await is_admin(user_id, game_engine.db, chat_id):
+        if not await is_admin(user_id, game_engine.db):
             await message.answer("❌ У вас нет прав администратора.")
             await state.clear()
             return
@@ -1538,6 +1538,201 @@ async def process_final_message(message: Message, state: FSMContext) -> None:
     await state.clear()
 
 
+async def delete_user_command(message: Message, state: FSMContext) -> None:
+    """Handle /delete_user command - delete player and all related data"""
+    user_id = message.from_user.id
+
+    async for db in get_db():
+        game_engine = GameEngine(db)
+
+        # Check if user is admin
+        if not await is_admin(user_id, game_engine.db):
+            await message.answer("❌ У вас нет прав администратора.")
+            return
+
+        # Parse username from command
+        command_text = message.text.strip()
+        parts = command_text.split(maxsplit=1)
+
+        if len(parts) < 2:
+            await message.answer(
+                "❌ <b>Неверный формат команды!</b>\n\n"
+                "<b>Использование:</b>\n"
+                "/delete_user @username\n"
+                "/delete_user username\n\n"
+                "<b>Примеры:</b>\n"
+                "/delete_user @john_doe\n"
+                "/delete_user john_doe",
+                parse_mode="HTML",
+            )
+            return
+
+        # Extract username (remove @ if present)
+        username = parts[1].strip().lstrip("@")
+
+        if not username:
+            await message.answer("❌ Необходимо указать имя пользователя.")
+            return
+
+        # Find player by username
+        result = await game_engine.db.execute(
+            select(Player)
+            .options(selectinload(Player.country), selectinload(Player.game))
+            .where(Player.username == username)
+            .limit(1)
+        )
+        target_player = result.scalar_one_or_none()
+
+        if not target_player:
+            await message.answer(
+                f"❌ Пользователь с именем <code>@{escape_html(username)}</code> не найден в базе данных.",
+                parse_mode="HTML",
+            )
+            return
+
+        # Check if trying to delete admin
+        if target_player.role == PlayerRole.ADMIN:
+            await message.answer(
+                f"❌ Нельзя удалить администратора!\n\n"
+                f"<b>Пользователь:</b> @{escape_html(username)}\n"
+                f"<b>Роль:</b> {escape_html(target_player.role)}",
+                parse_mode="HTML",
+            )
+            return
+
+        # Prepare info message
+        info_parts = [
+            "⚠️ <b>УДАЛЕНИЕ ПОЛЬЗОВАТЕЛЯ</b>\n",
+            f"<b>Пользователь:</b> @{escape_html(username)}",
+        ]
+
+        if target_player.display_name:
+            info_parts.append(f"<b>Имя:</b> {escape_html(target_player.display_name)}")
+
+        if target_player.telegram_id:
+            info_parts.append(f"<b>Telegram ID:</b> {target_player.telegram_id}")
+
+        if target_player.country:
+            info_parts.append(
+                f"<b>Страна:</b> {escape_html(target_player.country.name)}"
+            )
+
+        if target_player.game:
+            info_parts.append(f"<b>Игра:</b> {escape_html(target_player.game.name)}")
+
+        info_parts.append(
+            "\n<b>⚠️ ВНИМАНИЕ!</b> Будут удалены:\n"
+            "• Игрок и его данные\n"
+            "• Все сообщения игрока\n"
+            "• Все посты игрoka\n"
+            "• Все вердикты, если игрок был админом\n"
+            "• Привязка к стране (страна останется без игрока)\n"
+        )
+
+        info_parts.append(
+            "\n<b>Для подтверждения напишите:</b> <code>УДАЛИТЬ</code>\n"
+            "<b>Для отмены напишите:</b> <code>ОТМЕНА</code>"
+        )
+
+        await message.answer("\n".join(info_parts), parse_mode="HTML")
+
+        # Store data for confirmation
+        await state.update_data(
+            target_player_id=target_player.id,
+            target_username=username,
+            admin_id=user_id,
+        )
+        await state.set_state(AdminStates.waiting_for_delete_user_confirmation)
+
+        break
+
+
+async def process_delete_user_confirmation(message: Message, state: FSMContext) -> None:
+    """Process user deletion confirmation"""
+    user_id = message.from_user.id
+    confirmation = message.text.strip().upper()
+
+    async for db in get_db():
+        game_engine = GameEngine(db)
+
+        # Check if user is still admin
+        if not await is_admin(user_id, game_engine.db):
+            await message.answer("❌ У вас нет прав администратора.")
+            await state.clear()
+            return
+
+        if confirmation == "ОТМЕНА":
+            await message.answer("✅ Удаление отменено.")
+            await state.clear()
+            return
+
+        if confirmation != "УДАЛИТЬ":
+            await message.answer(
+                "❌ Неверное подтверждение. Напишите <code>УДАЛИТЬ</code> для подтверждения или <code>ОТМЕНА</code> для отмены.",
+                parse_mode="HTML",
+            )
+            return
+
+        # Get stored data
+        data = await state.get_data()
+        target_player_id = data.get("target_player_id")
+        target_username = data.get("target_username")
+
+        if not target_player_id:
+            await message.answer("❌ Ошибка: данные игрока не найдены.")
+            await state.clear()
+            return
+
+        # Get player with all related data
+        result = await game_engine.db.execute(
+            select(Player)
+            .options(
+                selectinload(Player.country),
+                selectinload(Player.game),
+                selectinload(Player.messages),
+                selectinload(Player.posts),
+                selectinload(Player.verdicts),
+            )
+            .where(Player.id == target_player_id)
+        )
+        target_player = result.scalar_one_or_none()
+
+        if not target_player:
+            await message.answer("❌ Игрок не найден или уже был удален.")
+            await state.clear()
+            return
+
+        # Count related data
+        messages_count = len(target_player.messages)
+        posts_count = len(target_player.posts)
+        verdicts_count = len(target_player.verdicts)
+
+        try:
+            # Delete the player (cascade will delete related data)
+            await game_engine.db.delete(target_player)
+            await game_engine.db.commit()
+
+            await message.answer(
+                f"✅ <b>Пользователь успешно удален!</b>\n\n"
+                f"<b>Пользователь:</b> @{escape_html(target_username)}\n"
+                f"<b>Удалено данных:</b>\n"
+                f"• Сообщений: {messages_count}\n"
+                f"• Постов: {posts_count}\n"
+                f"• Вердиктов: {verdicts_count}",
+                parse_mode="HTML",
+            )
+        except Exception as e:
+            await game_engine.db.rollback()
+            await message.answer(
+                f"❌ Ошибка при удалении пользователя: {escape_html(str(e))}",
+                parse_mode="HTML",
+            )
+
+        break
+
+    await state.clear()
+
+
 def register_admin_handlers(dp: Dispatcher) -> None:
     """Register admin handlers"""
     dp.message.register(game_stats_command, Command("game_stats"))
@@ -1547,6 +1742,7 @@ def register_admin_handlers(dp: Dispatcher) -> None:
     dp.message.register(event_command, Command("event"))
     dp.message.register(gen_command, Command("gen"))
     dp.message.register(delete_country_command, Command("delete_country"))
+    dp.message.register(delete_user_command, Command("delete_user"))
     dp.message.register(
         process_restart_confirmation, AdminStates.waiting_for_restart_confirmation
     )
@@ -1556,4 +1752,8 @@ def register_admin_handlers(dp: Dispatcher) -> None:
         AdminStates.waiting_for_delete_country_confirmation,
     )
     dp.message.register(process_final_message, AdminStates.waiting_for_final_message)
+    dp.message.register(
+        process_delete_user_confirmation,
+        AdminStates.waiting_for_delete_user_confirmation,
+    )
     dp.callback_query.register(process_gen_callback, AdminStates.waiting_for_gen_action)

@@ -66,24 +66,28 @@ async def test_admin_system():
         print(f"Second player role: {role2}")
         assert role2 == PlayerRole.PLAYER, "Second player should be regular player"
 
-        # Test 3: Test admin from environment (if set)
-        print("\n🧪 Test 3: Admin from environment")
-        # Simulate admin ID in environment
+        # Test 3: Test admin from admin chat (if set)
+        print("\n🧪 Test 3: Admin from admin chat")
+        # Simulate admin chat ID in environment
         from wpg_engine.config.settings import settings
 
-        if settings.telegram.admin_id:
-            admin_id = settings.telegram.admin_id
-            role3 = await determine_player_role(admin_id, game.id, session)
-            print(f"Environment admin role: {role3}")
-            assert role3 == PlayerRole.ADMIN, "Environment admin should be admin"
+        if settings.telegram.admin_id and settings.telegram.is_admin_chat():
+            # Admin chat - should return ADMIN role for any user from that chat
+            role3 = await determine_player_role(
+                999999999, game.id, session, chat_id=settings.telegram.admin_id
+            )
+            print(
+                f"User from admin chat role (chat_id={settings.telegram.admin_id}): {role3}"
+            )
+            assert role3 == PlayerRole.ADMIN, "User from admin chat should be admin"
         else:
-            print("No admin IDs in environment - skipping test")
+            print("No admin chat in environment - skipping test")
 
         print("\n✅ All tests passed!")
         print("\n📋 Admin system features:")
         print("1. ✅ First player auto-becomes admin")
-        print("2. ✅ Environment admin IDs supported")
-        print("3. ✅ Role-based access control")
+        print("2. ✅ Admin chat support (users from admin chat are admins)")
+        print("3. ✅ Role-based access control in database")
         print("4. ✅ Admin utilities for checking permissions")
 
         # Clean up

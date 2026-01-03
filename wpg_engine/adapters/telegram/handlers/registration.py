@@ -69,15 +69,14 @@ ASPECT_DESCRIPTIONS = {
 async def register_command(message: Message, state: FSMContext) -> None:
     """Handle /register command"""
     user_id = message.from_user.id
-    chat_id = message.chat.id
 
     async for db in get_db():
         game_engine = GameEngine(db)
 
-        # Check if user is admin from env
-        from wpg_engine.core.admin_utils import is_admin_from_env
+        # Check if user is admin (already registered in DB)
+        from wpg_engine.core.admin_utils import is_admin
 
-        is_admin_user = is_admin_from_env(user_id, chat_id)
+        is_admin_user = await is_admin(user_id, game_engine.db)
 
         # Check if user is already registered
         result = await game_engine.db.execute(
@@ -103,7 +102,7 @@ async def register_command(message: Message, state: FSMContext) -> None:
             return
         break
 
-    # If user is admin from env, inform them they don't need to register
+    # If user is admin from DB, inform them they don't need to register
     if is_admin_user and not existing_player:
         await message.answer(
             "ℹ️ <b>Вы - администратор игры!</b>\n\n"

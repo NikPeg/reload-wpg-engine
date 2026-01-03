@@ -128,7 +128,6 @@ def _split_long_text(text: str, max_length: int) -> list[str]:
 async def handle_text_message(message: Message, state: FSMContext) -> None:
     """Handle all text messages that are not commands"""
     user_id = message.from_user.id
-    chat_id = message.chat.id
     content = message.text.strip()
 
     # Check if user is in any FSM state - if so, skip this handler
@@ -164,8 +163,7 @@ async def handle_text_message(message: Message, state: FSMContext) -> None:
             return
 
         # Check if this is an admin replying to a message or sending a message with ID
-        # Pass chat_id to support admin chat functionality
-        if await is_admin(user_id, game_engine.db, chat_id):
+        if await is_admin(user_id, game_engine.db):
             # Check if this is a reply to a message (for registration decisions)
             if message.reply_to_message:
                 await handle_admin_reply(message, player, game_engine)
