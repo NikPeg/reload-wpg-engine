@@ -4,10 +4,10 @@ Test script for /random command
 """
 
 import asyncio
-from unittest.mock import AsyncMock, patch
+from unittest.mock import patch
 
 import pytest
-from aiogram.types import Message, User
+from aiogram.types import User
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
 
@@ -88,7 +88,9 @@ async def test_random_command_returns_percentage(test_db: AsyncSession):
             assert mock_message._answer_text.endswith("%")
 
             # Extract percentage value
-            percentage_str = mock_message._answer_text.replace("🎲 ", "").replace("%", "")
+            percentage_str = mock_message._answer_text.replace("🎲 ", "").replace(
+                "%", ""
+            )
             percentage = int(percentage_str)
 
             # Verify percentage is in valid range
@@ -159,5 +161,3 @@ async def test_random_command_non_admin_denied(test_db: AsyncSession):
 if __name__ == "__main__":
     asyncio.run(test_random_command_returns_percentage())
     asyncio.run(test_random_command_non_admin_denied())
-
-
