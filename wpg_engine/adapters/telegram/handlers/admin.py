@@ -47,7 +47,7 @@ async def find_target_player_by_country_name(
     for player in all_players:
         if not player.country:
             continue
-            
+
         # Check official name
         if player.country.name.lower() == country_name.lower():
             return player
@@ -80,9 +80,8 @@ async def extract_country_from_reply(
     replied_text = message.reply_to_message.text
 
     # Determine if we're working with Players or Countries
-    is_player_list = (
-        len(all_countries_or_players) > 0
-        and hasattr(all_countries_or_players[0], "country")
+    is_player_list = len(all_countries_or_players) > 0 and hasattr(
+        all_countries_or_players[0], "country"
     )
 
     # Look for the hidden marker [EDIT_COUNTRY:id]

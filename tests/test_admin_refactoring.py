@@ -49,16 +49,16 @@ async def test_find_target_country_by_name():
     # Test not found
     result = await find_target_player_by_country_name(players, "Несуществующая страна")
     assert result is None
-    
+
     # Also test the Country-only version
     countries = [country1, country2]
-    
+
     result = await find_target_country_by_name(countries, "Российская Империя")
     assert result == country1
-    
+
     result = await find_target_country_by_name(countries, "россия")
     assert result == country1
-    
+
     result = await find_target_country_by_name(countries, "Несуществующая страна")
     assert result is None
 
