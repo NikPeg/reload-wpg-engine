@@ -524,15 +524,28 @@ async def complete_registration(message: Message, state: FSMContext) -> None:
             },
         )
 
-        # Create player with PLAYER role (registration is for countries, not admins)
-        await game_engine.create_player(
-            game_id=data["game_id"],
-            telegram_id=data["user_id"],
-            username=message.from_user.username,
-            display_name=message.from_user.full_name,
-            country_id=country.id,
-            role=PlayerRole.PLAYER,
+        # Check if player already exists (re-registration case)
+        result = await game_engine.db.execute(
+            select(Player).where(Player.telegram_id == data["user_id"])
         )
+        existing_player = result.scalar_one_or_none()
+
+        if existing_player:
+            # Update existing player with new country
+            existing_player.country_id = country.id
+            existing_player.username = message.from_user.username
+            existing_player.display_name = message.from_user.full_name
+            await game_engine.db.commit()
+        else:
+            # Create new player with PLAYER role (registration is for countries, not admins)
+            await game_engine.create_player(
+                game_id=data["game_id"],
+                telegram_id=data["user_id"],
+                username=message.from_user.username,
+                display_name=message.from_user.full_name,
+                country_id=country.id,
+                role=PlayerRole.PLAYER,
+            )
 
         # Send registration to admin
         # Import settings to check if admin_id is a chat
