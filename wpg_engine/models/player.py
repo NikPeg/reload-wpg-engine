@@ -25,7 +25,9 @@ class Player(Base):
     __tablename__ = "players"
 
     # External service IDs
-    telegram_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    telegram_id: Mapped[int | None] = mapped_column(
+        BigInteger, nullable=True, unique=True
+    )
     vk_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
 
     # Player info
