@@ -58,7 +58,7 @@ class TestRAGSystemEnhanced:
     @pytest.fixture
     def rag_system(self, mock_db):
         """Создание экземпляра RAG системы для тестов"""
-        with patch("wpg_engine.core.rag_system.settings") as mock_settings:
+        with patch("wpg_engine.core.openrouter_client.settings") as mock_settings:
             mock_settings.ai.openrouter_api_key = "test_api_key"
             mock_settings.ai.default_model = "test_model"
             return RAGSystem(mock_db)
@@ -225,7 +225,7 @@ class TestRAGSystemEnhanced:
 
     async def test_generate_admin_context_no_api_key(self, mock_db):
         """Тест поведения без API ключа"""
-        with patch("wpg_engine.core.rag_system.settings") as mock_settings:
+        with patch("wpg_engine.core.openrouter_client.settings") as mock_settings:
             mock_settings.ai.openrouter_api_key = None
             rag_system = RAGSystem(mock_db)
 
