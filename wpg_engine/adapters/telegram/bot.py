@@ -8,6 +8,7 @@ import logging
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
+from aiogram.types import BotCommand
 
 from wpg_engine.adapters.telegram.handlers import register_handlers
 from wpg_engine.config.settings import settings
@@ -39,6 +40,9 @@ class TelegramBot:
         # Initialize database
         await init_db()
 
+        # Set bot commands
+        await self._set_bot_commands()
+
         # Store bot instance in dispatcher for handlers
         self.dp["bot_instance"] = self
 
@@ -46,6 +50,20 @@ class TelegramBot:
             await self.dp.start_polling(self.bot)
         finally:
             await self.stop()
+
+    async def _set_bot_commands(self) -> None:
+        """Set bot commands for users"""
+        commands = [
+            BotCommand(command="start", description="Начать работу с ботом"),
+            BotCommand(command="help", description="Справка по командам"),
+            BotCommand(command="register", description="Зарегистрироваться в игре"),
+            BotCommand(command="stats", description="Информация о вашей стране"),
+            BotCommand(command="world", description="Информация о других странах"),
+            BotCommand(command="send", description="Отправить сообщение стране"),
+        ]
+
+        await self.bot.set_my_commands(commands)
+        logger.info("Bot commands set successfully")
 
     async def stop(self) -> None:
         """Stop the bot"""
