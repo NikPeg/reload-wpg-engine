@@ -287,3 +287,84 @@ jobs:
         sleep 30
         ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no ${{ secrets.YC_INSTANCE_USER }}@${{ secrets.YC_INSTANCE_IP }} \
           "docker ps | grep wpg-engine-bot && docker logs --tail 20 wpg-engine-bot"
+
+  notify:
+    name: Send Telegram Notification
+    needs: [test, lint, build-and-push, deploy]
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Send notification
+        run: |
+          COMMIT_MSG=$(git log -1 --pretty=format:"%s")
+          COMMIT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
+          WORKFLOW_URL="https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          
+          # Определяем статусы каждого job
+          TEST_STATUS="${{ needs.test.result }}"
+          LINT_STATUS="${{ needs.lint.result }}"
+          BUILD_STATUS="${{ needs.build-and-push.result }}"
+          DEPLOY_STATUS="${{ needs.deploy.result }}"
+          
+          # Функция для форматирования статуса
+          format_status() {
+            local status=$1
+            local name=$2
+            case "$status" in
+              "success")
+                echo "✅ <b>${name}:</b> успешно"
+                ;;
+              "failure")
+                echo "❌ <b>${name}:</b> ошибка"
+                ;;
+              "cancelled")
+                echo "⚠️ <b>${name}:</b> отменен"
+                ;;
+              "skipped")
+                echo "⏭️ <b>${name}:</b> пропущен"
+                ;;
+              *)
+                echo "❓ <b>${name}:</b> ${status:-неизвестно}"
+                ;;
+            esac
+          }
+          
+          # Формируем сообщение
+          # Проверяем, все ли jobs успешны (учитываем, что skipped не считается успехом)
+          ALL_SUCCESS=true
+          if [ "$TEST_STATUS" != "success" ]; then
+            ALL_SUCCESS=false
+          fi
+          if [ "$LINT_STATUS" != "success" ]; then
+            ALL_SUCCESS=false
+          fi
+          if [ "$BUILD_STATUS" != "success" ] && [ "$BUILD_STATUS" != "skipped" ]; then
+            ALL_SUCCESS=false
+          fi
+          if [ "$DEPLOY_STATUS" != "success" ] && [ "$DEPLOY_STATUS" != "skipped" ]; then
+            ALL_SUCCESS=false
+          fi
+          
+          if [ "$ALL_SUCCESS" = "true" ]; then
+            EMOJI="✅"
+            TITLE="<b>Деплой успешно завершен!</b>"
+            STATUS_TEXT="Все этапы пройдены успешно"
+          else
+            EMOJI="❌"
+            TITLE="<b>Деплой завершился с ошибкой!</b>"
+            STATUS_TEXT=""
+            
+            STATUS_TEXT="${STATUS_TEXT}$(format_status "${TEST_STATUS:-skipped}" "Тесты")%0A"
+            STATUS_TEXT="${STATUS_TEXT}$(format_status "${LINT_STATUS:-skipped}" "Линтер")%0A"
+            STATUS_TEXT="${STATUS_TEXT}$(format_status "${BUILD_STATUS:-skipped}" "Сборка")%0A"
+            STATUS_TEXT="${STATUS_TEXT}$(format_status "${DEPLOY_STATUS:-skipped}" "Деплой")%0A"
+          fi
+          
+          MESSAGE="${EMOJI} ${TITLE}%0A%0ACommit: <code>${COMMIT_SHA}</code>%0A${COMMIT_MSG}%0A%0A${STATUS_TEXT}%0A<a href='${WORKFLOW_URL}'>Проверить в Actions</a>"
+          
+          curl -X POST "https://api.telegram.org/bot${{ secrets.TG_TOKEN }}/sendMessage" \
+            -d "chat_id=${{ secrets.TG_ADMIN_ID }}" \
+            -d "parse_mode=HTML" \
+            -d "text=${MESSAGE}"
