@@ -17,7 +17,7 @@ from sqlalchemy.orm import selectinload
 from telegramify_markdown import markdownify
 
 from wpg_engine.adapters.telegram.utils import escape_html, escape_markdown
-from wpg_engine.core.admin_utils import is_admin
+from wpg_engine.core.admin_utils import get_admin_player, is_admin
 from wpg_engine.core.engine import GameEngine
 from wpg_engine.core.rag_system import RAGSystem
 from wpg_engine.models import Player, PlayerRole, get_db
@@ -169,14 +169,14 @@ async def game_stats_command(message: Message) -> None:
             await message.answer("❌ У вас нет прав администратора.")
             return
 
-        # Get admin info - take the first admin player
-        result = await game_engine.db.execute(
-            select(Player)
-            .where(Player.telegram_id == user_id)
-            .where(Player.role == PlayerRole.ADMIN)
-            .limit(1)
-        )
-        admin = result.scalar_one_or_none()
+        # Get admin player (works for both admin chat and admin user)
+        admin = await get_admin_player(user_id, game_engine.db, chat_id)
+
+        if not admin:
+            await message.answer(
+                "❌ В игре нет зарегистрированных администраторов. Создайте игру с помощью /restart_game"
+            )
+            return
 
         stats = await game_engine.get_game_statistics(admin.game_id)
 
@@ -206,17 +206,13 @@ async def active_command(message: Message) -> None:
             await message.answer("❌ У вас нет прав администратора.")
             return
 
-        # Get admin info - take the first admin player
-        result = await game_engine.db.execute(
-            select(Player)
-            .where(Player.telegram_id == user_id)
-            .where(Player.role == PlayerRole.ADMIN)
-            .limit(1)
-        )
-        admin = result.scalar_one_or_none()
+        # Get admin player (works for both admin chat and admin user)
+        admin = await get_admin_player(user_id, game_engine.db, chat_id)
 
         if not admin:
-            await message.answer("❌ Вы не зарегистрированы в игре.")
+            await message.answer(
+                "❌ В игре нет зарегистрированных администраторов. Создайте игру с помощью /restart_game"
+            )
             return
 
         # Get message statistics by countries
@@ -268,12 +264,8 @@ async def restart_game_command(message: Message, state: FSMContext) -> None:
 
         # Check if user is admin
         if not await is_admin(user_id, game_engine.db, chat_id):
-            # Check if user is admin from .env (for compatibility)
-            from wpg_engine.core.admin_utils import is_admin_from_env
-
-            if not is_admin_from_env(user_id, chat_id):
-                await message.answer("❌ У вас нет прав администратора.")
-                return
+            await message.answer("❌ У вас нет прав администратора.")
+            return
 
         if len(args) < 2:
             await message.answer(
@@ -449,17 +441,13 @@ async def update_game_command(message: Message) -> None:
             await message.answer("❌ У вас нет прав администратора.")
             return
 
-        # Get admin info - take the first admin player for this user
-        result = await game_engine.db.execute(
-            select(Player)
-            .where(Player.telegram_id == user_id)
-            .where(Player.role == PlayerRole.ADMIN)
-            .limit(1)
-        )
-        admin = result.scalar_one_or_none()
+        # Get admin player (works for both admin chat and admin user)
+        admin = await get_admin_player(user_id, game_engine.db, chat_id)
 
         if not admin:
-            await message.answer("❌ Вы не зарегистрированы в игре.")
+            await message.answer(
+                "❌ В игре нет зарегистрированных администраторов. Создайте игру с помощью /restart_game"
+            )
             return
 
         if len(args) < 2:
@@ -589,18 +577,13 @@ async def event_command(message: Message, state: FSMContext) -> None:
             await message.answer("❌ У вас нет прав администратора.")
             return
 
-        # Get admin info - take the first admin player
-        result = await game_engine.db.execute(
-            select(Player)
-            .options(selectinload(Player.country), selectinload(Player.game))
-            .where(Player.telegram_id == user_id)
-            .where(Player.role == PlayerRole.ADMIN)
-            .limit(1)
-        )
-        admin = result.scalar_one_or_none()
+        # Get admin player (works for both admin chat and admin user)
+        admin = await get_admin_player(user_id, game_engine.db, chat_id)
 
         if not admin:
-            await message.answer("❌ Вы не зарегистрированы в игре.")
+            await message.answer(
+                "❌ В игре нет зарегистрированных администраторов. Создайте игру с помощью /restart_game"
+            )
             return
 
         # Get all countries in the same game
@@ -716,22 +699,16 @@ async def process_event_message(message: Message, state: FSMContext) -> None:
     target_country_name = data.get("target_country_name")
 
     user_id = message.from_user.id
+    chat_id = message.chat.id
 
     async for db in get_db():
         game_engine = GameEngine(db)
 
-        # Get admin player
-        result = await game_engine.db.execute(
-            select(Player)
-            .options(selectinload(Player.country), selectinload(Player.game))
-            .where(Player.telegram_id == user_id)
-            .where(Player.role == PlayerRole.ADMIN)
-            .limit(1)
-        )
-        admin = result.scalar_one_or_none()
+        # Get admin player (works for both admin chat and admin user)
+        admin = await get_admin_player(user_id, game_engine.db, chat_id)
 
         if not admin:
-            await message.answer("❌ Ошибка: вы не являетесь администратором.")
+            await message.answer("❌ Ошибка: администратор не найден в игре.")
             await state.clear()
             return
 
@@ -939,18 +916,13 @@ async def gen_command(message: Message, state: FSMContext) -> None:
             await message.answer("❌ У вас нет прав администратора.")
             return
 
-        # Get admin info - take the first admin player
-        result = await game_engine.db.execute(
-            select(Player)
-            .options(selectinload(Player.country), selectinload(Player.game))
-            .where(Player.telegram_id == user_id)
-            .where(Player.role == PlayerRole.ADMIN)
-            .limit(1)
-        )
-        admin = result.scalar_one_or_none()
+        # Get admin player (works for both admin chat and admin user)
+        admin = await get_admin_player(user_id, game_engine.db, chat_id)
 
         if not admin:
-            await message.answer("❌ Вы не зарегистрированы в игре.")
+            await message.answer(
+                "❌ В игре нет зарегистрированных администраторов. Создайте игру с помощью /restart_game"
+            )
             return
 
         # Get all countries in the same game
@@ -1092,18 +1064,11 @@ async def process_gen_callback(
             await callback_query.answer("❌ У вас нет прав администратора.")
             return
 
-        # Get admin info
-        result = await game_engine.db.execute(
-            select(Player)
-            .options(selectinload(Player.country), selectinload(Player.game))
-            .where(Player.telegram_id == user_id)
-            .where(Player.role == PlayerRole.ADMIN)
-            .limit(1)
-        )
-        admin = result.scalar_one_or_none()
+        # Get admin player (works for both admin chat and admin user)
+        admin = await get_admin_player(user_id, game_engine.db, chat_id)
 
         if not admin:
-            await callback_query.answer("❌ Вы не зарегистрированы в игре.")
+            await callback_query.answer("❌ Администратор не найден в игре.")
             return
 
         if callback_query.data == "gen_cancel":
@@ -1306,18 +1271,13 @@ async def delete_country_command(message: Message, state: FSMContext) -> None:
             await message.answer("❌ У вас нет прав администратора.")
             return
 
-        # Get admin info - take the first admin player
-        result = await game_engine.db.execute(
-            select(Player)
-            .options(selectinload(Player.country), selectinload(Player.game))
-            .where(Player.telegram_id == user_id)
-            .where(Player.role == PlayerRole.ADMIN)
-            .limit(1)
-        )
-        admin = result.scalar_one_or_none()
+        # Get admin player (works for both admin chat and admin user)
+        admin = await get_admin_player(user_id, game_engine.db, chat_id)
 
         if not admin:
-            await message.answer("❌ Вы не зарегистрированы в игре.")
+            await message.answer(
+                "❌ В игре нет зарегистрированных администраторов. Создайте игру с помощью /restart_game"
+            )
             return
 
         # Get all countries in the same game (including admin countries)
@@ -1450,17 +1410,11 @@ async def process_delete_country_confirmation(
             await state.clear()
             return
 
-        # Get admin info
-        result = await game_engine.db.execute(
-            select(Player)
-            .where(Player.telegram_id == user_id)
-            .where(Player.role == PlayerRole.ADMIN)
-            .limit(1)
-        )
-        admin = result.scalar_one_or_none()
+        # Get admin player
+        admin = await get_admin_player(user_id, game_engine.db, chat_id)
 
         if not admin:
-            await message.answer("❌ Вы не зарегистрированы в игре.")
+            await message.answer("❌ Администратор не найден в игре.")
             await state.clear()
             return
 
@@ -1505,7 +1459,7 @@ async def process_final_message(message: Message, state: FSMContext) -> None:
             await state.clear()
             return
 
-        # Get admin info
+        # Get admin info by ID (stored earlier)
         result = await game_engine.db.execute(
             select(Player).where(Player.id == admin_id)
         )
