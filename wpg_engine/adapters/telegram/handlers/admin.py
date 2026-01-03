@@ -208,7 +208,7 @@ async def game_stats_command(message: Message) -> None:
     """Handle /game_stats command"""
     user_id = message.from_user.id
 
-    async for db in get_db():
+    async with get_db() as db:
         game_engine = GameEngine(db)
 
         # Check if user is admin
@@ -244,7 +244,7 @@ async def active_command(message: Message) -> None:
     """Handle /active command - show message statistics by countries for the last week"""
     user_id = message.from_user.id
 
-    async for db in get_db():
+    async with get_db() as db:
         game_engine = GameEngine(db)
 
         # Check if user is admin
@@ -296,7 +296,6 @@ async def active_command(message: Message) -> None:
         stats_text += f"\n**Всего сообщений:** {total_messages}"
 
         await message.answer(stats_text, parse_mode="Markdown")
-        break
 
 
 async def restart_game_command(message: Message, state: FSMContext) -> None:
@@ -304,7 +303,7 @@ async def restart_game_command(message: Message, state: FSMContext) -> None:
     user_id = message.from_user.id
     args = message.text.split(" ", 1)
 
-    async for db in get_db():
+    async with get_db() as db:
         game_engine = GameEngine(db)
 
         # Check if user is admin
@@ -392,7 +391,6 @@ async def restart_game_command(message: Message, state: FSMContext) -> None:
             parse_mode="Markdown",
         )
         await state.set_state(AdminStates.waiting_for_restart_confirmation)
-        break
 
 
 async def process_restart_confirmation(message: Message, state: FSMContext) -> None:
@@ -413,7 +411,7 @@ async def process_restart_confirmation(message: Message, state: FSMContext) -> N
     max_points = data["max_points"]
     max_population = data["max_population"]
 
-    async for db in get_db():
+    async with get_db() as db:
         game_engine = GameEngine(db)
 
         # ПОЛНАЯ ОЧИСТКА БАЗЫ ДАННЫХ
@@ -468,7 +466,6 @@ async def process_restart_confirmation(message: Message, state: FSMContext) -> N
             f"Теперь игроки могут регистрироваться в игре командой /register",
             parse_mode="HTML",
         )
-        break
 
     await state.clear()
 
@@ -478,7 +475,7 @@ async def update_game_command(message: Message) -> None:
     user_id = message.from_user.id
     args = message.text.split(" ", 1)
 
-    async for db in get_db():
+    async with get_db() as db:
         game_engine = GameEngine(db)
 
         # Check if user is admin
@@ -605,7 +602,6 @@ async def update_game_command(message: Message) -> None:
             f"• <b>Макс население:</b> {updated_game.max_population:,}",
             parse_mode="HTML",
         )
-        break
 
 
 async def event_command(message: Message, state: FSMContext) -> None:
@@ -613,7 +609,7 @@ async def event_command(message: Message, state: FSMContext) -> None:
     user_id = message.from_user.id
     args = message.text.split(" ", 1)  # /event [country_name]
 
-    async for db in get_db():
+    async with get_db() as db:
         game_engine = GameEngine(db)
 
         # Check if user is admin
@@ -639,7 +635,6 @@ async def event_command(message: Message, state: FSMContext) -> None:
             .where(Player.role == PlayerRole.PLAYER)
         )
         all_players = result.scalars().all()
-        break
 
     # Get available countries
     available_countries = []
@@ -744,7 +739,7 @@ async def process_event_message(message: Message, state: FSMContext) -> None:
 
     user_id = message.from_user.id
 
-    async for db in get_db():
+    async with get_db() as db:
         game_engine = GameEngine(db)
 
         # Get admin player (works for both admin chat and admin user)
@@ -805,7 +800,6 @@ async def process_event_message(message: Message, state: FSMContext) -> None:
                     f"⚠️ Событие отправлено {sent_count} странам. "
                     f"Не удалось отправить {failed_count} странам."
                 )
-        break
 
     # Clear state
     await state.clear()
@@ -955,7 +949,7 @@ async def gen_command(message: Message, state: FSMContext) -> None:
     user_id = message.from_user.id
     args = message.text.split(" ", 1)  # /gen [country_name]
 
-    async for db in get_db():
+    async with get_db() as db:
         game_engine = GameEngine(db)
 
         # Check if user is admin
@@ -1088,7 +1082,6 @@ async def gen_command(message: Message, state: FSMContext) -> None:
         )
 
         await state.set_state(AdminStates.waiting_for_gen_action)
-        break
 
 
 async def process_gen_callback(
@@ -1103,7 +1096,7 @@ async def process_gen_callback(
 
     user_id = callback_query.from_user.id
 
-    async for db in get_db():
+    async with get_db() as db:
         game_engine = GameEngine(db)
 
         # Check if user is admin
@@ -1307,7 +1300,6 @@ async def process_gen_callback(
 
             await state.clear()
 
-        break
 
 
 async def delete_country_command(message: Message, state: FSMContext) -> None:
@@ -1315,7 +1307,7 @@ async def delete_country_command(message: Message, state: FSMContext) -> None:
     user_id = message.from_user.id
     args = message.text.split(" ", 1)  # /delete_country [country_name]
 
-    async for db in get_db():
+    async with get_db() as db:
         game_engine = GameEngine(db)
 
         # Check if user is admin
@@ -1436,7 +1428,6 @@ async def delete_country_command(message: Message, state: FSMContext) -> None:
         )
 
         await state.set_state(AdminStates.waiting_for_delete_country_confirmation)
-        break
 
 
 async def process_delete_country_confirmation(
@@ -1460,7 +1451,7 @@ async def process_delete_country_confirmation(
 
     user_id = message.from_user.id
 
-    async for db in get_db():
+    async with get_db() as db:
         game_engine = GameEngine(db)
 
         # Check if user is still admin
@@ -1517,7 +1508,6 @@ async def process_delete_country_confirmation(
                 )
 
             await state.clear()
-        break
 
 
 async def process_final_message(message: Message, state: FSMContext) -> None:
@@ -1536,7 +1526,7 @@ async def process_final_message(message: Message, state: FSMContext) -> None:
 
     user_id = message.from_user.id
 
-    async for db in get_db():
+    async with get_db() as db:
         game_engine = GameEngine(db)
 
         # Check if user is still admin
@@ -1633,7 +1623,6 @@ async def process_final_message(message: Message, state: FSMContext) -> None:
                 "❌ Не удалось удалить страну. Возможно, она уже была удалена."
             )
 
-        break
 
     await state.clear()
 
@@ -1642,7 +1631,7 @@ async def delete_user_command(message: Message, state: FSMContext) -> None:
     """Handle /delete_user command - delete player and all related data"""
     user_id = message.from_user.id
 
-    async for db in get_db():
+    async with get_db() as db:
         game_engine = GameEngine(db)
 
         # Check if user is admin
@@ -1744,7 +1733,6 @@ async def delete_user_command(message: Message, state: FSMContext) -> None:
         )
         await state.set_state(AdminStates.waiting_for_delete_user_confirmation)
 
-        break
 
 
 async def process_delete_user_confirmation(message: Message, state: FSMContext) -> None:
@@ -1752,7 +1740,7 @@ async def process_delete_user_confirmation(message: Message, state: FSMContext) 
     user_id = message.from_user.id
     confirmation = message.text.strip().upper()
 
-    async for db in get_db():
+    async with get_db() as db:
         game_engine = GameEngine(db)
 
         # Check if user is still admin
@@ -1828,7 +1816,6 @@ async def process_delete_user_confirmation(message: Message, state: FSMContext) 
                 parse_mode="HTML",
             )
 
-        break
 
     await state.clear()
 
@@ -1838,7 +1825,7 @@ async def add_example_command(message: Message, state: FSMContext) -> None:
     user_id = message.from_user.id
     args = message.text.split(maxsplit=1)
 
-    async for db in get_db():
+    async with get_db() as db:
         game_engine = GameEngine(db)
 
         # Check if user is admin
@@ -1910,7 +1897,6 @@ async def add_example_command(message: Message, state: FSMContext) -> None:
             f"Новые игроки смогут увидеть эту страну как пример при регистрации, используя команду /examples",
             parse_mode="HTML",
         )
-        break
 
 
 async def process_example_message(message: Message, state: FSMContext) -> None:

@@ -19,7 +19,7 @@ async def check_and_init_database():
 
     try:
         # Try to get database session to check if it exists and is accessible
-        async for db in get_db():
+        async with get_db() as db:
             # Try to query something simple to check if tables exist
             from sqlalchemy import select
 
@@ -32,7 +32,6 @@ async def check_and_init_database():
             except Exception:
                 # Tables don't exist, need to initialize
                 print("📊 Database exists but tables missing, initializing...")
-                break
     except Exception as e:
         print(f"📊 Database not accessible: {e}")
         print("📊 Initializing database...")
@@ -46,7 +45,7 @@ async def check_and_init_database():
 
 async def create_initial_game_if_needed():
     """Create initial game and admin if no games exist"""
-    async for db in get_db():
+    async with get_db() as db:
         engine = GameEngine(db)
 
         # Check if any games exist
@@ -81,7 +80,6 @@ async def create_initial_game_if_needed():
         print(
             "ℹ️  Game is ready! Admin will be auto-assigned to the first player who registers."
         )
-        break
 
 
 async def run_migrations():

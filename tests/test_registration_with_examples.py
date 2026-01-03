@@ -2,6 +2,7 @@
 Test registration with example selection using FSM
 """
 
+from contextlib import asynccontextmanager
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -168,6 +169,7 @@ async def test_process_example_selection_success(
     state.clear = AsyncMock()
 
     # Mock get_db to use our test session
+    @asynccontextmanager
     async def mock_get_db():
         yield db_session
 
@@ -278,6 +280,8 @@ async def test_process_example_selection_example_not_found(db_session, game):
         }
     )
 
+    @asynccontextmanager
+
     async def mock_get_db():
         yield db_session
 
@@ -363,6 +367,8 @@ async def test_selection_works_from_any_registration_state(
             }
         )
         state.clear = AsyncMock()
+
+        @asynccontextmanager
 
         async def mock_get_db():
             yield db_session

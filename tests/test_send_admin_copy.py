@@ -2,6 +2,7 @@
 Test admin copy functionality for send messages
 """
 
+from contextlib import asynccontextmanager
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -144,6 +145,7 @@ async def test_admin_receives_message_copy(db_session):
     mock_state.clear = AsyncMock()
 
     # Mock get_db to return our test database session
+    @asynccontextmanager
     async def mock_get_db():
         yield db_session
 
@@ -283,6 +285,7 @@ async def test_admin_not_receiving_own_messages(db_session):
     mock_state.clear = AsyncMock()
 
     # Mock get_db to return our test database session
+    @asynccontextmanager
     async def mock_get_db():
         yield db_session
 

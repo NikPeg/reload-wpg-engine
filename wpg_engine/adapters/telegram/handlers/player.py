@@ -28,7 +28,7 @@ async def stats_command(message: Message) -> None:
     """Handle /stats command - show player's country info"""
     user_id = message.from_user.id
 
-    async for db in get_db():
+    async with get_db() as db:
         game_engine = GameEngine(db)
 
         # Get player
@@ -38,7 +38,6 @@ async def stats_command(message: Message) -> None:
             .where(Player.telegram_id == user_id)
         )
         player = result.scalar_one_or_none()
-        break
 
     if not player:
         await message.answer("❌ Вы не зарегистрированы в игре. Используйте /register")
@@ -125,7 +124,7 @@ async def world_command(message: Message) -> None:
     parts = command_text.split(maxsplit=1)
     country_name = parts[1].strip() if len(parts) > 1 else None
 
-    async for db in get_db():
+    async with get_db() as db:
         game_engine = GameEngine(db)
 
         # Get player
@@ -152,7 +151,6 @@ async def world_command(message: Message) -> None:
         if not game:
             await message.answer("❌ Игра не найдена.")
             return
-        break
 
     # Aspect emojis and names
     aspect_emojis = {
@@ -196,7 +194,7 @@ async def world_command(message: Message) -> None:
             return
 
         # Check if country is NPC (example or without active player)
-        async for db in get_db():
+        async with get_db() as db:
             # Check if country is an example
             result = await db.execute(
                 select(Example).where(Example.country_id == country.id)
@@ -208,7 +206,6 @@ async def world_command(message: Message) -> None:
                 select(Player).where(Player.country_id == country.id)
             )
             has_player = result.scalar_one_or_none() is not None
-            break
 
         is_npc = is_example or not has_player
 
@@ -270,7 +267,7 @@ async def world_command(message: Message) -> None:
                 continue  # Skip own country for regular players, but show for admins
 
             # Check if country is NPC (example or without active player)
-            async for db in get_db():
+            async with get_db() as db:
                 # Check if country is an example
                 result = await db.execute(
                     select(Example).where(Example.country_id == country.id)
@@ -282,7 +279,6 @@ async def world_command(message: Message) -> None:
                     select(Player).where(Player.country_id == country.id)
                 )
                 has_player = result.scalar_one_or_none() is not None
-                break
 
             is_npc = is_example or not has_player
 
@@ -361,7 +357,7 @@ async def examples_command(message: Message) -> None:
     """Handle /examples command - show example countries for new players"""
     user_id = message.from_user.id
 
-    async for db in get_db():
+    async with get_db() as db:
         game_engine = GameEngine(db)
 
         # Get player to check if registered and get game_id
@@ -391,7 +387,6 @@ async def examples_command(message: Message) -> None:
             .order_by(Example.created_at.desc())
         )
         examples = result.scalars().all()
-        break
 
     if not examples:
         await message.answer(

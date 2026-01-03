@@ -17,7 +17,7 @@ async def start_command(message: Message) -> None:
     """Handle /start command"""
     user_id = message.from_user.id
 
-    async for db in get_db():
+    async with get_db() as db:
         game_engine = GameEngine(db)
 
         # Optimized: Load player with relations only if needed
@@ -58,8 +58,6 @@ async def start_command(message: Message) -> None:
         # Load game and country relations only if player exists
         if player:
             await game_engine.db.refresh(player, ["game", "country"])
-
-        break
 
     # Check if user is admin from DB (before checking player in DB)
     if is_admin_user:
@@ -221,7 +219,7 @@ async def help_command(message: Message) -> None:
     """Handle /help command"""
     user_id = message.from_user.id
 
-    async for db in get_db():
+    async with get_db() as db:
         game_engine = GameEngine(db)
 
         # Optimized: Only load what we need - no relations
@@ -229,7 +227,6 @@ async def help_command(message: Message) -> None:
             select(Player).where(Player.telegram_id == user_id).limit(1)
         )
         player = result.scalar_one_or_none()
-        break
 
     if not player:
         await message.answer(

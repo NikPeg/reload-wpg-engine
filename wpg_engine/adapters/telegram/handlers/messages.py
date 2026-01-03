@@ -148,12 +148,11 @@ async def handle_text_message(message: Message, state: FSMContext) -> None:
 
         example_match = re.search(r"\[EXAMPLE:(\d+)\]", message.reply_to_message.text)
         if example_match and content.lower() in ["выбрать", "выбираю"]:
-            async for db in get_db():
+            async with get_db() as db:
                 game_engine = GameEngine(db)
                 await handle_example_selection(
                     message, int(example_match.group(1)), game_engine
                 )
-                break
             return
 
     # Skip if message is too short or too long
@@ -165,7 +164,7 @@ async def handle_text_message(message: Message, state: FSMContext) -> None:
         await message.answer("❌ Сообщение слишком длинное (максимум 2000 символов).")
         return
 
-    async for db in get_db():
+    async with get_db() as db:
         game_engine = GameEngine(db)
 
         # Optimized: Load player without relations first
@@ -200,7 +199,6 @@ async def handle_text_message(message: Message, state: FSMContext) -> None:
 
         # Regular player message - send to admin
         await handle_player_message(message, player, game_engine)
-        break
 
 
 async def handle_player_message(

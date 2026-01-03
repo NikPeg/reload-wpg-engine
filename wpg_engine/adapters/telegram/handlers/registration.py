@@ -110,7 +110,7 @@ async def register_command(message: Message, state: FSMContext) -> None:
     """Handle /register command"""
     user_id = message.from_user.id
 
-    async for db in get_db():
+    async with get_db() as db:
         game_engine = GameEngine(db)
 
         # Check if user is admin (already registered in DB)
@@ -140,7 +140,6 @@ async def register_command(message: Message, state: FSMContext) -> None:
                 "❌ В данный момент нет доступных игр. Обратитесь к администратору."
             )
             return
-        break
 
     # If user is admin from DB, inform them they don't need to register
     if is_admin_user and not existing_player:
@@ -246,7 +245,7 @@ async def process_country_name(message: Message, state: FSMContext) -> None:
     data = await state.get_data()
     game_id = data["game_id"]
 
-    async for db in get_db():
+    async with get_db() as db:
         game_engine = GameEngine(db)
 
         # Get all countries in the game
@@ -274,7 +273,6 @@ async def process_country_name(message: Message, state: FSMContext) -> None:
                             f"Выберите другое название."
                         )
                         return
-        break
 
     await state.update_data(country_name=country_name)
     await message.answer(
@@ -504,7 +502,7 @@ async def complete_registration(message: Message, state: FSMContext) -> None:
     # Get all registration data
     data = await state.get_data()
 
-    async for db in get_db():
+    async with get_db() as db:
         game_engine = GameEngine(db)
 
         # Create country
@@ -634,7 +632,6 @@ async def complete_registration(message: Message, state: FSMContext) -> None:
                     f"⚠️ Не удалось отправить регистрацию администратору: {type(e).__name__}: {e}"
                 )
 
-        break
 
     # Show summary - registration request sent to admin
     await message.answer(
@@ -691,7 +688,7 @@ async def process_reregistration_confirmation(
         max_points = data["max_points"]
         max_population = data["max_population"]
 
-        async for db in get_db():
+        async with get_db() as db:
             game_engine = GameEngine(db)
             result = await game_engine.db.execute(
                 select(Game).where(Game.id == game_id)
@@ -703,7 +700,6 @@ async def process_reregistration_confirmation(
                 select(Example).where(Example.game_id == game_id).limit(1)
             )
             has_examples = result.scalar_one_or_none() is not None
-            break
 
         examples_hint = ""
         if has_examples:
@@ -744,7 +740,7 @@ async def process_reregistration_confirmation(
     max_points = data["max_points"]
     existing_player_id = data["existing_player_id"]
 
-    async for db in get_db():
+    async with get_db() as db:
         game_engine = GameEngine(db)
 
         # Get the existing player
@@ -762,7 +758,6 @@ async def process_reregistration_confirmation(
         # Get game info for new registration
         result = await game_engine.db.execute(select(Game).where(Game.id == game_id))
         game = result.scalar_one_or_none()
-        break
 
     # Check if there are examples
     result = await game_engine.db.execute(
@@ -851,7 +846,7 @@ async def process_example_selection(message: Message, state: FSMContext) -> None
         await state.clear()
         return
 
-    async for db in get_db():
+    async with get_db() as db:
         game_engine = GameEngine(db)
 
         # Get the example
@@ -952,7 +947,6 @@ async def process_example_selection(message: Message, state: FSMContext) -> None
                     f"⚠️ Не удалось отправить регистрацию администратору: {type(e).__name__}: {e}"
                 )
 
-        break
 
     # Clear state
     await state.clear()

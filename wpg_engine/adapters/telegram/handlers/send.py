@@ -30,7 +30,7 @@ async def send_command(message: Message, state: FSMContext) -> None:
     user_id = message.from_user.id
     args = message.text.split(" ", 1)  # /send [country_name]
 
-    async for db in get_db():
+    async with get_db() as db:
         game_engine = GameEngine(db)
 
         # Get sender player
@@ -40,7 +40,6 @@ async def send_command(message: Message, state: FSMContext) -> None:
             .where(Player.telegram_id == user_id)
         )
         sender = result.scalar_one_or_none()
-        break
 
     if not sender:
         await message.answer(
@@ -53,7 +52,7 @@ async def send_command(message: Message, state: FSMContext) -> None:
         return
 
     # Get all countries in the same game
-    async for db in get_db():
+    async with get_db() as db:
         game_engine = GameEngine(db)
 
         result = await game_engine.db.execute(
@@ -63,7 +62,6 @@ async def send_command(message: Message, state: FSMContext) -> None:
             .where(Player.country_id.isnot(None))
         )
         all_players = result.scalars().all()
-        break
 
     # Get available countries (excluding own country)
     available_countries = []
@@ -170,7 +168,7 @@ async def process_message_content(message: Message, state: FSMContext) -> None:
 
     user_id = message.from_user.id
 
-    async for db in get_db():
+    async with get_db() as db:
         game_engine = GameEngine(db)
 
         # Get sender player
@@ -197,7 +195,6 @@ async def process_message_content(message: Message, state: FSMContext) -> None:
             .where(Player.role == PlayerRole.ADMIN)
         )
         admin_players = result.scalars().all()
-        break
 
     if not sender or not target_player:
         await message.answer(
@@ -274,7 +271,7 @@ async def process_message_content(message: Message, state: FSMContext) -> None:
         )
 
         # Save message to database for history
-        async for db in get_db():
+        async with get_db() as db:
             game_engine = GameEngine(db)
 
             # Create a record of the inter-country message
@@ -285,7 +282,6 @@ async def process_message_content(message: Message, state: FSMContext) -> None:
                 telegram_message_id=message.message_id,
                 is_admin_reply=False,
             )
-            break
 
     except Exception as e:
         logger.error(

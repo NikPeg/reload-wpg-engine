@@ -5,6 +5,7 @@ Test script for admin chat auto-registration
 
 import asyncio
 import os
+from contextlib import asynccontextmanager
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
@@ -78,6 +79,7 @@ async def test_admin_chat_registration():
             mock_is_admin.return_value = True
 
             # Patch get_db to return our session
+            @asynccontextmanager
             async def mock_get_db():
                 yield session
 
@@ -131,6 +133,7 @@ async def test_admin_chat_registration():
         ) as mock_is_admin:
             mock_is_admin.return_value = True
 
+            @asynccontextmanager
             async def mock_get_db():
                 yield session
 

@@ -19,7 +19,7 @@ async def test_point_system():
     # Initialize database
     await init_db()
 
-    async for db in get_db():
+    async with get_db() as db:
         engine = GameEngine(db)
 
         # Create a test game with 25 max points
@@ -103,7 +103,6 @@ async def test_point_system():
             print(f"  • {aspect}: {value}")
 
         print("✅ All tests passed! Point system is working correctly.")
-        break
 
 
 if __name__ == "__main__":
