@@ -44,7 +44,7 @@ class Player(Base):
     # Relationships
     game: Mapped["Game"] = relationship("Game", back_populates="players")
     country: Mapped[Optional["Country"]] = relationship(
-        "Country", back_populates="players"
+        "Country", back_populates="player"
     )
     posts: Mapped[list["Post"]] = relationship("Post", back_populates="author")
     verdicts: Mapped[list["Verdict"]] = relationship("Verdict", back_populates="admin")

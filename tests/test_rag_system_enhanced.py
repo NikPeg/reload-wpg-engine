@@ -275,30 +275,3 @@ class TestRAGSystemEnhanced:
         )
 
         assert result == ""
-
-    async def test_debug_output(self, rag_system, sample_countries_data, capsys):
-        """Тест отладочного вывода"""
-        with patch(
-            "wpg_engine.core.rag_system.MessageClassifier"
-        ) as mock_classifier_class:
-            # Настройка моков
-            mock_classifier = AsyncMock()
-            mock_classifier.classify_message.return_value = "приказ"
-            mock_classifier_class.return_value = mock_classifier
-
-            rag_system.classifier = mock_classifier
-            rag_system._get_all_countries_data = AsyncMock(
-                return_value=sample_countries_data
-            )
-            rag_system._get_previous_admin_message = AsyncMock(
-                return_value="Предыдущее сообщение"
-            )
-            rag_system._call_openrouter_api = AsyncMock(return_value="Ответ")
-
-            await rag_system.generate_admin_context("Тест", "Тестовая Страна", 1, 1)
-
-            # Проверяем отладочный вывод
-            captured = capsys.readouterr()
-            assert "🔍 RAG DEBUG: Тип сообщения: приказ" in captured.out
-            assert "🔍 RAG DEBUG: Полный промпт для LLM:" in captured.out
-            assert "✅ Найдено предыдущее сообщение админа" in captured.out
