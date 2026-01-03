@@ -2,6 +2,8 @@
 Send message handlers for inter-country communication
 """
 
+import logging
+
 from aiogram import Dispatcher
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
@@ -13,6 +15,8 @@ from sqlalchemy.orm import selectinload
 from wpg_engine.adapters.telegram.utils import escape_html
 from wpg_engine.core.engine import GameEngine
 from wpg_engine.models import Player, PlayerRole, get_db
+
+logger = logging.getLogger(__name__)
 
 
 class SendStates(StatesGroup):
@@ -257,7 +261,9 @@ async def process_message_content(message: Message, state: FSMContext) -> None:
                     parse_mode="HTML",
                 )
             except Exception as e:
-                print(f"Failed to send message copy to admin: {e}")
+                logger.warning(
+                    f"⚠️ Не удалось отправить копию сообщения администратору: {type(e).__name__}: {e}"
+                )
 
         # Confirm to sender
         await message.answer(
@@ -282,7 +288,10 @@ async def process_message_content(message: Message, state: FSMContext) -> None:
             break
 
     except Exception as e:
-        print(f"Failed to send inter-country message: {e}")
+        logger.error(
+            f"❌ Не удалось отправить межстрановое сообщение: {type(e).__name__}: {e}"
+        )
+        logger.exception("Full traceback:")
         await message.answer(
             f"❌ Не удалось доставить сообщение в страну {escape_html(target_country_name)}. "
             f"Возможно, игрок не начинал диалог с ботом."

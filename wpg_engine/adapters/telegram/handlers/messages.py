@@ -2,6 +2,8 @@
 Message handlers for player-admin communication
 """
 
+import logging
+
 from aiogram import Dispatcher
 from aiogram.fsm.context import FSMContext
 from aiogram.types import Message
@@ -15,6 +17,8 @@ from wpg_engine.core.engine import GameEngine
 from wpg_engine.core.message_classifier import MessageClassifier
 from wpg_engine.core.rag_system import RAGSystem
 from wpg_engine.models import Player, PlayerRole, get_db
+
+logger = logging.getLogger(__name__)
 
 
 async def _send_long_message(
@@ -34,7 +38,7 @@ async def _send_long_message(
                 parse_mode="MarkdownV2",
             )
         except Exception as e:
-            print(f"Failed to send formatted RAG context: {e}")
+            logger.warning(f"⚠️ Не удалось отправить форматированный RAG контекст: {e}")
             # Fallback: escape dangerous characters and send as HTML
             safe_text = (
                 text.replace("&", "&amp;")
@@ -63,7 +67,9 @@ async def _send_long_message(
                     parse_mode="MarkdownV2",
                 )
             except Exception as e:
-                print(f"Failed to send formatted RAG context part {i + 1}: {e}")
+                logger.warning(
+                    f"⚠️ Не удалось отправить форматированную часть {i + 1} RAG контекста: {e}"
+                )
                 # Fallback: escape dangerous characters and send as HTML
                 safe_part = (
                     part.replace("&", "&amp;")
@@ -296,7 +302,10 @@ async def handle_player_message(
             )
 
         except Exception as e:
-            print(f"Failed to send message to admin: {e}")
+            logger.error(
+                f"❌ Не удалось отправить сообщение администратору: {type(e).__name__}: {e}"
+            )
+            logger.exception("Full traceback:")
             await message.answer(
                 "⚠️ Не удалось отправить сообщение администратору. Попробуйте позже."
             )
@@ -505,9 +514,10 @@ async def handle_country_event(
         )
 
     except Exception as e:
-        print(
-            f"Failed to send event message to player {target_player.telegram_id}: {e}"
+        logger.error(
+            f"❌ Не удалось отправить событие игроку {target_player.telegram_id}: {type(e).__name__}: {e}"
         )
+        logger.exception("Full traceback:")
         await message.answer(
             f"❌ Не удалось отправить событие в страну {escape_html(country.name)}."
         )
@@ -869,10 +879,13 @@ async def handle_example_selection(
                     parse_mode="HTML",
                 )
             except Exception as e:
-                print(f"Failed to notify admin about example selection: {e}")
+                logger.warning(
+                    f"⚠️ Не удалось уведомить админа о выборе примера: {type(e).__name__}: {e}"
+                )
 
     except Exception as e:
-        print(f"Error handling example selection: {e}")
+        logger.error(f"❌ Ошибка при обработке выбора примера: {type(e).__name__}: {e}")
+        logger.exception("Full traceback:")
         await message.answer(
             "❌ Произошла ошибка при выборе страны. Попробуйте еще раз или обратитесь к администратору."
         )

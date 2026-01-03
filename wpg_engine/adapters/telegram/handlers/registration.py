@@ -2,6 +2,8 @@
 Registration handlers
 """
 
+import logging
+
 from aiogram import Dispatcher, F
 from aiogram.filters import Command, Filter
 from aiogram.fsm.context import FSMContext
@@ -21,6 +23,8 @@ from wpg_engine.models import (
     PlayerRole,
     get_db,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class IsExampleSelection(Filter):
@@ -626,7 +630,9 @@ async def complete_registration(message: Message, state: FSMContext) -> None:
                 )
 
             except Exception as e:
-                print(f"Failed to send registration to admin: {e}")
+                logger.warning(
+                    f"⚠️ Не удалось отправить регистрацию администратору: {type(e).__name__}: {e}"
+                )
 
         break
 
@@ -942,7 +948,9 @@ async def process_example_selection(message: Message, state: FSMContext) -> None
                     target_chat_id, registration_message, parse_mode="HTML"
                 )
             except Exception as e:
-                print(f"Failed to send registration to admin: {e}")
+                logger.warning(
+                    f"⚠️ Не удалось отправить регистрацию администратору: {type(e).__name__}: {e}"
+                )
 
         break
 

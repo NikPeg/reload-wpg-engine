@@ -2,6 +2,8 @@
 Admin handlers
 """
 
+import logging
+
 from aiogram import Dispatcher
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
@@ -21,6 +23,8 @@ from wpg_engine.core.admin_utils import get_admin_player, is_admin
 from wpg_engine.core.engine import GameEngine
 from wpg_engine.core.rag_system import RAGSystem
 from wpg_engine.models import Country, Example, Player, PlayerRole, get_db
+
+logger = logging.getLogger(__name__)
 
 
 async def find_target_country_by_name(
@@ -150,8 +154,8 @@ async def send_message_to_players(
                         parse_mode="MarkdownV2",
                     )
                 except Exception as format_error:
-                    print(
-                        f"Failed to send formatted message to player {player.telegram_id}: {format_error}"
+                    logger.warning(
+                        f"⚠️ Не удалось отправить форматированное сообщение игроку {player.telegram_id}: {format_error}"
                     )
                     # Fallback to HTML
                     await bot.send_message(
@@ -175,7 +179,9 @@ async def send_message_to_players(
                 is_admin_reply=True,
             )
         except Exception as e:
-            print(f"Failed to send message to player {player.telegram_id}: {e}")
+            logger.error(
+                f"❌ Не удалось отправить сообщение игроку {player.telegram_id}: {type(e).__name__}: {e}"
+            )
             failed_count += 1
 
     return sent_count, failed_count
@@ -932,10 +938,15 @@ async def generate_game_event(
 Отвечай на русском языке. НЕ добавляй "Варианты действий:" или подобные фразы в конце."""
 
     try:
+        logger.info(f"🎲 Начало генерации события (тон: {selected_tone})")
         event_text = await rag_system._call_openrouter_api(prompt)
+        logger.info(
+            f"✅ Событие успешно сгенерировано (длина: {len(event_text)} символов)"
+        )
         return event_text, selected_tone
     except Exception as e:
-        print(f"Error generating event: {e}")
+        logger.error(f"❌ Ошибка при генерации события: {type(e).__name__}: {e}")
+        logger.exception("Full traceback:")
         return "Не удалось сгенерировать событие. Попробуйте еще раз.", selected_tone
 
 
@@ -1055,7 +1066,9 @@ async def gen_command(message: Message, state: FSMContext) -> None:
                 formatted_message, parse_mode="MarkdownV2", reply_markup=keyboard
             )
         except Exception as e:
-            print(f"Failed to send formatted event message: {e}")
+            logger.warning(
+                f"⚠️ Не удалось отправить форматированное сообщение события: {e}"
+            )
             # Fallback to HTML
             event_message = await message.answer(
                 f"{event_header}{escape_html(event_text)}",
@@ -1122,7 +1135,7 @@ async def process_gen_callback(
                     message_id=data["event_message_id"],
                 )
             except Exception as e:
-                print(f"Failed to delete old event message: {e}")
+                logger.warning(f"⚠️ Не удалось удалить старое сообщение события: {e}")
 
             # Step 2: Edit the existing tone message to show "generating..." immediately
             try:
@@ -1132,7 +1145,7 @@ async def process_gen_callback(
                     text="🎲 Генерирую новое событие...",
                 )
             except Exception as e:
-                print(f"Failed to edit tone message: {e}")
+                logger.warning(f"⚠️ Не удалось отредактировать сообщение тона: {e}")
                 # Fallback: send new message if editing fails
                 tone_message = await callback_query.message.answer(
                     "🎲 Генерирую новое событие..."
@@ -1158,7 +1171,9 @@ async def process_gen_callback(
                     text=f"🎲 Генерирую {selected_tone} событие...",
                 )
             except Exception as e:
-                print(f"Failed to edit tone message with actual tone: {e}")
+                logger.warning(
+                    f"⚠️ Не удалось отредактировать сообщение тона с актуальным тоном: {e}"
+                )
 
             # Step 5: Send new event message
             # Create keyboard
@@ -1194,7 +1209,9 @@ async def process_gen_callback(
                     formatted_message, parse_mode="MarkdownV2", reply_markup=keyboard
                 )
             except Exception as e:
-                print(f"Failed to send formatted event message: {e}")
+                logger.warning(
+                    f"⚠️ Не удалось отправить форматированное сообщение события: {e}"
+                )
                 # Fallback to HTML
                 new_event_message = await callback_query.message.answer(
                     f"{event_header}{escape_html(new_event_text)}",
@@ -1279,7 +1296,9 @@ async def process_gen_callback(
                     formatted_message, parse_mode="MarkdownV2"
                 )
             except Exception as e:
-                print(f"Failed to edit formatted result message: {e}")
+                logger.warning(
+                    f"⚠️ Не удалось отредактировать форматированное сообщение результата: {e}"
+                )
                 # Fallback to HTML
                 await callback_query.message.edit_text(
                     f"{event_header}{escape_html(data['event_text'])}\n\n---\n{escape_html(status_text)}",
@@ -1582,8 +1601,8 @@ async def process_final_message(message: Message, state: FSMContext) -> None:
 
                 await message.answer("✅ Последнее сообщение отправлено игроку.")
             except Exception as e:
-                print(
-                    f"Failed to send final message to player {data['target_telegram_id']}: {e}"
+                logger.error(
+                    f"❌ Не удалось отправить финальное сообщение игроку {data['target_telegram_id']}: {type(e).__name__}: {e}"
                 )
                 await message.answer(
                     "⚠️ Не удалось отправить сообщение игроку, но удаление продолжается..."

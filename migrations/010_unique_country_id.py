@@ -79,7 +79,9 @@ class UniqueCountryIdMigration(Migration):
                         )
                     )
 
-                    print(f"   ✅ Unassigned country from {len(ids_to_unassign)} player(s)")
+                    print(
+                        f"   ✅ Unassigned country from {len(ids_to_unassign)} player(s)"
+                    )
         else:
             print("✅ No duplicate country_id entries found")
 
@@ -151,4 +153,3 @@ class UniqueCountryIdMigration(Migration):
 
 # Create migration instance
 migration_010 = UniqueCountryIdMigration()
-

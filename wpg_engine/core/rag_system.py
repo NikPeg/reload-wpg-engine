@@ -2,6 +2,7 @@
 RAG (Retrieval-Augmented Generation) system for admin assistance
 """
 
+import logging
 from typing import Any
 
 import httpx
@@ -13,6 +14,8 @@ from wpg_engine.config.settings import settings
 from wpg_engine.core.message_classifier import MessageClassifier
 from wpg_engine.core.rag_analyzers import RAGAnalyzerFactory
 from wpg_engine.models import Country, Message
+
+logger = logging.getLogger(__name__)
 
 
 class RAGSystem:
@@ -65,12 +68,12 @@ class RAGSystem:
 
         # For "иное" type messages, don't run RAG - just forward to admin
         if message_type == "иное":
-            print("=" * 80)
-            print(f"🔍 RAG DEBUG: Тип сообщения: {message_type}")
-            print(
+            logger.info("=" * 80)
+            logger.info(f"🔍 RAG DEBUG: Тип сообщения: {message_type}")
+            logger.info(
                 "❌ RAG не запускается для типа 'иное' - сообщение просто пересылается админу"
             )
-            print("=" * 80)
+            logger.info("=" * 80)
             return ""
 
         # Create appropriate analyzer based on message type
@@ -84,26 +87,29 @@ class RAGSystem:
         )
 
         # Debug output: print the full prompt being sent to LLM
-        print("=" * 80)
-        print(f"🔍 RAG DEBUG: Тип сообщения: {message_type}")
-        print("🔍 RAG DEBUG: Полный промпт для LLM:")
-        print("=" * 80)
-        print(prompt)
-        print("=" * 80)
+        logger.info("=" * 80)
+        logger.info(f"🔍 RAG DEBUG: Тип сообщения: {message_type}")
+        logger.info("🔍 RAG DEBUG: Полный промпт для LLM:")
+        logger.info("=" * 80)
+        logger.info(prompt)
+        logger.info("=" * 80)
         if previous_admin_message:
-            print(
+            logger.info(
                 f"✅ Найдено предыдущее сообщение админа: {previous_admin_message[:100]}..."
             )
         else:
-            print("❌ Предыдущее сообщение админа НЕ найдено")
-        print("=" * 80)
+            logger.info("❌ Предыдущее сообщение админа НЕ найдено")
+        logger.info("=" * 80)
 
         try:
             # Get analysis from LLM
             context = await self._call_openrouter_api(prompt)
             return context
         except Exception as e:
-            print(f"Error calling AI API: {e}")
+            logger.error(
+                f"❌ Ошибка при вызове AI API для генерации контекста: {type(e).__name__}: {e}"
+            )
+            logger.exception("Full traceback:")
             return ""
 
     async def _get_all_countries_data(self, game_id: int) -> list[dict[str, Any]]:
@@ -173,12 +179,12 @@ class RAGSystem:
         latest_admin_message = result.scalar_one_or_none()
 
         if latest_admin_message:
-            print(
+            logger.debug(
                 f"🎯 DEBUG: Найдено последнее сообщение админа: {latest_admin_message.content[:100]}..."
             )
             return latest_admin_message.content
 
-        print("❌ DEBUG: Сообщения админа не найдены")
+        logger.debug("❌ DEBUG: Сообщения админа не найдены")
         return None
 
     async def _call_openrouter_api(self, prompt: str) -> str:
@@ -197,9 +203,56 @@ class RAGSystem:
             "temperature": 0.3,  # Низкая температура для более точных ответов
         }
 
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            response = await client.post(url, json=data, headers=headers)
-            response.raise_for_status()
+        try:
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                logger.info(
+                    f"🔄 Отправка запроса к OpenRouter API (model: {self.model})"
+                )
+                response = await client.post(url, json=data, headers=headers)
 
-            result = response.json()
-            return result["choices"][0]["message"]["content"].strip()
+                logger.info(f"📡 OpenRouter API ответ - статус: {response.status_code}")
+
+                # Логируем детали ошибки, если статус не 2xx
+                if response.status_code >= 400:
+                    logger.error(f"❌ OpenRouter API ошибка {response.status_code}")
+                    logger.error(f"Response headers: {dict(response.headers)}")
+                    try:
+                        error_body = response.json()
+                        logger.error(f"Response body: {error_body}")
+                    except Exception:
+                        logger.error(f"Response text: {response.text[:500]}")
+
+                response.raise_for_status()
+
+                result = response.json()
+                content = result["choices"][0]["message"]["content"].strip()
+                logger.info(
+                    f"✅ OpenRouter API успешно вернул ответ (длина: {len(content)} символов)"
+                )
+                return content
+
+        except httpx.TimeoutException as e:
+            logger.error(f"⏱️ Timeout при запросе к OpenRouter API: {e}")
+            raise
+        except httpx.HTTPStatusError as e:
+            logger.error(f"❌ HTTP ошибка от OpenRouter API: {e.response.status_code}")
+            logger.error(f"URL: {e.request.url}")
+            logger.error(f"Response: {e.response.text[:500]}")
+            raise
+        except httpx.RequestError as e:
+            logger.error(
+                f"❌ Ошибка сети при запросе к OpenRouter API: {type(e).__name__}: {e}"
+            )
+            raise
+        except KeyError as e:
+            logger.error(
+                f"❌ Неожиданный формат ответа от OpenRouter API: отсутствует ключ {e}"
+            )
+            logger.error(f"Response: {result if 'result' in locals() else 'N/A'}")
+            raise
+        except Exception as e:
+            logger.error(
+                f"❌ Неожиданная ошибка при вызове OpenRouter API: {type(e).__name__}: {e}"
+            )
+            logger.exception("Full traceback:")
+            raise

@@ -2,9 +2,13 @@
 Классификатор типов сообщений игроков с использованием LLM
 """
 
+import logging
+
 import httpx
 
 from wpg_engine.config.settings import settings
+
+logger = logging.getLogger(__name__)
 
 
 class MessageClassifier:
@@ -39,7 +43,10 @@ class MessageClassifier:
             # Нормализуем ответ к одному из четырех типов
             return self._normalize_classification(classification)
         except Exception as e:
-            print(f"Error classifying message: {e}")
+            logger.error(
+                f"❌ Ошибка при классификации сообщения: {type(e).__name__}: {e}"
+            )
+            logger.exception("Full traceback:")
             return "иное"
 
     def _create_classification_prompt(self, message: str, sender_country: str) -> str:
@@ -106,9 +113,56 @@ class MessageClassifier:
             "temperature": 0.1,  # Очень низкая температура для стабильности
         }
 
-        async with httpx.AsyncClient(timeout=15.0) as client:
-            response = await client.post(url, json=data, headers=headers)
-            response.raise_for_status()
+        try:
+            async with httpx.AsyncClient(timeout=15.0) as client:
+                logger.debug(
+                    f"🔄 Отправка запроса классификации к OpenRouter API (model: {self.model})"
+                )
+                response = await client.post(url, json=data, headers=headers)
 
-            result = response.json()
-            return result["choices"][0]["message"]["content"].strip()
+                logger.debug(
+                    f"📡 OpenRouter API ответ классификации - статус: {response.status_code}"
+                )
+
+                # Логируем детали ошибки, если статус не 2xx
+                if response.status_code >= 400:
+                    logger.error(
+                        f"❌ OpenRouter API ошибка классификации {response.status_code}"
+                    )
+                    logger.error(f"Response headers: {dict(response.headers)}")
+                    try:
+                        error_body = response.json()
+                        logger.error(f"Response body: {error_body}")
+                    except Exception:
+                        logger.error(f"Response text: {response.text[:500]}")
+
+                response.raise_for_status()
+
+                result = response.json()
+                content = result["choices"][0]["message"]["content"].strip()
+                logger.debug(f"✅ Классификация получена: {content}")
+                return content
+
+        except httpx.TimeoutException as e:
+            logger.error(f"⏱️ Timeout при классификации сообщения: {e}")
+            raise
+        except httpx.HTTPStatusError as e:
+            logger.error(f"❌ HTTP ошибка при классификации: {e.response.status_code}")
+            logger.error(f"URL: {e.request.url}")
+            logger.error(f"Response: {e.response.text[:500]}")
+            raise
+        except httpx.RequestError as e:
+            logger.error(f"❌ Ошибка сети при классификации: {type(e).__name__}: {e}")
+            raise
+        except KeyError as e:
+            logger.error(
+                f"❌ Неожиданный формат ответа классификации: отсутствует ключ {e}"
+            )
+            logger.error(f"Response: {result if 'result' in locals() else 'N/A'}")
+            raise
+        except Exception as e:
+            logger.error(
+                f"❌ Неожиданная ошибка при классификации: {type(e).__name__}: {e}"
+            )
+            logger.exception("Full traceback:")
+            raise
