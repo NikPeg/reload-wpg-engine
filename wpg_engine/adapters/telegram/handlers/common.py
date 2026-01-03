@@ -9,6 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
 from wpg_engine.adapters.telegram.utils import escape_html
+from wpg_engine.config.settings import settings
 from wpg_engine.core.engine import GameEngine
 from wpg_engine.models import Player, PlayerRole, get_db
 
@@ -21,19 +22,31 @@ async def start_command(message: Message) -> None:
     async for db in get_db():
         game_engine = GameEngine(db)
 
-        # Check if user is already registered
-        result = await game_engine.db.execute(
-            select(Player)
-            .options(selectinload(Player.game), selectinload(Player.country))
-            .where(Player.telegram_id == user_id)
-            .limit(1)
-        )
-        player = result.scalar_one_or_none()
-
         # Check if user is admin (from .env - supports both user and chat)
         from wpg_engine.core.admin_utils import is_admin_from_env
 
         is_admin_user = is_admin_from_env(user_id, chat_id)
+
+        # Check if user is already registered
+        # For admin chat, we need to find ANY admin player, not by specific telegram_id
+        if is_admin_user and settings.telegram.is_admin_chat():
+            # Admin chat mode: find any admin player
+            result = await game_engine.db.execute(
+                select(Player)
+                .options(selectinload(Player.game), selectinload(Player.country))
+                .where(Player.role == PlayerRole.ADMIN)
+                .limit(1)
+            )
+            player = result.scalar_one_or_none()
+        else:
+            # Normal mode: find player by telegram_id
+            result = await game_engine.db.execute(
+                select(Player)
+                .options(selectinload(Player.game), selectinload(Player.country))
+                .where(Player.telegram_id == user_id)
+                .limit(1)
+            )
+            player = result.scalar_one_or_none()
 
         # Check if any games exist
         from wpg_engine.models import Game
