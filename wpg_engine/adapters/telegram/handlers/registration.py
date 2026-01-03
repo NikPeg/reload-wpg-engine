@@ -678,7 +678,21 @@ async def process_reregistration_confirmation(
                 select(Game).where(Game.id == game_id)
             )
             game = result.scalar_one_or_none()
+            
+            # Check if there are examples
+            result = await game_engine.db.execute(
+                select(Example).where(Example.game_id == game_id).limit(1)
+            )
+            has_examples = result.scalar_one_or_none() is not None
             break
+
+        examples_hint = ""
+        if has_examples:
+            examples_hint = (
+                "\n\n💡 <i>Вы можете использовать /examples для просмотра готовых примеров стран. "
+                "Чтобы выбрать страну из примера, ответьте на сообщение с примером словом "
+                "<b>выбрать</b> или <b>выбираю</b></i>"
+            )
 
         # Clear old data and start fresh registration
         await state.clear()
@@ -695,7 +709,7 @@ async def process_reregistration_confirmation(
             f"✅ <b>Начинаем регистрацию страны для администратора.</b>\n\n"
             f"🎮 <b>Регистрация в игре '{escape_html(game.name)}'</b>\n\n"
             f"Для участия в игре вам необходимо создать свою страну.\n"
-            f"Вы будете управлять страной по 10 аспектам развития.\n\n"
+            f"Вы будете управлять страной по <b>10 аспектам</b> развития.{examples_hint}\n\n"
             f"📊 <b>У вас есть {game.max_points} очков</b> для распределения между аспектами.\n"
             f"Каждый аспект можно развить от 0 до 10 уровня.\n\n"
             f"<b>Начнем с основной информации:</b>\n\n"
@@ -731,6 +745,20 @@ async def process_reregistration_confirmation(
         game = result.scalar_one_or_none()
         break
 
+    # Check if there are examples
+    result = await game_engine.db.execute(
+        select(Example).where(Example.game_id == game_id).limit(1)
+    )
+    has_examples = result.scalar_one_or_none() is not None
+
+    examples_hint = ""
+    if has_examples:
+        examples_hint = (
+            "\n\n💡 <i>Вы можете использовать /examples для просмотра готовых примеров стран. "
+            "Чтобы выбрать страну из примера, ответьте на сообщение с примером словом "
+            "<b>выбрать</b> или <b>выбираю</b></i>"
+        )
+
     # Clear old data and start fresh registration
     await state.clear()
     await state.update_data(
@@ -745,7 +773,7 @@ async def process_reregistration_confirmation(
         f"✅ <b>Старая страна отвязана.</b>\n\n"
         f"🎮 <b>Регистрация в игре '{escape_html(game.name)}'</b>\n\n"
         f"Для участия в игре вам необходимо создать свою страну.\n"
-        f"Вы будете управлять страной по 10 аспектам развития.\n\n"
+        f"Вы будете управлять страной по <b>10 аспектам</b> развития.{examples_hint}\n\n"
         f"📊 <b>У вас есть {game.max_points} очков</b> для распределения между аспектами.\n"
         f"Каждый аспект можно развить от 0 до 10 уровня.\n\n"
         f"<b>Начнем с основной информации:</b>\n\n"
