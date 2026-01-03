@@ -34,6 +34,27 @@ async def start_command(message: Message) -> None:
         result = await game_engine.db.execute(select(func.count()).select_from(Game))
         has_games = result.scalar() > 0
 
+        # If user is admin from chat but not registered in DB and game exists, register them
+        if is_admin_user and not player and has_games:
+            # Get the first game to register admin to it
+            result = await game_engine.db.execute(select(Game).limit(1))
+            game = result.scalar_one_or_none()
+
+            if game:
+                # Create admin player WITHOUT a country
+                username = message.from_user.username
+                display_name = message.from_user.full_name or f"Admin_{user_id}"
+
+                player = await game_engine.create_player(
+                    game_id=game.id,
+                    telegram_id=user_id,
+                    username=username,
+                    display_name=display_name,
+                    role=PlayerRole.ADMIN,
+                )
+                # Refresh player to load game relation
+                await game_engine.db.refresh(player, ["game", "country"])
+
         # Load game and country relations only if player exists
         if player:
             await game_engine.db.refresh(player, ["game", "country"])
@@ -85,7 +106,6 @@ async def start_command(message: Message) -> None:
         elif not has_games:
             # No games exist yet
             await message.answer(
-                "🎯 Добро пожаловать, <b>Администратор</b>!\n\n"
                 "❌ В данный момент нет активных игр.\n\n"
                 "Используйте команду /restart_game для создания новой игры.\n"
                 "Формат: <code>/restart_game Название игры | Сеттинг | Лет за сутки | Макс очков | Макс население</code>\n\n"
@@ -94,10 +114,9 @@ async def start_command(message: Message) -> None:
                 reply_markup=ReplyKeyboardRemove(),
             )
         else:
-            # Game exists but admin is not registered yet
+            # This should not happen anymore, but keep as fallback
             await message.answer(
-                "🎯 Добро пожаловать, <b>Администратор</b>!\n\n"
-                "Используйте /restart_game для управления игрой или /register если хотите зарегистрировать страну для себя.",
+                "⚠️ Произошла ошибка при регистрации администратора. Попробуйте еще раз.",
                 parse_mode="HTML",
                 reply_markup=ReplyKeyboardRemove(),
             )
