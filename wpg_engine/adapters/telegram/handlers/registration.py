@@ -632,7 +632,6 @@ async def complete_registration(message: Message, state: FSMContext) -> None:
                     f"⚠️ Не удалось отправить регистрацию администратору: {type(e).__name__}: {e}"
                 )
 
-
     # Show summary - registration request sent to admin
     await message.answer(
         f"🎉 <b>Регистрация завершена!</b>\n\n"
@@ -946,7 +945,6 @@ async def process_example_selection(message: Message, state: FSMContext) -> None
                 logger.warning(
                     f"⚠️ Не удалось отправить регистрацию администратору: {type(e).__name__}: {e}"
                 )
-
 
     # Clear state
     await state.clear()

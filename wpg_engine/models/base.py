@@ -79,7 +79,7 @@ AsyncSessionLocal = async_sessionmaker(
 async def get_db():
     """
     Get database session as async context manager.
-    
+
     Usage:
         async with get_db() as db:
             # Use db here

@@ -281,7 +281,6 @@ async def test_process_example_selection_example_not_found(db_session, game):
     )
 
     @asynccontextmanager
-
     async def mock_get_db():
         yield db_session
 
@@ -369,7 +368,6 @@ async def test_selection_works_from_any_registration_state(
         state.clear = AsyncMock()
 
         @asynccontextmanager
-
         async def mock_get_db():
             yield db_session
 

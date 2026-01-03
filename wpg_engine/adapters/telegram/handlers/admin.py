@@ -1301,7 +1301,6 @@ async def process_gen_callback(
             await state.clear()
 
 
-
 async def delete_country_command(message: Message, state: FSMContext) -> None:
     """Handle /delete_country command"""
     user_id = message.from_user.id
@@ -1623,7 +1622,6 @@ async def process_final_message(message: Message, state: FSMContext) -> None:
                 "❌ Не удалось удалить страну. Возможно, она уже была удалена."
             )
 
-
     await state.clear()
 
 
@@ -1734,7 +1732,6 @@ async def delete_user_command(message: Message, state: FSMContext) -> None:
         await state.set_state(AdminStates.waiting_for_delete_user_confirmation)
 
 
-
 async def process_delete_user_confirmation(message: Message, state: FSMContext) -> None:
     """Process user deletion confirmation"""
     user_id = message.from_user.id
@@ -1815,7 +1812,6 @@ async def process_delete_user_confirmation(message: Message, state: FSMContext) 
                 f"❌ Ошибка при удалении пользователя: {escape_html(str(e))}",
                 parse_mode="HTML",
             )
-
 
     await state.clear()
 
