@@ -51,7 +51,10 @@ class TelegramBot:
             await self.dp.start_polling(
                 self.bot,
                 skip_updates=True,  # Skip old updates on startup
-                allowed_updates=["message", "callback_query"],  # Only needed update types
+                allowed_updates=[
+                    "message",
+                    "callback_query",
+                ],  # Only needed update types
                 timeout=30,  # Long polling timeout
             )
         finally:
