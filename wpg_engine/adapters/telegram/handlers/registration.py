@@ -2,7 +2,7 @@
 Registration handlers
 """
 
-from aiogram import Dispatcher
+from aiogram import Dispatcher, F
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
@@ -731,33 +731,68 @@ def register_registration_handlers(dp: Dispatcher) -> None:
     )
     # New sequence: country name -> capital -> population -> description -> aspects
     dp.message.register(
-        process_country_name, RegistrationStates.waiting_for_country_name
-    )
-    dp.message.register(process_capital, RegistrationStates.waiting_for_capital)
-    dp.message.register(process_population, RegistrationStates.waiting_for_population)
-    dp.message.register(
-        process_country_description, RegistrationStates.waiting_for_country_description
-    )
-    dp.message.register(process_economy, RegistrationStates.waiting_for_economy)
-    dp.message.register(process_military, RegistrationStates.waiting_for_military)
-    dp.message.register(
-        process_foreign_policy, RegistrationStates.waiting_for_foreign_policy
-    )
-    dp.message.register(process_territory, RegistrationStates.waiting_for_territory)
-    dp.message.register(process_technology, RegistrationStates.waiting_for_technology)
-    dp.message.register(
-        process_religion_culture, RegistrationStates.waiting_for_religion_culture
+        process_country_name,
+        RegistrationStates.waiting_for_country_name,
+        ~F.text.startswith("/"),
     )
     dp.message.register(
-        process_governance_law, RegistrationStates.waiting_for_governance_law
+        process_capital, RegistrationStates.waiting_for_capital, ~F.text.startswith("/")
+    )
+    dp.message.register(
+        process_population,
+        RegistrationStates.waiting_for_population,
+        ~F.text.startswith("/"),
+    )
+    dp.message.register(
+        process_country_description,
+        RegistrationStates.waiting_for_country_description,
+        ~F.text.startswith("/"),
+    )
+    dp.message.register(
+        process_economy, RegistrationStates.waiting_for_economy, ~F.text.startswith("/")
+    )
+    dp.message.register(
+        process_military,
+        RegistrationStates.waiting_for_military,
+        ~F.text.startswith("/"),
+    )
+    dp.message.register(
+        process_foreign_policy,
+        RegistrationStates.waiting_for_foreign_policy,
+        ~F.text.startswith("/"),
+    )
+    dp.message.register(
+        process_territory,
+        RegistrationStates.waiting_for_territory,
+        ~F.text.startswith("/"),
+    )
+    dp.message.register(
+        process_technology,
+        RegistrationStates.waiting_for_technology,
+        ~F.text.startswith("/"),
+    )
+    dp.message.register(
+        process_religion_culture,
+        RegistrationStates.waiting_for_religion_culture,
+        ~F.text.startswith("/"),
+    )
+    dp.message.register(
+        process_governance_law,
+        RegistrationStates.waiting_for_governance_law,
+        ~F.text.startswith("/"),
     )
     dp.message.register(
         process_construction_infrastructure,
         RegistrationStates.waiting_for_construction_infrastructure,
+        ~F.text.startswith("/"),
     )
     dp.message.register(
-        process_social_relations, RegistrationStates.waiting_for_social_relations
+        process_social_relations,
+        RegistrationStates.waiting_for_social_relations,
+        ~F.text.startswith("/"),
     )
     dp.message.register(
-        process_intelligence, RegistrationStates.waiting_for_intelligence
+        process_intelligence,
+        RegistrationStates.waiting_for_intelligence,
+        ~F.text.startswith("/"),
     )
