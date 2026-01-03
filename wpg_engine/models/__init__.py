@@ -4,6 +4,7 @@ Database models
 
 from wpg_engine.models.base import Base, get_db, init_db
 from wpg_engine.models.country import Country
+from wpg_engine.models.example import Example
 from wpg_engine.models.game import Game, GameStatus
 from wpg_engine.models.message import Message
 from wpg_engine.models.player import Player, PlayerRole
@@ -17,6 +18,7 @@ __all__ = [
     "Game",
     "GameStatus",
     "Country",
+    "Example",
     "Message",
     "Player",
     "PlayerRole",

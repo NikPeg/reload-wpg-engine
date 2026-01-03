@@ -20,7 +20,7 @@ from wpg_engine.adapters.telegram.utils import escape_html, escape_markdown
 from wpg_engine.core.admin_utils import get_admin_player, is_admin
 from wpg_engine.core.engine import GameEngine
 from wpg_engine.core.rag_system import RAGSystem
-from wpg_engine.models import Player, PlayerRole, get_db
+from wpg_engine.models import Example, Player, PlayerRole, get_db
 
 
 async def find_target_country_by_name(
@@ -150,6 +150,7 @@ class AdminStates(StatesGroup):
     waiting_for_delete_country_confirmation = State()
     waiting_for_final_message = State()
     waiting_for_delete_user_confirmation = State()
+    waiting_for_example_message = State()
 
 
 # Removed admin_command - functionality merged into /start command
@@ -376,6 +377,7 @@ async def process_restart_confirmation(message: Message, state: FSMContext) -> N
         await game_engine.db.execute(text("DELETE FROM verdicts"))
         await game_engine.db.execute(text("DELETE FROM posts"))
         await game_engine.db.execute(text("DELETE FROM messages"))
+        await game_engine.db.execute(text("DELETE FROM examples"))
         await game_engine.db.execute(text("DELETE FROM players"))
         await game_engine.db.execute(text("DELETE FROM countries"))
         await game_engine.db.execute(text("DELETE FROM games"))
@@ -1722,6 +1724,82 @@ async def process_delete_user_confirmation(message: Message, state: FSMContext) 
     await state.clear()
 
 
+async def add_example_command(message: Message, state: FSMContext) -> None:
+    """Handle /add_example command - add example message for players"""
+    user_id = message.from_user.id
+
+    async for db in get_db():
+        game_engine = GameEngine(db)
+
+        # Check if user is admin
+        if not await is_admin(user_id, game_engine.db, message.chat.id):
+            await message.answer("❌ У вас нет прав администратора.")
+            return
+
+        # Get admin player (works for both admin chat and admin user)
+        admin = await get_admin_player(user_id, game_engine.db)
+
+        if not admin:
+            await message.answer(
+                "❌ В игре нет зарегистрированных администраторов. Создайте игру с помощью /restart_game"
+            )
+            return
+
+        # Store admin info for later
+        await state.update_data(
+            admin_id=admin.id,
+            game_id=admin.game_id,
+        )
+
+        await message.answer(
+            "📝 <b>Добавление примера сообщения</b>\n\n"
+            "Отправьте следующим сообщением текст, который станет примером для игроков.\n\n"
+            "<i>Например: \"Построить большую библиотеку в столице\"</i>",
+            parse_mode="HTML",
+        )
+        await state.set_state(AdminStates.waiting_for_example_message)
+        break
+
+
+async def process_example_message(message: Message, state: FSMContext) -> None:
+    """Process example message from admin"""
+    example_text = message.text.strip()
+
+    if not example_text:
+        await message.answer("❌ Сообщение не может быть пустым. Попробуйте еще раз.")
+        return
+
+    # Get stored data
+    data = await state.get_data()
+    admin_id = data["admin_id"]
+    game_id = data["game_id"]
+
+    async for db in get_db():
+        game_engine = GameEngine(db)
+
+        # Create new example
+        example = Example(
+            content=example_text,
+            game_id=game_id,
+            created_by_id=admin_id,
+        )
+
+        game_engine.db.add(example)
+        await game_engine.db.commit()
+        await game_engine.db.refresh(example)
+
+        await message.answer(
+            f"✅ <b>Пример успешно добавлен!</b>\n\n"
+            f"<b>Текст примера:</b>\n"
+            f"<code>{escape_html(example_text)}</code>\n\n"
+            f"Игроки смогут увидеть этот пример, используя команду /examples",
+            parse_mode="HTML",
+        )
+        break
+
+    await state.clear()
+
+
 def register_admin_handlers(dp: Dispatcher) -> None:
     """Register admin handlers"""
     dp.message.register(game_stats_command, Command("game_stats"))
@@ -1732,6 +1810,7 @@ def register_admin_handlers(dp: Dispatcher) -> None:
     dp.message.register(gen_command, Command("gen"))
     dp.message.register(delete_country_command, Command("delete_country"))
     dp.message.register(delete_user_command, Command("delete_user"))
+    dp.message.register(add_example_command, Command("add_example"))
     dp.message.register(
         process_restart_confirmation, AdminStates.waiting_for_restart_confirmation
     )
@@ -1745,4 +1824,5 @@ def register_admin_handlers(dp: Dispatcher) -> None:
         process_delete_user_confirmation,
         AdminStates.waiting_for_delete_user_confirmation,
     )
+    dp.message.register(process_example_message, AdminStates.waiting_for_example_message)
     dp.callback_query.register(process_gen_callback, AdminStates.waiting_for_gen_action)

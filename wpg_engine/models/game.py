@@ -55,6 +55,9 @@ class Game(Base):
     messages: Mapped[list["Message"]] = relationship(
         "Message", back_populates="game", cascade="all, delete-orphan"
     )
+    examples: Mapped[list["Example"]] = relationship(
+        "Example", back_populates="game", cascade="all, delete-orphan"
+    )
 
     def __repr__(self) -> str:
         return f"<Game(id={self.id}, name='{self.name}', status='{self.status}')>"

@@ -10,7 +10,7 @@ from sqlalchemy.orm import selectinload
 
 from wpg_engine.adapters.telegram.utils import escape_html
 from wpg_engine.core.engine import GameEngine
-from wpg_engine.models import Player, get_db
+from wpg_engine.models import Example, Player, get_db
 
 # Removed PostStates - no longer needed
 
@@ -315,7 +315,59 @@ async def world_command(message: Message) -> None:
             await message.answer(country_info, parse_mode="HTML")
 
 
+async def examples_command(message: Message) -> None:
+    """Handle /examples command - show example messages for players"""
+    user_id = message.from_user.id
+
+    async for db in get_db():
+        game_engine = GameEngine(db)
+
+        # Get player to check if registered and get game_id
+        result = await game_engine.db.execute(
+            select(Player)
+            .options(selectinload(Player.game))
+            .where(Player.telegram_id == user_id)
+        )
+        player = result.scalar_one_or_none()
+
+        if not player:
+            await message.answer(
+                "❌ Вы не зарегистрированы в игре. Используйте /register"
+            )
+            return
+
+        # Get all examples for the player's game
+        result = await game_engine.db.execute(
+            select(Example)
+            .where(Example.game_id == player.game_id)
+            .order_by(Example.created_at.desc())
+        )
+        examples = result.scalars().all()
+        break
+
+    if not examples:
+        await message.answer(
+            "📝 <b>Примеры сообщений</b>\n\n"
+            "Пока нет примеров для вашей игры.\n"
+            "Администратор может добавить примеры с помощью команды /add_example",
+            parse_mode="HTML",
+        )
+        return
+
+    # Build message with all examples
+    examples_text = "📝 <b>Примеры сообщений для игроков</b>\n\n"
+    examples_text += "Вот примеры того, что вы можете написать боту:\n\n"
+
+    for i, example in enumerate(examples, 1):
+        examples_text += f"{i}. <code>{escape_html(example.content)}</code>\n\n"
+
+    examples_text += "\nПросто напишите свой приказ или вопрос боту, и он обработает ваше сообщение!"
+
+    await message.answer(examples_text, parse_mode="HTML")
+
+
 def register_player_handlers(dp: Dispatcher) -> None:
     """Register player handlers"""
     dp.message.register(stats_command, Command("stats"))
     dp.message.register(world_command, Command("world"))
+    dp.message.register(examples_command, Command("examples"))
