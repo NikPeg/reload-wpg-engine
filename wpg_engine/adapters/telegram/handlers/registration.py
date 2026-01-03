@@ -678,7 +678,7 @@ async def process_reregistration_confirmation(
                 select(Game).where(Game.id == game_id)
             )
             game = result.scalar_one_or_none()
-            
+
             # Check if there are examples
             result = await game_engine.db.execute(
                 select(Example).where(Example.game_id == game_id).limit(1)
