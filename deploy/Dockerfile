@@ -37,9 +37,10 @@ RUN mkdir -p /app/data /app/logs && \
 # Switch to non-root user
 USER wpgbot
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD python -c "import asyncio; from wpg_engine.models import get_db; asyncio.run(get_db().__anext__())" || exit 1
+# Health check - check if process is running instead of querying DB
+# This avoids blocking database operations
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+    CMD pgrep -f "python.*main.py" || exit 1
 
 # Default command
 CMD ["python", "main.py"]

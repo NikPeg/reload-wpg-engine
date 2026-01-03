@@ -36,11 +36,12 @@ services:
     networks:
       - wpg-network
     healthcheck:
-      test: ["CMD", "python", "-c", "import asyncio; from wpg_engine.models import get_db; asyncio.run(get_db().__anext__())"]
+      # Check if process is running instead of querying DB to avoid blocking
+      test: ["CMD", "pgrep", "-f", "python.*main.py"]
       interval: 30s
-      timeout: 10s
+      timeout: 5s
       retries: 3
-      start_period: 40s
+      start_period: 10s
 
   # Optional: PostgreSQL for production-like setup
   postgres:

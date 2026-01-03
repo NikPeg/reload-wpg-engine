@@ -44,7 +44,7 @@ engine = create_async_engine(
     poolclass=NullPool,  # No connection pooling - fresh connection each time
     connect_args={
         "check_same_thread": False,  # Allow sharing connection across threads
-        "timeout": 60,  # Increased timeout for busy database operations
+        "timeout": 5,  # Reduced timeout for busy database operations (5 seconds)
     },
 )
 
@@ -62,8 +62,8 @@ def set_sqlite_pragma(dbapi_conn, connection_record):
     cursor.execute("PRAGMA cache_size=-64000")
     # Enable foreign keys
     cursor.execute("PRAGMA foreign_keys=ON")
-    # Set busy timeout to 60 seconds
-    cursor.execute("PRAGMA busy_timeout=60000")
+    # Set busy timeout to 5 seconds (reduced from 60s to prevent long waits)
+    cursor.execute("PRAGMA busy_timeout=5000")
     cursor.close()
 
 
