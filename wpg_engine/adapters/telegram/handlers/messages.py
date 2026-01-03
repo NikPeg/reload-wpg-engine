@@ -2,6 +2,7 @@
 Message handlers for player-admin communication
 """
 
+import asyncio
 import logging
 
 from aiogram import Dispatcher
@@ -201,13 +202,78 @@ async def handle_text_message(message: Message, state: FSMContext) -> None:
         await handle_player_message(message, player, game_engine)
 
 
+async def _process_ai_analysis_background(
+    bot,
+    target_chat_id: int,
+    content: str,
+    country_name: str,
+    sent_message_id: int,
+    player_id: int,
+    game_id: int,
+) -> None:
+    """
+    Background task to process AI analysis (classification + RAG).
+    This runs independently and doesn't block the user's response.
+    """
+    try:
+        # Step 1: Classify message type using LLM
+        logger.info("🤖 Starting background AI classification...")
+        classifier = MessageClassifier()
+        message_type = await classifier.classify_message(content, country_name)
+        logger.info(f"✅ Classification complete: {message_type}")
+
+        # Map message types to emojis and descriptions
+        type_info = {
+            "вопрос": {"emoji": "❓", "desc": "Вопрос"},
+            "приказ": {"emoji": "⚡", "desc": "Приказ"},
+            "проект": {"emoji": "🏗️", "desc": "Проект"},
+            "иное": {"emoji": "💭", "desc": "Иное"},
+        }
+
+        type_emoji = type_info.get(message_type, type_info["иное"])["emoji"]
+        type_desc = type_info.get(message_type, type_info["иное"])["desc"]
+
+        # Step 2: Send message type classification to admin
+        type_message = (
+            f"{type_emoji} <b>Тип сообщения: {type_desc}</b>\n"
+            f"<i>Автоматически определено ИИ</i>"
+        )
+
+        await bot.send_message(target_chat_id, type_message, parse_mode="HTML")
+        logger.info("✅ Message type sent to admin")
+
+        # Step 3: Generate and send RAG context as reply to the original message
+        # Open new DB session for background task
+        async with get_db() as db:
+            rag_system = RAGSystem(db)
+            logger.info("🤖 Starting background RAG analysis...")
+            rag_context = await rag_system.generate_admin_context(
+                content, country_name, game_id, player_id
+            )
+            logger.info(
+                f"✅ RAG analysis complete, length: {len(rag_context) if rag_context else 0}"
+            )
+
+            # Send RAG context as reply to admin's message if available
+            if rag_context:
+                await _send_long_message(
+                    bot, target_chat_id, rag_context, sent_message_id
+                )
+                logger.info("✅ RAG context sent to admin")
+
+    except Exception as e:
+        logger.error(f"❌ Error in background AI processing: {type(e).__name__}: {e}")
+        logger.exception("Full traceback:")
+        # Don't notify user about background errors - they already got their confirmation
+
+
 async def handle_player_message(
     message: Message, player: Player, game_engine: GameEngine
 ) -> None:
     """Handle message from player - save and forward to admin"""
     content = message.text.strip()
 
-    # Confirm to player
+    # IMMEDIATELY confirm to player (this is the key - user gets instant response)
     await message.answer("✅ Сообщение отправлено администратору!")
 
     # Import settings to check if admin_id is a chat
@@ -241,7 +307,7 @@ async def handle_player_message(
             country_name = player.country.name if player.country else "без страны"
             bot = message.bot
 
-            # Step 1: Send original message to admin first
+            # Step 1: Send original message to admin IMMEDIATELY (no AI yet)
             admin_message = (
                 f"💬 <b>Новое сообщение от игрока</b>\n\n"
                 f"<b>От:</b> {escape_html(player.display_name)} (ID: {player.telegram_id})\n"
@@ -253,43 +319,7 @@ async def handle_player_message(
                 target_chat_id, admin_message, parse_mode="HTML"
             )
 
-            # Step 2: Classify message type using LLM
-            classifier = MessageClassifier()
-            message_type = await classifier.classify_message(content, country_name)
-
-            # Map message types to emojis and descriptions
-            type_info = {
-                "вопрос": {"emoji": "❓", "desc": "Вопрос"},
-                "приказ": {"emoji": "⚡", "desc": "Приказ"},
-                "проект": {"emoji": "🏗️", "desc": "Проект"},
-                "иное": {"emoji": "💭", "desc": "Иное"},
-            }
-
-            type_emoji = type_info.get(message_type, type_info["иное"])["emoji"]
-            type_desc = type_info.get(message_type, type_info["иное"])["desc"]
-
-            # Step 3: Send message type classification to admin after the message
-            type_message = (
-                f"{type_emoji} <b>Тип сообщения: {type_desc}</b>\n"
-                f"<i>Автоматически определено ИИ</i>"
-            )
-
-            await bot.send_message(target_chat_id, type_message, parse_mode="HTML")
-
-            # Step 4: Generate and send RAG context as reply to the original message
-            if player.country:
-                rag_system = RAGSystem(game_engine.db)
-                rag_context = await rag_system.generate_admin_context(
-                    content, country_name, player.game_id, player.id
-                )
-
-                # Send RAG context as reply to admin's message if available
-                if rag_context:
-                    await _send_long_message(
-                        bot, target_chat_id, rag_context, sent_message.message_id
-                    )
-
-            # Step 5: Save message to database with admin's telegram message ID
+            # Step 2: Save message to database IMMEDIATELY
             await game_engine.create_message(
                 player_id=player.id,
                 game_id=player.game_id,
@@ -299,15 +329,32 @@ async def handle_player_message(
                 is_admin_reply=False,
             )
 
+            # Step 3: Launch AI processing in BACKGROUND (doesn't block)
+            # Only process AI if player has a country
+            if player.country:
+                logger.info("🚀 Launching background AI analysis task...")
+                asyncio.create_task(
+                    _process_ai_analysis_background(
+                        bot,
+                        target_chat_id,
+                        content,
+                        country_name,
+                        sent_message.message_id,
+                        player.id,
+                        player.game_id,
+                    )
+                )
+                logger.info("✅ Background task launched, returning control to user")
+
         except Exception as e:
             logger.error(
                 f"❌ Не удалось отправить сообщение администратору: {type(e).__name__}: {e}"
             )
             logger.exception("Full traceback:")
-            await message.answer(
-                "⚠️ Не удалось отправить сообщение администратору. Попробуйте позже."
-            )
+            # Note: User already got confirmation, so we don't send error message
+            # We just log it for admin monitoring
     else:
+        # Only if admin not found, tell the user
         await message.answer("⚠️ Администратор не найден в игре.")
 
 
