@@ -37,9 +37,6 @@ RUN mkdir -p /app/data /app/logs && \
 # Switch to non-root user
 USER wpgbot
 
-# Expose port (if needed for webhooks)
-EXPOSE 8000
-
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD python -c "import asyncio; from wpg_engine.models import get_db; asyncio.run(get_db().__anext__())" || exit 1
