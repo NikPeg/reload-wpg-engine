@@ -1754,7 +1754,7 @@ async def add_example_command(message: Message, state: FSMContext) -> None:
         await message.answer(
             "📝 <b>Добавление примера сообщения</b>\n\n"
             "Отправьте следующим сообщением текст, который станет примером для игроков.\n\n"
-            "<i>Например: \"Построить большую библиотеку в столице\"</i>",
+            '<i>Например: "Построить большую библиотеку в столице"</i>',
             parse_mode="HTML",
         )
         await state.set_state(AdminStates.waiting_for_example_message)
@@ -1824,5 +1824,7 @@ def register_admin_handlers(dp: Dispatcher) -> None:
         process_delete_user_confirmation,
         AdminStates.waiting_for_delete_user_confirmation,
     )
-    dp.message.register(process_example_message, AdminStates.waiting_for_example_message)
+    dp.message.register(
+        process_example_message, AdminStates.waiting_for_example_message
+    )
     dp.callback_query.register(process_gen_callback, AdminStates.waiting_for_gen_action)

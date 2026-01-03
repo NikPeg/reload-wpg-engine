@@ -361,7 +361,9 @@ async def examples_command(message: Message) -> None:
     for i, example in enumerate(examples, 1):
         examples_text += f"{i}. <code>{escape_html(example.content)}</code>\n\n"
 
-    examples_text += "\nПросто напишите свой приказ или вопрос боту, и он обработает ваше сообщение!"
+    examples_text += (
+        "\nПросто напишите свой приказ или вопрос боту, и он обработает ваше сообщение!"
+    )
 
     await message.answer(examples_text, parse_mode="HTML")
 

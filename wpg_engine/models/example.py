@@ -2,7 +2,7 @@
 Example message model
 """
 
-from sqlalchemy import ForeignKey, String, Text
+from sqlalchemy import ForeignKey, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from wpg_engine.models.base import Base
@@ -32,4 +32,3 @@ class Example(Base):
 
     def __repr__(self) -> str:
         return f"<Example(id={self.id}, game_id={self.game_id}, content='{self.content[:50]}...')>"
-

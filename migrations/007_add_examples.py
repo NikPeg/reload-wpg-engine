@@ -45,4 +45,3 @@ class AddExamplesMigration(Migration):
 
 # Create migration instance
 migration_007 = AddExamplesMigration()
-

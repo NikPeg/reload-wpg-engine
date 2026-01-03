@@ -115,4 +115,3 @@ async def test_example_cascade_delete_with_game(db_session, game, admin_player):
     deleted_example = result.scalar_one_or_none()
 
     assert deleted_example is None
-
