@@ -142,14 +142,14 @@ async def register_command(message: Message, state: FSMContext) -> None:
             country_info = f"Ваша текущая страна: <b>{escape_html(existing_player.country.name)}</b>\n"
 
         await message.answer(
-            f"⚠️ <b>ВНИМАНИЕ! ОПАСНАЯ ОПЕРАЦИЯ!</b>\n\n"
+            f"⚠️ <b>ВНИМАНИЕ!</b>\n\n"
             f"Вы уже зарегистрированы в игре.\n"
             f"{country_info}\n"
-            f"Регистрация новой страны <b>ПОЛНОСТЬЮ УДАЛИТ</b> всю информацию о текущей регистрации:\n\n"
-            f"• Все данные о стране будут потеряны\n"
-            f"• История сообщений останется, но связь со страной пропадет\n"
-            f"• Это действие <b>НЕОБРАТИМО</b>\n\n"
-            f"Вы <b>ДЕЙСТВИТЕЛЬНО</b> хотите зарегистрировать новую страну?\n\n"
+            f"При регистрации новой страны:\n\n"
+            f"• Ваша старая страна <b>останется в базе данных</b>, но будет отвязана от вас\n"
+            f"• Вы будете управлять новой страной\n"
+            f"• Старую страну сможет удалить только администратор командой /delete_country\n\n"
+            f"Вы хотите зарегистрировать новую страну?\n\n"
             f"Напишите <b>ПОДТВЕРЖДАЮ</b> (заглавными буквами), чтобы продолжить, или любое другое сообщение для отмены.",
             parse_mode="HTML",
         )
@@ -666,32 +666,17 @@ async def process_reregistration_confirmation(
     async for db in get_db():
         game_engine = GameEngine(db)
 
-        # Delete existing player's messages first to avoid foreign key constraint issues
-        result = await game_engine.db.execute(
-            select(MessageModel).where(MessageModel.player_id == existing_player_id)
-        )
-        messages = result.scalars().all()
-        for msg in messages:
-            await game_engine.db.delete(msg)
-
-        # Delete existing country
-        if existing_country_id:
-            result = await game_engine.db.execute(
-                select(Country).where(Country.id == existing_country_id)
-            )
-            country = result.scalar_one_or_none()
-            if country:
-                await game_engine.db.delete(country)
-
-        # Delete player
+        # Get the existing player
         result = await game_engine.db.execute(
             select(Player).where(Player.id == existing_player_id)
         )
         player = result.scalar_one_or_none()
+        
         if player:
-            await game_engine.db.delete(player)
-
-        await game_engine.db.commit()
+            # Отвязываем страну от игрока, но НЕ удаляем саму страну
+            # Страна останется в базе данных и может быть удалена только админом через /delete_country
+            player.country_id = None
+            await game_engine.db.commit()
 
         # Get game info for new registration
         result = await game_engine.db.execute(select(Game).where(Game.id == game_id))
@@ -709,7 +694,7 @@ async def process_reregistration_confirmation(
     )
 
     await message.answer(
-        f"✅ <b>Предыдущая регистрация удалена.</b>\n\n"
+        f"✅ <b>Старая страна отвязана.</b>\n\n"
         f"🎮 <b>Регистрация в игре '{escape_html(game.name)}'</b>\n\n"
         f"Для участия в игре вам необходимо создать свою страну.\n"
         f"Вы будете управлять страной по 10 аспектам развития.\n\n"
