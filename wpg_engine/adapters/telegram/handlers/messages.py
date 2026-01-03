@@ -415,6 +415,15 @@ async def handle_admin_reply(
     )
 
     if not original_message:
+        # Check if we're in admin chat - if so, this might be admin replying to another admin
+        # In that case, silently skip (admins discussing among themselves)
+        from wpg_engine.config.settings import settings
+
+        if settings.telegram.is_admin_chat():
+            # Admins replying to each other in admin chat - just ignore
+            return
+
+        # Not in admin chat or it's a direct admin user - show error
         await message.answer("❌ Не удалось найти исходное сообщение игрока.")
         return
 
