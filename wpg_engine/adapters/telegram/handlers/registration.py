@@ -3,7 +3,7 @@ Registration handlers
 """
 
 from aiogram import Dispatcher, F
-from aiogram.filters import Command
+from aiogram.filters import Command, Filter
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import Message
@@ -12,7 +12,45 @@ from sqlalchemy.orm import selectinload
 
 from wpg_engine.adapters.telegram.utils import escape_html
 from wpg_engine.core.engine import GameEngine
-from wpg_engine.models import Country, Game, GameStatus, Player, PlayerRole, get_db
+from wpg_engine.models import (
+    Country,
+    Example,
+    Game,
+    GameStatus,
+    Player,
+    PlayerRole,
+    get_db,
+)
+
+
+class IsExampleSelection(Filter):
+    """Filter to check if message is selecting an example during registration"""
+
+    async def __call__(self, message: Message, state: FSMContext) -> bool:
+        # Must be a reply
+        if not message.reply_to_message:
+            return False
+
+        # Must be in registration state
+        current_state = await state.get_state()
+        if not current_state or not current_state.startswith("RegistrationStates:"):
+            return False
+
+        # Skip confirmation state
+        if (
+            current_state
+            == "RegistrationStates:waiting_for_reregistration_confirmation"
+        ):
+            return False
+
+        # Must reply to example message
+        reply_text = message.reply_to_message.text or ""
+        if "[EXAMPLE:" not in reply_text:
+            return False
+
+        # Must say "выбрать" or "выбираю"
+        user_text = message.text.strip().lower() if message.text else ""
+        return user_text in ["выбрать", "выбираю"]
 
 
 class RegistrationStates(StatesGroup):
@@ -157,7 +195,12 @@ async def register_command(message: Message, state: FSMContext) -> None:
         )
         return
 
-    # New user registration
+    # New user registration - check if there are examples
+    result = await game_engine.db.execute(
+        select(Example).where(Example.game_id == game.id).limit(1)
+    )
+    has_examples = result.scalar_one_or_none() is not None
+
     await state.update_data(
         game_id=game.id,
         user_id=user_id,
@@ -166,11 +209,18 @@ async def register_command(message: Message, state: FSMContext) -> None:
         spent_points=0,
     )
 
+    examples_hint = ""
+    if has_examples:
+        examples_hint = (
+            "\n\n💡 <i>Вы можете использовать /examples для просмотра готовых примеров стран. "
+            "Чтобы выбрать страну из примера, ответьте на сообщение с примером словом "
+            "<b>выбрать</b> или <b>выбираю</b></i>"
+        )
+
     await message.answer(
         f"🎮 <b>Регистрация в игре '{escape_html(game.name)}'</b>\n\n"
         f"Для участия в игре вам необходимо создать свою страну.\n"
-        f"Вы будете управлять страной по <b>10 аспектам</b> развития.\n\n"
-        f"💡 <i>Используйте /examples для просмотра примеров других стран</i>\n\n"
+        f"Вы будете управлять страной по <b>10 аспектам</b> развития.{examples_hint}\n\n"
         f"📊 <b>У вас есть {game.max_points} очков</b> для распределения между аспектами.\n"
         f"Каждый аспект можно развить от 0 до 10 уровня.\n\n"
         f"<b>Начнем с основной информации:</b>\n\n"
@@ -705,8 +755,170 @@ async def process_reregistration_confirmation(
     await state.set_state(RegistrationStates.waiting_for_country_name)
 
 
+async def process_example_selection(message: Message, state: FSMContext) -> None:
+    """
+    Process example selection - this handler checks if user replied to example message
+    with "выбрать" or "выбираю" during registration
+    """
+    # Check if message is a reply
+    if not message.reply_to_message:
+        return
+
+    # Check if user is in any registration state
+    current_state = await state.get_state()
+    if not current_state or not current_state.startswith("RegistrationStates:"):
+        return
+
+    # Skip confirmation state
+    if current_state == "RegistrationStates:waiting_for_reregistration_confirmation":
+        return
+
+    # Check if reply message contains [EXAMPLE:X] marker
+    reply_text = message.reply_to_message.text or ""
+    if "[EXAMPLE:" not in reply_text:
+        return  # Not replying to example message, let normal handlers process it
+
+    # Check if user wants to select this example
+    user_text = message.text.strip().lower()
+    if user_text not in ["выбрать", "выбираю"]:
+        # User is replying to example but not selecting it - treat as normal name input
+        return
+
+    # Extract example ID from marker
+    try:
+        example_id_str = reply_text.split("[EXAMPLE:")[1].split("]")[0]
+        example_id = int(example_id_str)
+    except (IndexError, ValueError):
+        await message.answer("❌ Ошибка при извлечении ID примера. Попробуйте еще раз.")
+        return
+
+    # Get state data
+    data = await state.get_data()
+    user_id = data.get("user_id", message.from_user.id)
+    game_id = data.get("game_id")
+
+    if not game_id:
+        await message.answer(
+            "❌ Ошибка: игра не найдена. Начните регистрацию заново с /register"
+        )
+        await state.clear()
+        return
+
+    async for db in get_db():
+        game_engine = GameEngine(db)
+
+        # Get the example
+        result = await game_engine.db.execute(
+            select(Example)
+            .options(selectinload(Example.country))
+            .where(Example.id == example_id)
+            .where(Example.game_id == game_id)
+        )
+        example = result.scalar_one_or_none()
+
+        if not example:
+            await message.answer(
+                "❌ Пример страны не найден или уже был выбран другим игроком.\n"
+                "Используйте /examples для просмотра доступных примеров."
+            )
+            return
+
+        country = example.country
+
+        # Check if player already exists
+        result = await game_engine.db.execute(
+            select(Player).where(Player.telegram_id == user_id)
+        )
+        player = result.scalar_one_or_none()
+
+        if player:
+            # Update existing player with new country
+            player.country_id = country.id
+        else:
+            # Create new player
+            player = await game_engine.create_player(
+                game_id=game_id,
+                telegram_id=user_id,
+                username=message.from_user.username,
+                display_name=message.from_user.full_name,
+                country_id=country.id,
+                role=PlayerRole.PLAYER,
+            )
+
+        # Delete the example (it's now taken)
+        await game_engine.db.delete(example)
+        await game_engine.db.commit()
+
+        # Send confirmation to user
+        await message.answer(
+            f"🎉 <b>Поздравляем!</b>\n\n"
+            f"Вы выбрали страну <b>{escape_html(country.name)}</b>!\n\n"
+            f"<b>Столица:</b> {escape_html(country.capital or 'Не указана')}\n"
+            f"<b>Население:</b> {country.population:,} чел.\n\n"
+            f"⏳ <b>Ваша заявка отправлена администратору на рассмотрение.</b>\n"
+            f"Вы получите уведомление, когда заявка будет одобрена.\n\n"
+            f"Используйте /start для просмотра доступных команд.",
+            parse_mode="HTML",
+        )
+
+        # Send notification to admin
+        import random
+
+        from wpg_engine.config.settings import settings
+
+        target_chat_id = None
+        if settings.telegram.is_admin_chat():
+            target_chat_id = settings.telegram.admin_id
+        else:
+            result = await game_engine.db.execute(
+                select(Player)
+                .where(Player.game_id == game_id)
+                .where(Player.role == PlayerRole.ADMIN)
+            )
+            admins = result.scalars().all()
+            if admins:
+                admin = random.choice(admins)
+                target_chat_id = admin.telegram_id
+
+        if target_chat_id:
+            try:
+                registration_message = (
+                    f"📋 <b>Новая заявка на регистрацию (из примера)</b>\n\n"
+                    f"<b>Игрок:</b> {escape_html(message.from_user.full_name or 'Не указано')}\n"
+                    f"<b>Username:</b> @{escape_html(message.from_user.username or 'не указан')}\n"
+                    f"<b>Telegram ID:</b> <code>{user_id}</code>\n\n"
+                    f"<b>Выбрана страна:</b> {escape_html(country.name)}\n"
+                    f"<b>Столица:</b> {escape_html(country.capital or 'Не указана')}\n"
+                    f"<b>Население:</b> {country.population:,}\n\n"
+                    f"<b>Ответьте на это сообщение:</b>\n"
+                    f"• <code>одобрить</code> - для одобрения заявки\n"
+                    f"• <code>отклонить</code> - для отклонения заявки\n"
+                    f"• <code>отклонить [причина]</code> - для отклонения с указанием причины"
+                )
+
+                bot = message.bot
+                await bot.send_message(
+                    target_chat_id, registration_message, parse_mode="HTML"
+                )
+            except Exception as e:
+                print(f"Failed to send registration to admin: {e}")
+
+        break
+
+    # Clear state
+    await state.clear()
+
+
 def register_registration_handlers(dp: Dispatcher) -> None:
     """Register registration handlers"""
+
+    # Register example selection handler FIRST with highest priority
+    # This will intercept replies to example messages with "выбрать"/"выбираю"
+    dp.message.register(
+        process_example_selection,
+        IsExampleSelection(),
+    )
+
     dp.message.register(register_command, Command("register"))
     dp.message.register(
         process_reregistration_confirmation,

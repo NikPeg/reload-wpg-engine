@@ -41,7 +41,3 @@ class AddExamplesMigration(Migration):
         """Drop examples table"""
         await session.execute(text("DROP TABLE IF EXISTS examples"))
         await session.commit()
-
-
-# Create migration instance
-migration_007 = AddExamplesMigration()
