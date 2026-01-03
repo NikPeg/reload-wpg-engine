@@ -126,7 +126,7 @@ class TestReregistration:
         )
         old_country_final = result.scalar_one_or_none()
         assert old_country_final is not None
-        
+
         # Check that no players are assigned to old country
         result = await db_session.execute(
             select(Player).where(Player.country_id == country1.id)

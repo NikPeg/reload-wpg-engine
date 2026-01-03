@@ -13,7 +13,6 @@ from sqlalchemy.orm import selectinload
 from wpg_engine.adapters.telegram.utils import escape_html
 from wpg_engine.core.engine import GameEngine
 from wpg_engine.models import Country, Game, GameStatus, Player, PlayerRole, get_db
-from wpg_engine.models.message import Message as MessageModel
 
 
 class RegistrationStates(StatesGroup):
@@ -661,7 +660,6 @@ async def process_reregistration_confirmation(
     game_id = data["game_id"]
     max_points = data["max_points"]
     existing_player_id = data["existing_player_id"]
-    existing_country_id = data.get("existing_country_id")
 
     async for db in get_db():
         game_engine = GameEngine(db)
@@ -671,7 +669,7 @@ async def process_reregistration_confirmation(
             select(Player).where(Player.id == existing_player_id)
         )
         player = result.scalar_one_or_none()
-        
+
         if player:
             # Отвязываем страну от игрока, но НЕ удаляем саму страну
             # Страна останется в базе данных и может быть удалена только админом через /delete_country

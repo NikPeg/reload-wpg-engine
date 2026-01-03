@@ -136,6 +136,22 @@ async def handle_text_message(message: Message, state: FSMContext) -> None:
     if current_state is not None:
         return
 
+    # Check if this is a reply to an example country selection
+    if message.reply_to_message and message.reply_to_message.text:
+        import re
+
+        example_match = re.search(
+            r"\[EXAMPLE:(\d+)\]", message.reply_to_message.text
+        )
+        if example_match and content.lower() in ["выбрать", "выбираю"]:
+            async for db in get_db():
+                game_engine = GameEngine(db)
+                await handle_example_selection(
+                    message, int(example_match.group(1)), game_engine
+                )
+                break
+            return
+
     # Skip if message is too short or too long
     if len(content) < 3:
         await message.answer("❌ Сообщение слишком короткое (минимум 3 символа).")
@@ -730,6 +746,138 @@ async def handle_country_edit(
     response += "• Аналогично для других аспектов: военное, внешняя, территория, технологии, религия, управление, строительство, общество, разведка"
 
     await message.answer(response, parse_mode="Markdown")
+
+
+async def handle_example_selection(
+    message: Message, example_id: int, game_engine: GameEngine
+) -> None:
+    """Handle player selection of an example country"""
+    user_id = message.from_user.id
+
+    # Get the example
+    from wpg_engine.models import Example
+
+    result = await game_engine.db.execute(
+        select(Example)
+        .options(selectinload(Example.country))
+        .where(Example.id == example_id)
+    )
+    example = result.scalar_one_or_none()
+
+    if not example:
+        await message.answer(
+            "❌ Эта страна уже недоступна для выбора. "
+            "Используйте /examples чтобы посмотреть доступные страны."
+        )
+        return
+
+    country = example.country
+    game_id = example.game_id
+
+    # Check if user is already registered
+    result = await game_engine.db.execute(
+        select(Player)
+        .options(selectinload(Player.country))
+        .where(Player.telegram_id == user_id)
+    )
+    existing_player = result.scalar_one_or_none()
+
+    try:
+        if existing_player:
+            # Player exists - update their country
+            # First, detach old country if it exists
+            if existing_player.country_id:
+                existing_player.country_id = None
+                await game_engine.db.commit()
+
+            # Assign new country
+            existing_player.country_id = country.id
+            existing_player.game_id = game_id
+            await game_engine.db.commit()
+
+            # Delete the example entry
+            await game_engine.db.delete(example)
+            await game_engine.db.commit()
+
+            await message.answer(
+                f"✅ <b>Отлично!</b>\n\n"
+                f"Вы теперь играете за страну <b>{escape_html(country.name)}</b>!\n\n"
+                f"<b>Столица:</b> {escape_html(country.capital or 'Не указана')}\n"
+                f"<b>Население:</b> {country.population:,} чел.\n\n"
+                f"Используйте /stats для просмотра полной информации о вашей стране.\n"
+                f"Используйте /start для просмотра доступных команд.",
+                parse_mode="HTML",
+            )
+        else:
+            # Create new player
+            username = message.from_user.username
+            display_name = message.from_user.full_name or f"Player_{user_id}"
+
+            await game_engine.create_player(
+                game_id=game_id,
+                telegram_id=user_id,
+                username=username,
+                display_name=display_name,
+                country_id=country.id,
+                role=PlayerRole.PLAYER,
+            )
+
+            # Delete the example entry
+            await game_engine.db.delete(example)
+            await game_engine.db.commit()
+
+            await message.answer(
+                f"🎉 <b>Поздравляем с регистрацией!</b>\n\n"
+                f"Вы выбрали страну <b>{escape_html(country.name)}</b>!\n\n"
+                f"<b>Столица:</b> {escape_html(country.capital or 'Не указана')}\n"
+                f"<b>Население:</b> {country.population:,} чел.\n\n"
+                f"Используйте /stats для просмотра полной информации о вашей стране.\n"
+                f"Используйте /start для просмотра доступных команд.",
+                parse_mode="HTML",
+            )
+
+        # Notify admin about the selection
+        from wpg_engine.config.settings import settings
+
+        target_chat_id = None
+        if settings.telegram.is_admin_chat():
+            target_chat_id = settings.telegram.admin_id
+        else:
+            # Find admins
+            result = await game_engine.db.execute(
+                select(Player)
+                .where(Player.game_id == game_id)
+                .where(Player.role == PlayerRole.ADMIN)
+            )
+            admins = result.scalars().all()
+            if admins:
+                import random
+
+                admin = random.choice(admins)
+                target_chat_id = admin.telegram_id
+
+        if target_chat_id:
+            try:
+                bot = message.bot
+                await bot.send_message(
+                    target_chat_id,
+                    f"ℹ️ <b>Игрок выбрал страну из примеров</b>\n\n"
+                    f"<b>Игрок:</b> {escape_html(display_name or message.from_user.full_name)}\n"
+                    f"<b>Username:</b> @{escape_html(message.from_user.username or 'не указан')}\n"
+                    f"<b>Telegram ID:</b> <code>{user_id}</code>\n\n"
+                    f"<b>Выбранная страна:</b> {escape_html(country.name)}\n"
+                    f"<b>Столица:</b> {escape_html(country.capital or 'Не указана')}\n"
+                    f"<b>Население:</b> {country.population:,} чел.",
+                    parse_mode="HTML",
+                )
+            except Exception as e:
+                print(f"Failed to notify admin about example selection: {e}")
+
+    except Exception as e:
+        print(f"Error handling example selection: {e}")
+        await message.answer(
+            "❌ Произошла ошибка при выборе страны. Попробуйте еще раз или обратитесь к администратору."
+        )
 
 
 async def handle_registration_decision(

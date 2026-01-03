@@ -360,29 +360,78 @@ async def examples_command(message: Message) -> None:
         )
         return
 
-    # Build message with all example countries
-    examples_text = "📝 <b>Примеры стран для вдохновения</b>\n\n"
-    examples_text += "Вот примеры стран, которые уже зарегистрированы в игре.\n"
-    examples_text += "Вы можете посмотреть их детали командой <code>/world Название страны</code>\n\n"
+    # Send initial message
+    await message.answer(
+        "📝 <b>Примеры стран для выбора</b>\n\n"
+        "Вы можете выбрать одну из этих стран для игры.\n"
+        "Просто ответьте на сообщение о стране словом <b>выбрать</b> или <b>выбираю</b>.",
+        parse_mode="HTML",
+    )
 
-    for i, example in enumerate(examples, 1):
+    # Aspect emojis and names for displaying
+    aspect_emojis = {
+        "economy": "💰",
+        "military": "⚔️",
+        "foreign_policy": "🤝",
+        "territory": "🗺️",
+        "technology": "🔬",
+        "religion_culture": "🏛️",
+        "governance_law": "⚖️",
+        "construction_infrastructure": "🏗️",
+        "social_relations": "👥",
+        "intelligence": "🕵️",
+    }
+
+    aspect_names = {
+        "economy": "Экономика",
+        "military": "Военное дело",
+        "foreign_policy": "Внешняя политика",
+        "territory": "Территория",
+        "technology": "Технологичность",
+        "religion_culture": "Религия и культура",
+        "governance_law": "Управление и право",
+        "construction_infrastructure": "Строительство",
+        "social_relations": "Общественные отношения",
+        "intelligence": "Разведка",
+    }
+
+    # Send each example country as a separate message
+    for example in examples:
         country = example.country
-        examples_text += f"{i}. <b>{escape_html(country.name)}</b>\n"
+        country_text = f"🏛️ <b>{escape_html(country.name)}</b>\n\n"
+
         if country.capital:
-            examples_text += f"   Столица: {escape_html(country.capital)}\n"
+            country_text += f"<b>Столица:</b> {escape_html(country.capital)}\n"
+        if country.population:
+            country_text += f"<b>Население:</b> {country.population:,} чел.\n"
+
         if country.description:
-            # Show first 100 characters of description
-            desc = (
-                country.description[:100] + "..."
-                if len(country.description) > 100
-                else country.description
-            )
-            examples_text += f"   <i>{escape_html(desc)}</i>\n"
-        examples_text += "\n"
+            country_text += f"\n<b>Описание:</b>\n<i>{escape_html(country.description)}</i>\n"
 
-    examples_text += "Используйте /register для создания своей страны!"
+        country_text += "\n<b>Аспекты развития:</b>\n\n"
 
-    await message.answer(examples_text, parse_mode="HTML")
+        # Show all aspects with descriptions
+        aspects = country.get_aspects()
+        for aspect, data in aspects.items():
+            emoji = aspect_emojis.get(aspect, "📊")
+            name = aspect_names.get(aspect, aspect)
+            value = data["value"]
+            description = data["description"] or "Нет описания"
+
+            # Add rating bar
+            rating_bar = "█" * value + "░" * (10 - value)
+
+            country_text += f"{emoji} <b>{name}</b>: {value}/10\n"
+            country_text += f"   {rating_bar}\n"
+            country_text += f"   <i>{escape_html(truncate_text(description, 200))}</i>\n\n"
+
+        country_text += (
+            "\n💡 <b>Чтобы играть за эту страну, ответьте на это сообщение</b> "
+            "и напишите <b>выбрать</b> или <b>выбираю</b>.\n\n"
+            f"<code>[EXAMPLE:{example.id}]</code>"
+        )
+
+        await message.answer(country_text, parse_mode="HTML")
 
 
 def register_player_handlers(dp: Dispatcher) -> None:
