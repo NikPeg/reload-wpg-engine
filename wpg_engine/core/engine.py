@@ -472,15 +472,22 @@ class GameEngine:
     async def find_country_by_name_or_synonym(
         self, game_id: int, search_name: str
     ) -> Country | None:
-        """Find country by name or synonym (case-insensitive)"""
+        """Find country by name or synonym (case-insensitive)
+
+        This method searches ALL countries in the game, including NPC countries
+        (countries without players). It uses a direct database query to ensure
+        all countries are found regardless of whether they have a player assigned.
+        """
         search_name_lower = search_name.lower().strip()
 
-        # Get all countries in the game
-        game = await self.get_game(game_id)
-        if not game:
-            return None
+        # Get all countries in the game using direct query
+        # This ensures we find ALL countries, including NPC countries without players
+        result = await self.db.execute(
+            select(Country).where(Country.game_id == game_id)
+        )
+        countries = result.scalars().all()
 
-        for country in game.countries:
+        for country in countries:
             # Check exact name match
             if country.name.lower() == search_name_lower:
                 return country
