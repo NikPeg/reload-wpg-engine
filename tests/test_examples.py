@@ -4,8 +4,9 @@ Test examples functionality
 
 import pytest
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 
-from wpg_engine.models import Example, Game, Player, PlayerRole
+from wpg_engine.models import Country, Example, Game, Player, PlayerRole
 
 
 @pytest.fixture
@@ -42,12 +43,28 @@ async def admin_player(db_session, game):
     return player
 
 
+@pytest.fixture
+async def country(db_session, game):
+    """Create a test country"""
+    country = Country(
+        name="Test Country",
+        description="Test description",
+        capital="Test Capital",
+        population=1000000,
+        game_id=game.id,
+    )
+    db_session.add(country)
+    await db_session.commit()
+    await db_session.refresh(country)
+    return country
+
+
 @pytest.mark.asyncio
-async def test_create_example(db_session, game, admin_player):
-    """Test creating an example message"""
+async def test_create_example(db_session, game, admin_player, country):
+    """Test creating an example country"""
     # Create example
     example = Example(
-        content="Построить библиотеку в столице",
+        country_id=country.id,
         game_id=game.id,
         created_by_id=admin_player.id,
     )
@@ -57,7 +74,7 @@ async def test_create_example(db_session, game, admin_player):
     await db_session.refresh(example)
 
     assert example.id is not None
-    assert example.content == "Построить библиотеку в столице"
+    assert example.country_id == country.id
     assert example.game_id == game.id
     assert example.created_by_id == admin_player.id
 
@@ -65,14 +82,30 @@ async def test_create_example(db_session, game, admin_player):
 @pytest.mark.asyncio
 async def test_get_examples_for_game(db_session, game, admin_player):
     """Test retrieving examples for a game"""
-    # Create multiple examples
+    # Create multiple countries
+    country1 = Country(
+        name="Country 1",
+        description="Description 1",
+        game_id=game.id,
+    )
+    country2 = Country(
+        name="Country 2",
+        description="Description 2",
+        game_id=game.id,
+    )
+
+    db_session.add(country1)
+    db_session.add(country2)
+    await db_session.commit()
+
+    # Create examples
     example1 = Example(
-        content="Построить библиотеку",
+        country_id=country1.id,
         game_id=game.id,
         created_by_id=admin_player.id,
     )
     example2 = Example(
-        content="Создать армию",
+        country_id=country2.id,
         game_id=game.id,
         created_by_id=admin_player.id,
     )
@@ -88,16 +121,18 @@ async def test_get_examples_for_game(db_session, game, admin_player):
     examples = result.scalars().all()
 
     assert len(examples) == 2
-    assert examples[0].content == "Построить библиотеку"
-    assert examples[1].content == "Создать армию"
+    assert examples[0].country_id == country1.id
+    assert examples[1].country_id == country2.id
 
 
 @pytest.mark.asyncio
-async def test_example_cascade_delete_with_game(db_session, game, admin_player):
+async def test_example_cascade_delete_with_game(
+    db_session, game, admin_player, country
+):
     """Test that examples are deleted when game is deleted"""
     # Create example
     example = Example(
-        content="Тестовый пример",
+        country_id=country.id,
         game_id=game.id,
         created_by_id=admin_player.id,
     )
@@ -115,3 +150,30 @@ async def test_example_cascade_delete_with_game(db_session, game, admin_player):
     deleted_example = result.scalar_one_or_none()
 
     assert deleted_example is None
+
+
+@pytest.mark.asyncio
+async def test_example_unique_country(db_session, game, admin_player, country):
+    """Test that a country can only be an example once"""
+    # Create first example
+    example1 = Example(
+        country_id=country.id,
+        game_id=game.id,
+        created_by_id=admin_player.id,
+    )
+
+    db_session.add(example1)
+    await db_session.commit()
+
+    # Try to create second example with same country
+    example2 = Example(
+        country_id=country.id,
+        game_id=game.id,
+        created_by_id=admin_player.id,
+    )
+
+    db_session.add(example2)
+
+    # Should raise an error due to unique constraint
+    with pytest.raises(IntegrityError):
+        await db_session.commit()

@@ -1725,8 +1725,9 @@ async def process_delete_user_confirmation(message: Message, state: FSMContext) 
 
 
 async def add_example_command(message: Message, state: FSMContext) -> None:
-    """Handle /add_example command - add example message for players"""
+    """Handle /add_example command - mark a country as example for new players"""
     user_id = message.from_user.id
+    args = message.text.split(maxsplit=1)
 
     async for db in get_db():
         game_engine = GameEngine(db)
@@ -1745,43 +1746,49 @@ async def add_example_command(message: Message, state: FSMContext) -> None:
             )
             return
 
-        # Store admin info for later
-        await state.update_data(
-            admin_id=admin.id,
-            game_id=admin.game_id,
+        # Check if country name is provided
+        if len(args) < 2:
+            await message.answer(
+                "❌ Укажите название страны.\n\n"
+                "Формат: <code>/add_example Название страны</code>\n\n"
+                "Пример: <code>/add_example Римская Империя</code>",
+                parse_mode="HTML",
+            )
+            return
+
+        country_name = args[1].strip()
+
+        # Find country by name or synonym
+        country = await game_engine.find_country_by_name_or_synonym(
+            admin.game_id, country_name
         )
 
-        await message.answer(
-            "📝 <b>Добавление примера сообщения</b>\n\n"
-            "Отправьте следующим сообщением текст, который станет примером для игроков.\n\n"
-            '<i>Например: "Построить большую библиотеку в столице"</i>',
-            parse_mode="HTML",
+        if not country:
+            await message.answer(
+                f"❌ Страна '{escape_html(country_name)}' не найдена.\n\n"
+                f"Используйте /world для просмотра всех стран.",
+                parse_mode="HTML",
+            )
+            return
+
+        # Check if country is already an example
+        result = await game_engine.db.execute(
+            select(Example).where(Example.country_id == country.id)
         )
-        await state.set_state(AdminStates.waiting_for_example_message)
-        break
+        existing_example = result.scalar_one_or_none()
 
-
-async def process_example_message(message: Message, state: FSMContext) -> None:
-    """Process example message from admin"""
-    example_text = message.text.strip()
-
-    if not example_text:
-        await message.answer("❌ Сообщение не может быть пустым. Попробуйте еще раз.")
-        return
-
-    # Get stored data
-    data = await state.get_data()
-    admin_id = data["admin_id"]
-    game_id = data["game_id"]
-
-    async for db in get_db():
-        game_engine = GameEngine(db)
+        if existing_example:
+            await message.answer(
+                f"ℹ️ Страна <b>{escape_html(country.name)}</b> уже является примером.",
+                parse_mode="HTML",
+            )
+            return
 
         # Create new example
         example = Example(
-            content=example_text,
-            game_id=game_id,
-            created_by_id=admin_id,
+            country_id=country.id,
+            game_id=admin.game_id,
+            created_by_id=admin.id,
         )
 
         game_engine.db.add(example)
@@ -1789,15 +1796,22 @@ async def process_example_message(message: Message, state: FSMContext) -> None:
         await game_engine.db.refresh(example)
 
         await message.answer(
-            f"✅ <b>Пример успешно добавлен!</b>\n\n"
-            f"<b>Текст примера:</b>\n"
-            f"<code>{escape_html(example_text)}</code>\n\n"
-            f"Игроки смогут увидеть этот пример, используя команду /examples",
+            f"✅ <b>Страна добавлена в примеры!</b>\n\n"
+            f"<b>Страна:</b> {escape_html(country.name)}\n\n"
+            f"Новые игроки смогут увидеть эту страну как пример при регистрации, используя команду /examples",
             parse_mode="HTML",
         )
         break
 
+
+async def process_example_message(message: Message, state: FSMContext) -> None:
+    """Process example message from admin - NO LONGER USED"""
+    # This function is no longer needed but kept for backward compatibility
     await state.clear()
+    await message.answer(
+        "⚠️ Эта функция больше не используется. Используйте /add_example с названием страны.",
+        parse_mode="HTML",
+    )
 
 
 def register_admin_handlers(dp: Dispatcher) -> None:

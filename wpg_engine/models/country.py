@@ -80,6 +80,9 @@ class Country(Base):
     # Relationships
     game: Mapped["Game"] = relationship("Game", back_populates="countries")
     players: Mapped[list["Player"]] = relationship("Player", back_populates="country")
+    example: Mapped["Example"] = relationship(
+        "Example", back_populates="country", uselist=False, cascade="all, delete-orphan"
+    )
 
     def get_aspects(self) -> dict[str, dict]:
         """Get all aspects with values and descriptions"""

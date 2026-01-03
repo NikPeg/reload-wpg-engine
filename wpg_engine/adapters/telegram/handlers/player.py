@@ -10,7 +10,7 @@ from sqlalchemy.orm import selectinload
 
 from wpg_engine.adapters.telegram.utils import escape_html
 from wpg_engine.core.engine import GameEngine
-from wpg_engine.models import Example, Player, get_db
+from wpg_engine.models import Example, Game, Player, get_db
 
 # Removed PostStates - no longer needed
 
@@ -316,7 +316,7 @@ async def world_command(message: Message) -> None:
 
 
 async def examples_command(message: Message) -> None:
-    """Handle /examples command - show example messages for players"""
+    """Handle /examples command - show example countries for new players"""
     user_id = message.from_user.id
 
     async for db in get_db():
@@ -331,15 +331,21 @@ async def examples_command(message: Message) -> None:
         player = result.scalar_one_or_none()
 
         if not player:
-            await message.answer(
-                "❌ Вы не зарегистрированы в игре. Используйте /register"
-            )
-            return
+            # For unregistered users, show examples from first available game
+            result = await game_engine.db.execute(select(Game).limit(1))
+            game = result.scalar_one_or_none()
+            if not game:
+                await message.answer("❌ В данный момент нет активных игр.")
+                return
+            game_id = game.id
+        else:
+            game_id = player.game_id
 
-        # Get all examples for the player's game
+        # Get all examples for the game
         result = await game_engine.db.execute(
             select(Example)
-            .where(Example.game_id == player.game_id)
+            .options(selectinload(Example.country))
+            .where(Example.game_id == game_id)
             .order_by(Example.created_at.desc())
         )
         examples = result.scalars().all()
@@ -347,23 +353,34 @@ async def examples_command(message: Message) -> None:
 
     if not examples:
         await message.answer(
-            "📝 <b>Примеры сообщений</b>\n\n"
-            "Пока нет примеров для вашей игры.\n"
+            "📝 <b>Примеры стран</b>\n\n"
+            "Пока нет примеров стран для вашей игры.\n"
             "Администратор может добавить примеры с помощью команды /add_example",
             parse_mode="HTML",
         )
         return
 
-    # Build message with all examples
-    examples_text = "📝 <b>Примеры сообщений для игроков</b>\n\n"
-    examples_text += "Вот примеры того, что вы можете написать боту:\n\n"
+    # Build message with all example countries
+    examples_text = "📝 <b>Примеры стран для вдохновения</b>\n\n"
+    examples_text += "Вот примеры стран, которые уже зарегистрированы в игре.\n"
+    examples_text += "Вы можете посмотреть их детали командой <code>/world Название страны</code>\n\n"
 
     for i, example in enumerate(examples, 1):
-        examples_text += f"{i}. <code>{escape_html(example.content)}</code>\n\n"
+        country = example.country
+        examples_text += f"{i}. <b>{escape_html(country.name)}</b>\n"
+        if country.capital:
+            examples_text += f"   Столица: {escape_html(country.capital)}\n"
+        if country.description:
+            # Show first 100 characters of description
+            desc = (
+                country.description[:100] + "..."
+                if len(country.description) > 100
+                else country.description
+            )
+            examples_text += f"   <i>{escape_html(desc)}</i>\n"
+        examples_text += "\n"
 
-    examples_text += (
-        "\nПросто напишите свой приказ или вопрос боту, и он обработает ваше сообщение!"
-    )
+    examples_text += "Используйте /register для создания своей страны!"
 
     await message.answer(examples_text, parse_mode="HTML")
 
