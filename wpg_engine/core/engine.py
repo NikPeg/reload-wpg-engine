@@ -147,7 +147,7 @@ class GameEngine:
         """Get country by ID"""
         result = await self.db.execute(
             select(Country)
-            .options(selectinload(Country.players))
+            .options(selectinload(Country.player))
             .where(Country.id == country_id)
         )
         return result.scalar_one_or_none()
@@ -237,9 +237,9 @@ class GameEngine:
         if not country:
             return False
 
-        # Unassign all players from this country
-        for player in country.players:
-            player.country_id = None
+        # Unassign player from this country (one-to-one relationship)
+        if country.player:
+            country.player.country_id = None
 
         # Delete the country
         await self.db.delete(country)

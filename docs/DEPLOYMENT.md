@@ -1,14 +1,12 @@
 # 🚀 Руководство по деплою WPG Engine
 
-Это руководство описывает процесс автоматизированного деплоя телеграм-бота WPG Engine на Yandex Cloud с использованием Docker и GitHub Actions.
+Руководство по развертыванию телеграм-бота WPG Engine на Yandex Cloud.
 
 ## 📋 Содержание
 
 - [Быстрый старт](#быстрый-старт)
-- [Архитектура деплоя](#архитектура-деплоя)
-- [Настройка окружения](#настройка-окружения)
 - [Локальная разработка](#локальная-разработка)
-- [Автоматический деплой](#автоматический-деплой)
+- [Автоматический деплой через GitHub Actions](#автоматический-деплой-через-github-actions)
 - [Ручной деплой](#ручной-деплой)
 - [Мониторинг](#мониторинг)
 - [Устранение неполадок](#устранение-неполадок)
@@ -42,109 +40,58 @@ make logs
 # Затем просто сделайте push в main ветку
 git push origin main
 
-# Или ручной деплой
-make deploy-prod
+# Или используйте быстрый деплой скрипт
+./scripts/quick-deploy.sh
 ```
-
-## 🏗️ Архитектура деплоя
-
-```mermaid
-graph TB
-    A[Локальная разработка] --> B[Git Push]
-    B --> C[GitHub Actions]
-    C --> D[Тесты]
-    D --> E[Build Docker Image]
-    E --> F[Push to Yandex Registry]
-    F --> G[Deploy to Server]
-    G --> H[Health Check]
-    
-    I[Yandex Cloud] --> J[Container Registry]
-    I --> K[Compute Instance]
-    
-    L[Мониторинг] --> M[Логи]
-    L --> N[Health Checks]
-    L --> O[Бэкапы]
-```
-
-## ⚙️ Настройка окружения
-
-### Yandex Cloud
-
-1. **Создайте Container Registry:**
-```bash
-yc container registry create --name wpg-engine-registry
-```
-
-2. **Создайте Compute Instance:**
-```bash
-yc compute instance create \
-  --name wpg-engine-server \
-  --zone ru-central1-a \
-  --network-interface subnet-name=default-ru-central1-a,nat-ip-version=ipv4 \
-  --create-boot-disk image-folder-id=standard-images,image-family=ubuntu-2004-lts,size=20 \
-  --ssh-key ~/.ssh/id_rsa.pub
-```
-
-3. **Настройте Docker на сервере:**
-```bash
-# Подключитесь к серверу
-yc compute ssh --name wpg-engine-server
-
-# Установите Docker
-curl -fsSL https://get.docker.com -o get-docker.sh
-sudo sh get-docker.sh
-sudo usermod -aG docker $USER
-
-# Настройте аутентификацию в Container Registry
-yc container registry configure-docker
-```
-
-### GitHub Secrets
-
-Добавьте следующие секреты в настройках репозитория GitHub:
-
-| Секрет | Описание | Пример |
-|--------|----------|--------|
-| `TG_TOKEN` | Токен Telegram бота | `1234567890:ABCdefGHIjklMNOpqrsTUVwxyz` |
-| `TG_ADMIN_ID` | ID администратора | `123456789` |
-| `AI_OPENROUTER_API_KEY` | API ключ OpenRouter | `sk-or-v1-...` |
-| `YC_SA_JSON_CREDENTIALS` | JSON ключ сервисного аккаунта | `{"id": "...", "key": "..."}` |
-| `YC_REGISTRY_ID` | ID Container Registry | `crp1234567890abcdef` |
-| `YC_CLOUD_ID` | ID облака | `b1g1234567890abcdef` |
-| `YC_FOLDER_ID` | ID папки | `b1g1234567890abcdef` |
-| `YC_INSTANCE_IP` | IP адрес сервера | `51.250.1.1` |
-| `YC_INSTANCE_USER` | Пользователь на сервере | `ubuntu` |
-| `YC_INSTANCE_NAME` | Имя инстанса | `wpg-engine-server` |
 
 ## 💻 Локальная разработка
+
+### Доступные команды (Makefile)
+
+```bash
+# Разработка
+make build          # Собрать Docker образ
+make run            # Запустить в продакшн режиме
+make run-dev        # Запустить в режиме разработки
+make test           # Запустить тесты
+make lint           # Проверить код линтером
+make format         # Форматировать код (Ruff)
+make clean          # Очистить контейнеры
+
+# Мониторинг
+make status         # Статус контейнера
+make logs           # Показать логи
+make monitor        # Следить за логами
+make backup         # Создать бэкап БД
+make restart        # Перезапустить контейнер
+
+# База данных
+make migrate        # Запустить миграции
+make recreate-db    # Пересоздать базу данных
+```
 
 ### Использование Docker Compose
 
 ```bash
 # Запуск в режиме разработки
 make run-dev
+# или
+docker-compose -f deploy/docker-compose.dev.yml up -d
 
 # Запуск в продакшн режиме
 make run
+# или
+docker-compose -f deploy/docker-compose.yml up -d
 
 # Просмотр логов
 make logs
+# или
+docker-compose -f deploy/docker-compose.yml logs -f
 
 # Остановка
 make down
-```
-
-### Использование скриптов
-
-```bash
-# Сборка и тестирование
-./scripts/local-test.sh build
-./scripts/local-test.sh run
-./scripts/local-test.sh logs
-
-# Остановка и очистка
-./scripts/local-test.sh stop
-./scripts/local-test.sh clean
+# или
+docker-compose -f deploy/docker-compose.yml down
 ```
 
 ### Без Docker
@@ -155,25 +102,75 @@ make install
 
 # Запуск
 make local-run
+# или
+python main.py
 
 # Тесты
 make local-test
+# или
+python -m pytest tests/ -v
 ```
 
-## 🤖 Автоматический деплой
+## 🤖 Автоматический деплой через GitHub Actions
 
-### GitHub Actions Workflow
+### Настройка GitHub Secrets
 
-Автоматический деплой запускается при:
-- Push в ветку `main`
-- Pull Request в ветку `main` (только тесты)
+Добавьте следующие секреты в настройках репозитория (Settings → Secrets and variables → Actions):
 
-Процесс включает:
-1. **Тестирование** - запуск тестов и линтеров
-2. **Сборка** - создание Docker образа
-3. **Публикация** - загрузка в Yandex Container Registry
-4. **Деплой** - обновление на сервере
-5. **Проверка** - health check после деплоя
+#### Обязательные секреты для Telegram
+
+| Секрет | Описание | Пример |
+|--------|----------|--------|
+| `TG_TOKEN` | Токен Telegram бота | `1234567890:ABCdefGHIjklMNOpqrsTUVwxyz` |
+| `TG_ADMIN_ID` | ID администратора (положительное для пользователя, отрицательное для чата) | `123456789` или `-1001234567890` |
+
+#### Обязательные секреты для Yandex Cloud
+
+| Секрет | Описание | Получение |
+|--------|----------|-----------|
+| `YC_SA_JSON_CREDENTIALS` | JSON ключ сервисного аккаунта | `yc iam key create --service-account-id <ID> --output key.json` |
+| `YC_REGISTRY_ID` | ID Container Registry | `yc container registry list` |
+| `YC_CLOUD_ID` | ID облака | `yc config get cloud-id` |
+| `YC_FOLDER_ID` | ID папки | `yc config get folder-id` |
+| `YC_INSTANCE_IP` | IP адрес сервера | `yc compute instance get <name>` |
+| `YC_INSTANCE_USER` | Пользователь на сервере | Обычно `ubuntu` |
+| `YC_INSTANCE_NAME` | Имя инстанса | Имя вашей VM в Yandex Cloud |
+
+#### Секреты для SSH
+
+| Секрет | Описание | Получение |
+|--------|----------|-----------|
+| `SSH_PRIVATE_KEY` | Приватный SSH ключ для доступа к серверу | Содержимое `~/.ssh/id_rsa` |
+
+#### Опциональные секреты для AI
+
+| Секрет | Описание | По умолчанию |
+|--------|----------|--------------|
+| `AI_OPENROUTER_API_KEY` | API ключ OpenRouter для RAG системы | - |
+| `AI_DEFAULT_MODEL` | Модель для RAG анализа | `deepseek/deepseek-chat-v3-0324` |
+
+### Процесс автоматического деплоя
+
+При push в ветку `main` запускается workflow:
+
+1. **Тестирование** (`test` job)
+   - Запуск pytest со всеми тестами
+   - Блокирует деплой при ошибках
+
+2. **Проверка качества кода** (`lint` job)
+   - Линтинг с Ruff
+   - Проверка форматирования
+
+3. **Сборка и публикация** (`build-and-push` job)
+   - Сборка Docker образа для `linux/amd64`
+   - Загрузка в Yandex Container Registry
+   - Использование кэша для ускорения
+
+4. **Деплой** (`deploy` job)
+   - Остановка старого контейнера
+   - Загрузка нового образа на сервер
+   - Запуск нового контейнера с переменными окружения
+   - Проверка работоспособности (health check)
 
 ### Мониторинг деплоя
 
@@ -189,44 +186,81 @@ docker logs wpg-engine-bot
 
 ## 🛠️ Ручной деплой
 
-### Полный деплой
+### Быстрый деплой через скрипт
+
+Используйте готовый скрипт быстрого деплоя:
 
 ```bash
-# Деплой в продакшн
-make deploy-prod
-
-# Деплой в staging
-make deploy-staging
-
-# Деплой в dev
-make deploy-dev
+./scripts/quick-deploy.sh
 ```
 
-### Пошаговый деплой
+Скрипт автоматически:
+- Проверяет наличие `.env` файла
+- Получает или создает Container Registry
+- Собирает Docker образ
+- Загружает образ в registry
+- Деплоит на сервер через `yc compute ssh`
+- Настраивает DNS серверы (8.8.8.8, 8.8.4.4, 1.1.1.1)
+- Показывает логи после запуска
+
+### Пошаговый ручной деплой
+
+#### 1. Сборка образа
 
 ```bash
-# 1. Сборка образа
-make build
-
-# 2. Тестирование
-make test
-
-# 3. Деплой
-./scripts/deploy.sh prod
+docker build -t wpg-engine -f deploy/Dockerfile .
 ```
 
-### Только обновление на сервере
+#### 2. Получение Registry ID
 
 ```bash
-# Если образ уже собран и загружен в registry
-ssh user@server-ip
-docker pull cr.yandex/your-registry-id/wpg-engine-bot:latest
-docker stop wpg-engine-bot
-docker rm wpg-engine-bot
-docker run -d --name wpg-engine-bot --restart unless-stopped \
-  -e TG_TOKEN="your-token" \
+# Список существующих registry
+yc container registry list
+
+# Или создать новый
+yc container registry create --name wpg-engine-registry
+```
+
+#### 3. Загрузка в Registry
+
+```bash
+REGISTRY_ID="your_registry_id"
+docker tag wpg-engine cr.yandex/$REGISTRY_ID/wpg-engine-bot:latest
+docker push cr.yandex/$REGISTRY_ID/wpg-engine-bot:latest
+```
+
+#### 4. Деплой на сервер
+
+```bash
+SERVER_ID="your_server_id"
+
+yc compute ssh --id $SERVER_ID << 'EOF'
+# Остановка старого контейнера
+docker stop wpg-engine-bot 2>/dev/null || true
+docker rm wpg-engine-bot 2>/dev/null || true
+
+# Загрузка нового образа
+docker pull cr.yandex/REGISTRY_ID/wpg-engine-bot:latest
+
+# Запуск нового контейнера
+docker run -d \
+  --name wpg-engine-bot \
+  --restart unless-stopped \
+  --dns 8.8.8.8 \
+  --dns 8.8.4.4 \
+  --dns 1.1.1.1 \
+  -e TG_TOKEN="your_token" \
+  -e TG_ADMIN_ID="your_admin_id" \
+  -e AI_OPENROUTER_API_KEY="your_ai_key" \
+  -e DB_URL="sqlite:///./data/wpg_engine.db" \
+  -e LOG_LEVEL="INFO" \
   -v /opt/wpg-engine/data:/app/data \
-  cr.yandex/your-registry-id/wpg-engine-bot:latest
+  -v /opt/wpg-engine/logs:/app/logs \
+  cr.yandex/REGISTRY_ID/wpg-engine-bot:latest
+
+# Проверка запуска
+docker logs wpg-engine-bot
+EOF
 ```
 
 ## 📊 Мониторинг
@@ -234,68 +268,67 @@ docker run -d --name wpg-engine-bot --restart unless-stopped \
 ### Проверка статуса
 
 ```bash
-# Статус контейнера
+# Локально через Makefile
 make status
 
-# Health check
-make health
-
-# Системная информация
-./scripts/monitor.sh sysinfo
+# На сервере напрямую
+yc compute ssh --id SERVER_ID --command "docker ps | grep wpg-engine"
 ```
 
 ### Логи
 
 ```bash
-# Последние логи
-make logs
+# Локально
+make logs           # Последние логи
+make monitor        # Следить в реальном времени
 
-# Следить за логами в реальном времени
-make monitor
-
-# Конкретное количество строк
-./scripts/monitor.sh logs 100
+# На сервере
+yc compute ssh --id SERVER_ID --command "docker logs wpg-engine-bot"
+yc compute ssh --id SERVER_ID --command "docker logs --tail 50 wpg-engine-bot"
+yc compute ssh --id SERVER_ID --command "docker logs -f wpg-engine-bot"
 ```
 
-### Бэкапы
+### Бэкапы базы данных
 
 ```bash
-# Создать бэкап базы данных
+# Локально
 make backup
 
-# Автоматические бэкапы (добавить в crontab)
-0 2 * * * /path/to/scripts/monitor.sh backup
+# На сервере
+yc compute ssh --id SERVER_ID << 'EOF'
+docker cp wpg-engine-bot:/app/data/wpg_engine.db \
+  /opt/wpg-engine/backups/backup_$(date +%Y%m%d_%H%M%S).db
+EOF
 ```
 
 ### Перезапуск
 
 ```bash
-# Перезапуск контейнера
+# Локально
 make restart
 
-# Полная перезагрузка
-make down && make up
+# На сервере
+yc compute ssh --id SERVER_ID --command "docker restart wpg-engine-bot"
 ```
 
-## 🔧 Управление окружениями
-
-### Переменные окружения
-
-- `.env` - локальная разработка
-- `.env.staging` - staging окружение
-- `.env.prod` - продакшн окружение
-
-### Переключение между окружениями
+### Использование ресурсов
 
 ```bash
-# Копирование конфигурации
-cp .env.prod .env
+yc compute ssh --id SERVER_ID << 'EOF'
+echo "=== Docker containers ==="
+docker ps
 
-# Или использование напрямую
-docker-compose --env-file .env.prod up -d
+echo ""
+echo "=== Resource usage ==="
+docker stats --no-stream
+
+echo ""
+echo "=== Disk usage ==="
+df -h /opt/wpg-engine
+EOF
 ```
 
-## 🚨 Устранение неполадок
+## 🔧 Устранение неполадок
 
 ### Контейнер не запускается
 
@@ -310,6 +343,25 @@ docker images | grep wpg-engine
 docker inspect wpg-engine-bot | grep -A 20 "Env"
 ```
 
+### Ошибка DNS (Cannot connect to host api.telegram.org)
+
+**Решение:** DNS серверы уже настроены в Docker Compose файлах и скриптах деплоя.
+
+Если проблема сохраняется, проверьте:
+
+```bash
+# Проверить DNS в контейнере
+docker exec wpg-engine-bot cat /etc/resolv.conf
+
+# Должно быть:
+# nameserver 8.8.8.8
+# nameserver 8.8.4.4
+# nameserver 1.1.1.1
+
+# Проверить разрешение домена
+docker exec wpg-engine-bot nslookup api.telegram.org
+```
+
 ### Проблемы с базой данных
 
 ```bash
@@ -317,36 +369,25 @@ docker inspect wpg-engine-bot | grep -A 20 "Env"
 docker exec wpg-engine-bot python -c "
 import asyncio
 from wpg_engine.models import get_db
-asyncio.run(next(get_db()).__anext__())
+asyncio.run(get_db().__anext__())
 "
 
-# Пересоздать базу данных
+# Пересоздать базу данных (ОСТОРОЖНО! Удалит все данные)
 docker exec wpg-engine-bot python scripts/recreate_database.py
+
+# Запустить миграции
+docker exec wpg-engine-bot python scripts/run_migrations.py
 ```
 
-### Проблемы с сетью
+### Проблемы с аутентификацией Yandex Cloud
 
 ```bash
-# Проверить порты
-docker port wpg-engine-bot
+# Создать новый ключ сервисного аккаунта
+yc iam service-account list
+yc iam key create --service-account-id <SERVICE_ACCOUNT_ID> --output key.json
 
-# Проверить сеть
-docker network ls
-docker network inspect bridge
-```
-
-### Проблемы с деплоем
-
-```bash
-# Проверить GitHub Actions логи
-# https://github.com/your-repo/actions
-
-# Проверить доступ к серверу
-ssh -v user@server-ip
-
-# Проверить Docker Registry
-yc container registry list
-yc container image list --registry-id your-registry-id
+# Настроить Docker для работы с Registry
+yc container registry configure-docker
 ```
 
 ### Откат версии
@@ -357,10 +398,10 @@ yc container image list --registry-id your-registry-id
 
 # Запустить предыдущую версию
 docker run -d --name wpg-engine-bot \
-  cr.yandex/your-registry-id/wpg-engine-bot:previous-tag
+  cr.yandex/your-registry-id/wpg-engine-bot:main-abc123def
 ```
 
-## 📚 Полезные команды
+## 📚 Дополнительные команды
 
 ### Docker
 
@@ -371,8 +412,10 @@ docker system prune -a
 # Просмотр использования ресурсов
 docker stats
 
-# Экспорт/импорт образа
+# Экспорт образа
 docker save wpg-engine > wpg-engine.tar
+
+# Импорт образа
 docker load < wpg-engine.tar
 ```
 
@@ -383,20 +426,10 @@ docker load < wpg-engine.tar
 yc compute instance list
 
 # Подключение к инстансу
-yc compute ssh --name wpg-engine-server
+yc compute ssh --id SERVER_ID
 
-# Мониторинг ресурсов
-yc monitoring metric-data get
-```
-
-### Makefile команды
-
-```bash
-make help          # Показать все доступные команды
-make help-prod     # Помощь по продакшн деплою
-make help-dev      # Помощь по разработке
-make quick-test    # Быстрое тестирование
-make quick-deploy  # Быстрый деплой
+# Информация об инстансе
+yc compute instance get SERVER_ID
 ```
 
 ## 🔐 Безопасность
@@ -404,32 +437,72 @@ make quick-deploy  # Быстрый деплой
 ### Рекомендации
 
 1. **Используйте отдельные токены** для разных окружений
-2. **Регулярно обновляйте** секреты в GitHub
+2. **Регулярно ротируйте секреты** в GitHub
 3. **Ограничьте доступ** к серверу по SSH ключам
-4. **Используйте HTTPS** для webhook'ов
+4. **Не храните секреты в коде** - только в `.env` и GitHub Secrets
 5. **Регулярно обновляйте** базовые образы Docker
 
-### Мониторинг безопасности
+### Проверка безопасности
 
 ```bash
-# Проверка уязвимостей в образе
+# Проверка уязвимостей в образе (если установлен docker scan)
 docker scan wpg-engine
 
-# Проверка открытых портов
+# Проверка открытых портов на сервере
 nmap your-server-ip
 
-# Мониторинг логов безопасности
-tail -f /var/log/auth.log
+# Мониторинг логов безопасности на сервере
+ssh user@server "sudo tail -f /var/log/auth.log"
+```
+
+## 🏗️ Архитектура Docker
+
+### Структура образа
+
+```dockerfile
+FROM python:3.11-slim
+
+# Системные зависимости
+RUN apt-get update && apt-get install -y \
+    build-essential sqlite3 procps
+
+# Создание непривилегированного пользователя
+RUN groupadd -r wpgbot && useradd -r -g wpgbot wpgbot
+
+# Python зависимости
+COPY requirements.txt .
+RUN pip install -r requirements.txt
+
+# Код приложения
+COPY --chown=wpgbot:wpgbot . .
+
+# Запуск от имени непривилегированного пользователя
+USER wpgbot
+
+CMD ["python", "main.py"]
+```
+
+### DNS настройки
+
+Все конфигурации Docker содержат DNS серверы для надежной работы:
+
+```yaml
+services:
+  wpg-bot:
+    dns:
+      - 8.8.8.8      # Google DNS Primary
+      - 8.8.4.4      # Google DNS Secondary  
+      - 1.1.1.1      # Cloudflare DNS
 ```
 
 ## 📞 Поддержка
 
 При возникновении проблем:
 
-1. Проверьте [раздел устранения неполадок](#устранение-неполадок)
+1. Проверьте раздел [Устранение неполадок](#устранение-неполадок)
 2. Посмотрите логи: `make logs`
-3. Проверьте статус: `make health`
-4. Создайте issue в репозитории с подробным описанием проблемы
+3. Проверьте статус: `make status`
+4. Создайте issue в репозитории с подробным описанием
 
 ---
 

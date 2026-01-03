@@ -2,6 +2,8 @@
 Country model with 9 aspects
 """
 
+from typing import Optional
+
 from sqlalchemy import JSON, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -79,7 +81,9 @@ class Country(Base):
 
     # Relationships
     game: Mapped["Game"] = relationship("Game", back_populates="countries")
-    players: Mapped[list["Player"]] = relationship("Player", back_populates="country")
+    player: Mapped[Optional["Player"]] = relationship(
+        "Player", back_populates="country", uselist=False
+    )
     example: Mapped["Example"] = relationship(
         "Example", back_populates="country", uselist=False, cascade="all, delete-orphan"
     )

@@ -119,21 +119,21 @@ async def test_player_can_switch_countries(db_session):
     # Verify country1 has no players
     result = await db_session.execute(
         select(Country)
-        .options(selectinload(Country.players))
+        .options(selectinload(Country.player))
         .where(Country.id == country1.id)
     )
     country1_refreshed = result.scalar_one()
-    assert len(country1_refreshed.players) == 0, "Country1 should have no players"
+    assert country1_refreshed.player is None, "Country1 should have no player"
 
     # Verify country2 has the player
     result = await db_session.execute(
         select(Country)
-        .options(selectinload(Country.players))
+        .options(selectinload(Country.player))
         .where(Country.id == country2.id)
     )
     country2_refreshed = result.scalar_one()
-    assert len(country2_refreshed.players) == 1, "Country2 should have one player"
-    assert country2_refreshed.players[0].id == player.id
+    assert country2_refreshed.player is not None, "Country2 should have a player"
+    assert country2_refreshed.player.id == player.id
 
 
 @pytest.mark.asyncio
@@ -335,11 +335,11 @@ async def test_old_country_remains_in_database_after_switch(db_session):
     # Verify old country has no players
     result = await db_session.execute(
         select(Country)
-        .options(selectinload(Country.players))
+        .options(selectinload(Country.player))
         .where(Country.id == country1_id)
     )
     old_country_refreshed = result.scalar_one()
-    assert len(old_country_refreshed.players) == 0, "Old country should have no players"
+    assert old_country_refreshed.player is None, "Old country should have no player"
 
     # Verify player is now linked to new country
     await db_session.refresh(player)

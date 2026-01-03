@@ -38,7 +38,7 @@ class Player(Base):
     # Foreign keys
     game_id: Mapped[int] = mapped_column(ForeignKey("games.id"), nullable=False)
     country_id: Mapped[int | None] = mapped_column(
-        ForeignKey("countries.id"), nullable=True
+        ForeignKey("countries.id"), nullable=True, unique=True
     )
 
     # Relationships
