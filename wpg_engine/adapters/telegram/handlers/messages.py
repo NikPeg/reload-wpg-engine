@@ -148,11 +148,9 @@ async def handle_text_message(message: Message, state: FSMContext) -> None:
     async for db in get_db():
         game_engine = GameEngine(db)
 
-        # Get player
+        # Optimized: Load player without relations first
         result = await game_engine.db.execute(
-            select(Player)
-            .options(selectinload(Player.country), selectinload(Player.game))
-            .where(Player.telegram_id == user_id)
+            select(Player).where(Player.telegram_id == user_id)
         )
         player = result.scalar_one_or_none()
 
@@ -161,6 +159,9 @@ async def handle_text_message(message: Message, state: FSMContext) -> None:
                 "❌ Вы не зарегистрированы в игре. Используйте /start для начала работы с ботом."
             )
             return
+
+        # Load relations only when needed
+        await game_engine.db.refresh(player, ["country", "game"])
 
         # Check if this is an admin replying to a message or sending a message with ID
         if await is_admin(user_id, game_engine.db, message.chat.id):

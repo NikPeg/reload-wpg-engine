@@ -8,6 +8,7 @@ from datetime import datetime
 from sqlalchemy import DateTime, func
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
+from sqlalchemy.pool import NullPool, StaticPool
 
 from wpg_engine.config.settings import settings
 
@@ -25,9 +26,15 @@ class Base(DeclarativeBase):
 
 
 # Database engine and session factory
+# Use StaticPool for SQLite to reuse connections and improve performance
 engine = create_async_engine(
     settings.database.url.replace("sqlite://", "sqlite+aiosqlite://"),
     echo=settings.database.echo,
+    poolclass=StaticPool,  # Reuse single connection for SQLite (thread-safe)
+    connect_args={
+        "check_same_thread": False,  # Allow sharing connection across threads
+        "timeout": 30,  # Increase timeout for busy database
+    },
 )
 
 AsyncSessionLocal = async_sessionmaker(

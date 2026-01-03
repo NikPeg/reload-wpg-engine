@@ -37,7 +37,8 @@ async def check_and_init_database():
         print(f"📊 Database not accessible: {e}")
         print("📊 Initializing database...")
 
-    # Initialize database
+    # Initialize database (note: bot.py will also init, but this is idempotent)
+    # We keep it here for standalone scripts that don't use bot.py
     await init_db()
     print("✅ Database initialized")
     return False

@@ -5,12 +5,13 @@ Common handlers for all users
 from aiogram import Dispatcher
 from aiogram.filters import Command
 from aiogram.types import Message, ReplyKeyboardRemove
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import selectinload
 
 from wpg_engine.adapters.telegram.utils import escape_html
+from wpg_engine.core.admin_utils import is_admin
 from wpg_engine.core.engine import GameEngine
-from wpg_engine.models import Player, PlayerRole, get_db
+from wpg_engine.models import Game, Player, PlayerRole, get_db
 
 
 async def start_command(message: Message) -> None:
@@ -20,25 +21,23 @@ async def start_command(message: Message) -> None:
     async for db in get_db():
         game_engine = GameEngine(db)
 
-        # Check if user is admin (from DB)
-        from wpg_engine.core.admin_utils import is_admin
-
-        is_admin_user = await is_admin(user_id, game_engine.db, message.chat.id)
-
-        # Check if user is already registered
+        # Optimized: Load player with relations only if needed
+        # First, do a lightweight check without loading relations
         result = await game_engine.db.execute(
-            select(Player)
-            .options(selectinload(Player.game), selectinload(Player.country))
-            .where(Player.telegram_id == user_id)
-            .limit(1)
+            select(Player).where(Player.telegram_id == user_id).limit(1)
         )
         player = result.scalar_one_or_none()
 
-        # Check if any games exist
-        from wpg_engine.models import Game
+        # Check if user is admin (uses cached admin check)
+        is_admin_user = await is_admin(user_id, game_engine.db, message.chat.id)
 
-        result = await game_engine.db.execute(select(Game))
-        existing_games = result.scalars().all()
+        # Optimized: Check if any games exist using COUNT instead of loading all
+        result = await game_engine.db.execute(select(func.count()).select_from(Game))
+        has_games = result.scalar() > 0
+
+        # Load game and country relations only if player exists
+        if player:
+            await game_engine.db.refresh(player, ["game", "country"])
 
         break
 
@@ -84,7 +83,7 @@ async def start_command(message: Message) -> None:
                 parse_mode="HTML",
                 reply_markup=ReplyKeyboardRemove(),
             )
-        elif not existing_games:
+        elif not has_games:
             # No games exist yet
             await message.answer(
                 "🎯 Добро пожаловать, <b>Администратор</b>!\n\n"
@@ -206,12 +205,9 @@ async def help_command(message: Message) -> None:
     async for db in get_db():
         game_engine = GameEngine(db)
 
-        # Check if user is registered
+        # Optimized: Only load what we need - no relations
         result = await game_engine.db.execute(
-            select(Player)
-            .options(selectinload(Player.game), selectinload(Player.country))
-            .where(Player.telegram_id == user_id)
-            .limit(1)
+            select(Player).where(Player.telegram_id == user_id).limit(1)
         )
         player = result.scalar_one_or_none()
         break
