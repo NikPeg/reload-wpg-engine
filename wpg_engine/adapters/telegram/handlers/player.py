@@ -195,7 +195,28 @@ async def world_command(message: Message) -> None:
             )
             return
 
-        country_info = f"🏛️ <b>{escape_html(country.name)}</b>\n"
+        # Check if country is NPC (example or without active player)
+        async for db in get_db():
+            # Check if country is an example
+            result = await db.execute(
+                select(Example).where(Example.country_id == country.id)
+            )
+            is_example = result.scalar_one_or_none() is not None
+            
+            # Check if country has an active player
+            result = await db.execute(
+                select(Player).where(Player.country_id == country.id)
+            )
+            has_player = result.scalar_one_or_none() is not None
+            break
+        
+        is_npc = is_example or not has_player
+        
+        country_info = ""
+        if is_npc:
+            country_info += "🤖 <b>NPC</b>\n\n"
+        
+        country_info += f"🏛️ <b>{escape_html(country.name)}</b>\n"
 
         country_info += (
             f"<b>Столица:</b> {escape_html(country.capital or 'Неизвестна')}\n"
@@ -248,7 +269,28 @@ async def world_command(message: Message) -> None:
             if not user_is_admin and country.id == player.country_id:
                 continue  # Skip own country for regular players, but show for admins
 
-            country_info = f"🏛️ <b>{escape_html(country.name)}</b>\n"
+            # Check if country is NPC (example or without active player)
+            async for db in get_db():
+                # Check if country is an example
+                result = await db.execute(
+                    select(Example).where(Example.country_id == country.id)
+                )
+                is_example = result.scalar_one_or_none() is not None
+                
+                # Check if country has an active player
+                result = await db.execute(
+                    select(Player).where(Player.country_id == country.id)
+                )
+                has_player = result.scalar_one_or_none() is not None
+                break
+            
+            is_npc = is_example or not has_player
+            
+            country_info = ""
+            if is_npc:
+                country_info += "🤖 <b>NPC</b>\n\n"
+            
+            country_info += f"🏛️ <b>{escape_html(country.name)}</b>\n"
 
             # Show synonyms if they exist
             if country.synonyms:
