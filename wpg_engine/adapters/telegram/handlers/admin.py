@@ -160,7 +160,6 @@ class AdminStates(StatesGroup):
 async def game_stats_command(message: Message) -> None:
     """Handle /game_stats command"""
     user_id = message.from_user.id
-    chat_id = message.chat.id
 
     async for db in get_db():
         game_engine = GameEngine(db)
@@ -171,7 +170,7 @@ async def game_stats_command(message: Message) -> None:
             return
 
         # Get admin player (works for both admin chat and admin user)
-        admin = await get_admin_player(user_id, game_engine.db, chat_id)
+        admin = await get_admin_player(user_id, game_engine.db)
 
         if not admin:
             await message.answer(
@@ -197,7 +196,6 @@ async def game_stats_command(message: Message) -> None:
 async def active_command(message: Message) -> None:
     """Handle /active command - show message statistics by countries for the last week"""
     user_id = message.from_user.id
-    chat_id = message.chat.id
 
     async for db in get_db():
         game_engine = GameEngine(db)
@@ -208,7 +206,7 @@ async def active_command(message: Message) -> None:
             return
 
         # Get admin player (works for both admin chat and admin user)
-        admin = await get_admin_player(user_id, game_engine.db, chat_id)
+        admin = await get_admin_player(user_id, game_engine.db)
 
         if not admin:
             await message.answer(
@@ -430,7 +428,6 @@ async def process_restart_confirmation(message: Message, state: FSMContext) -> N
 async def update_game_command(message: Message) -> None:
     """Handle /update_game command - update game settings"""
     user_id = message.from_user.id
-    chat_id = message.chat.id
     args = message.text.split(" ", 1)
 
     async for db in get_db():
@@ -442,7 +439,7 @@ async def update_game_command(message: Message) -> None:
             return
 
         # Get admin player (works for both admin chat and admin user)
-        admin = await get_admin_player(user_id, game_engine.db, chat_id)
+        admin = await get_admin_player(user_id, game_engine.db)
 
         if not admin:
             await message.answer(
@@ -566,7 +563,6 @@ async def update_game_command(message: Message) -> None:
 async def event_command(message: Message, state: FSMContext) -> None:
     """Handle /event command - send event message to players"""
     user_id = message.from_user.id
-    chat_id = message.chat.id
     args = message.text.split(" ", 1)  # /event [country_name]
 
     async for db in get_db():
@@ -578,7 +574,7 @@ async def event_command(message: Message, state: FSMContext) -> None:
             return
 
         # Get admin player (works for both admin chat and admin user)
-        admin = await get_admin_player(user_id, game_engine.db, chat_id)
+        admin = await get_admin_player(user_id, game_engine.db)
 
         if not admin:
             await message.answer(
@@ -699,13 +695,12 @@ async def process_event_message(message: Message, state: FSMContext) -> None:
     target_country_name = data.get("target_country_name")
 
     user_id = message.from_user.id
-    chat_id = message.chat.id
 
     async for db in get_db():
         game_engine = GameEngine(db)
 
         # Get admin player (works for both admin chat and admin user)
-        admin = await get_admin_player(user_id, game_engine.db, chat_id)
+        admin = await get_admin_player(user_id, game_engine.db)
 
         if not admin:
             await message.answer("❌ Ошибка: администратор не найден в игре.")
@@ -905,7 +900,6 @@ async def generate_game_event(
 async def gen_command(message: Message, state: FSMContext) -> None:
     """Handle /gen command - generate game event"""
     user_id = message.from_user.id
-    chat_id = message.chat.id
     args = message.text.split(" ", 1)  # /gen [country_name]
 
     async for db in get_db():
@@ -917,7 +911,7 @@ async def gen_command(message: Message, state: FSMContext) -> None:
             return
 
         # Get admin player (works for both admin chat and admin user)
-        admin = await get_admin_player(user_id, game_engine.db, chat_id)
+        admin = await get_admin_player(user_id, game_engine.db)
 
         if not admin:
             await message.answer(
@@ -1053,8 +1047,6 @@ async def process_gen_callback(
         return
 
     user_id = callback_query.from_user.id
-    # Get chat_id from callback query message
-    chat_id = callback_query.message.chat.id if callback_query.message else None
 
     async for db in get_db():
         game_engine = GameEngine(db)
@@ -1065,7 +1057,7 @@ async def process_gen_callback(
             return
 
         # Get admin player (works for both admin chat and admin user)
-        admin = await get_admin_player(user_id, game_engine.db, chat_id)
+        admin = await get_admin_player(user_id, game_engine.db)
 
         if not admin:
             await callback_query.answer("❌ Администратор не найден в игре.")
@@ -1260,7 +1252,6 @@ async def process_gen_callback(
 async def delete_country_command(message: Message, state: FSMContext) -> None:
     """Handle /delete_country command"""
     user_id = message.from_user.id
-    chat_id = message.chat.id
     args = message.text.split(" ", 1)  # /delete_country [country_name]
 
     async for db in get_db():
@@ -1272,7 +1263,7 @@ async def delete_country_command(message: Message, state: FSMContext) -> None:
             return
 
         # Get admin player (works for both admin chat and admin user)
-        admin = await get_admin_player(user_id, game_engine.db, chat_id)
+        admin = await get_admin_player(user_id, game_engine.db)
 
         if not admin:
             await message.answer(
@@ -1399,7 +1390,6 @@ async def process_delete_country_confirmation(
     target_country_name = data["target_country_name"]
 
     user_id = message.from_user.id
-    chat_id = message.chat.id
 
     async for db in get_db():
         game_engine = GameEngine(db)
@@ -1411,7 +1401,7 @@ async def process_delete_country_confirmation(
             return
 
         # Get admin player
-        admin = await get_admin_player(user_id, game_engine.db, chat_id)
+        admin = await get_admin_player(user_id, game_engine.db)
 
         if not admin:
             await message.answer("❌ Администратор не найден в игре.")
