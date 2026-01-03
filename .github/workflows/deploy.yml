@@ -12,9 +12,49 @@ env:
 
 jobs:
   test:
+    name: Run Tests
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+    
+    - name: Cache pip dependencies
+      uses: actions/cache@v3
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+    
+    - name: Run tests
+      run: |
+        echo "🧪 Running tests..."
+        python -m pytest tests/ -v --tb=short --strict-markers
+        echo "✅ All tests passed!"
+      continue-on-error: false
+    
+    - name: Check test results
+      if: failure()
+      run: |
+        echo "❌ Tests failed! Deployment will be blocked."
+        exit 1
+
+  lint:
+    name: Code Quality Check
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
     
     - name: Set up Python
       uses: actions/setup-python@v4
@@ -24,19 +64,23 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install -r requirements.txt
-    
-    - name: Run tests
-      run: |
-        python -m pytest tests/ -v || echo "No tests found, skipping..."
+        pip install ruff
     
     - name: Run linting
       run: |
+        echo "🔍 Running linter..."
         python -m ruff check .
+        echo "✅ Linting passed!"
+    
+    - name: Check formatting
+      run: |
+        echo "🎨 Checking code formatting..."
         python -m ruff format --check .
+        echo "✅ Formatting is correct!"
 
   build-and-push:
-    needs: test
+    name: Build and Push Docker Image
+    needs: [test, lint]
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main'
     outputs:
@@ -82,9 +126,10 @@ jobs:
         cache-to: type=gha,mode=max
 
   deploy:
+    name: Deploy to Yandex Cloud
     needs: build-and-push
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' && success()
     
     steps:
     - name: Checkout

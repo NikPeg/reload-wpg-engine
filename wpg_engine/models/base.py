@@ -2,6 +2,7 @@
 Base database model and database setup
 """
 
+import sqlite3
 from collections.abc import AsyncGenerator
 from datetime import datetime
 
@@ -11,6 +12,15 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 from sqlalchemy.pool import StaticPool
 
 from wpg_engine.config.settings import settings
+
+
+# Register datetime adapter for SQLite (Python 3.12+ requirement)
+def adapt_datetime_iso(val):
+    """Adapt datetime.datetime to timezone-naive ISO 8601 date."""
+    return val.isoformat()
+
+
+sqlite3.register_adapter(datetime, adapt_datetime_iso)
 
 
 class Base(DeclarativeBase):
