@@ -7,7 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
 from wpg_engine.core.engine import GameEngine
-from wpg_engine.models import Country, Game, GameStatus, Player, PlayerRole
+from wpg_engine.models import Country, Player, PlayerRole
 
 
 @pytest.mark.asyncio
@@ -118,14 +118,18 @@ async def test_player_can_switch_countries(db_session):
 
     # Verify country1 has no players
     result = await db_session.execute(
-        select(Country).options(selectinload(Country.players)).where(Country.id == country1.id)
+        select(Country)
+        .options(selectinload(Country.players))
+        .where(Country.id == country1.id)
     )
     country1_refreshed = result.scalar_one()
     assert len(country1_refreshed.players) == 0, "Country1 should have no players"
 
     # Verify country2 has the player
     result = await db_session.execute(
-        select(Country).options(selectinload(Country.players)).where(Country.id == country2.id)
+        select(Country)
+        .options(selectinload(Country.players))
+        .where(Country.id == country2.id)
     )
     country2_refreshed = result.scalar_one()
     assert len(country2_refreshed.players) == 1, "Country2 should have one player"
@@ -323,16 +327,16 @@ async def test_old_country_remains_in_database_after_switch(db_session):
     await db_session.commit()
 
     # Verify old country still exists in database
-    result = await db_session.execute(
-        select(Country).where(Country.id == country1_id)
-    )
+    result = await db_session.execute(select(Country).where(Country.id == country1_id))
     old_country = result.scalar_one_or_none()
     assert old_country is not None, "Old country should still exist in database"
     assert old_country.name == "Old Country"
 
     # Verify old country has no players
     result = await db_session.execute(
-        select(Country).options(selectinload(Country.players)).where(Country.id == country1_id)
+        select(Country)
+        .options(selectinload(Country.players))
+        .where(Country.id == country1_id)
     )
     old_country_refreshed = result.scalar_one()
     assert len(old_country_refreshed.players) == 0, "Old country should have no players"
@@ -397,4 +401,3 @@ async def test_player_info_updates_on_reregistration(db_session):
     assert player.username == "new_username"
     assert player.display_name == "New Display Name"
     assert player.country_id == country2.id
-
