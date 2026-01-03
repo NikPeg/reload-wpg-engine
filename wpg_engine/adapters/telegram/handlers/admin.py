@@ -20,34 +20,33 @@ from wpg_engine.adapters.telegram.utils import escape_html, escape_markdown
 from wpg_engine.core.admin_utils import get_admin_player, is_admin
 from wpg_engine.core.engine import GameEngine
 from wpg_engine.core.rag_system import RAGSystem
-from wpg_engine.models import Example, Player, PlayerRole, get_db
+from wpg_engine.models import Country, Example, Player, PlayerRole, get_db
 
 
 async def find_target_country_by_name(
-    all_players: list[Player], country_name: str
-) -> Player | None:
+    all_countries: list[Country], country_name: str
+) -> Country | None:
     """Find target country by name or synonyms (case-insensitive)"""
-    for player in all_players:
-        if player.country:
-            # Check official name
-            if player.country.name.lower() == country_name.lower():
-                return player
+    for country in all_countries:
+        # Check official name
+        if country.name.lower() == country_name.lower():
+            return country
 
-            # Check synonyms
-            if player.country.synonyms:
-                for synonym in player.country.synonyms:
-                    if synonym.lower() == country_name.lower():
-                        return player
+        # Check synonyms
+        if country.synonyms:
+            for synonym in country.synonyms:
+                if synonym.lower() == country_name.lower():
+                    return country
     return None
 
 
 async def extract_country_from_reply(
-    message: Message, all_players: list[Player]
-) -> tuple[Player, str] | None:
+    message: Message, all_countries: list[Country]
+) -> tuple[Country, str] | None:
     """Extract country information from reply message
 
     Returns:
-        Tuple of (target_player, country_name) or None if not found
+        Tuple of (target_country, country_name) or None if not found
     """
     if not message.reply_to_message or not message.reply_to_message.text:
         return None
@@ -61,10 +60,10 @@ async def extract_country_from_reply(
     if country_id_match:
         country_id = int(country_id_match.group(1))
 
-        # Find the player with this country
-        for player in all_players:
-            if player.country and player.country.id == country_id:
-                return player, player.country.name
+        # Find the country with this ID
+        for country in all_countries:
+            if country.id == country_id:
+                return country, country.name
 
     # If no hidden marker found, try to extract country name from the message
     # Look for country name in the format "🏛️ **Country Name**"
@@ -73,11 +72,11 @@ async def extract_country_from_reply(
         extracted_country_name = country_name_match.group(1).strip()
 
         # Find target country by name and synonyms
-        target_player = await find_target_country_by_name(
-            all_players, extracted_country_name
+        target_country = await find_target_country_by_name(
+            all_countries, extracted_country_name
         )
-        if target_player:
-            return target_player, target_player.country.name
+        if target_country:
+            return target_country, target_country.name
 
     return None
 
@@ -1273,42 +1272,37 @@ async def delete_country_command(message: Message, state: FSMContext) -> None:
             )
             return
 
-        # Get all countries in the same game (including admin countries)
+        # Get all countries in the same game (both linked and orphaned)
         result = await game_engine.db.execute(
-            select(Player)
-            .options(selectinload(Player.country))
-            .where(Player.game_id == admin.game_id)
-            .where(Player.country_id.isnot(None))
+            select(Country)
+            .where(Country.game_id == admin.game_id)
         )
-        all_players = result.scalars().all()
+        all_countries = result.scalars().all()
 
-        # Get available countries
-        available_countries = []
-        for player in all_players:
-            if player.country:
-                available_countries.append(player.country.name)
-
-        if not available_countries:
+        if not all_countries:
             await message.answer("❌ В игре нет стран для удаления.")
             return
 
+        # Build list of available countries
+        available_countries = [country.name for country in all_countries]
+
         # Check if this is a reply to a message with country information
-        target_player = None
+        target_country = None
         target_country_name = None
 
         # Try to extract country from reply message
-        reply_result = await extract_country_from_reply(message, all_players)
+        reply_result = await extract_country_from_reply(message, all_countries)
         if reply_result:
-            target_player, target_country_name = reply_result
+            target_country, target_country_name = reply_result
 
         # If no country found from reply, check if country name was provided in command
-        if not target_player and len(args) > 1:
+        if not target_country and len(args) > 1:
             target_country_name = args[1].strip()
-            target_player = await find_target_country_by_name(
-                all_players, target_country_name
+            target_country = await find_target_country_by_name(
+                all_countries, target_country_name
             )
 
-            if not target_player:
+            if not target_country:
                 countries_list = "\n".join(
                     [f"• {country}" for country in sorted(available_countries)]
                 )
@@ -1320,7 +1314,7 @@ async def delete_country_command(message: Message, state: FSMContext) -> None:
                 )
                 return
 
-        if not target_player:
+        if not target_country:
             countries_list = "\n".join(
                 [f"• {country}" for country in sorted(available_countries)]
             )
@@ -1332,44 +1326,58 @@ async def delete_country_command(message: Message, state: FSMContext) -> None:
             )
             return
 
-        # Store data for confirmation
-        await state.update_data(
-            target_player_id=target_player.id,
-            target_country_id=target_player.country.id,
-            target_country_name=target_player.country.name,
-            target_telegram_id=target_player.telegram_id,
+        # Find player linked to this country (if exists)
+        result = await game_engine.db.execute(
+            select(Player)
+            .where(Player.country_id == target_country.id)
+            .limit(1)
         )
+        linked_player = result.scalar_one_or_none()
 
-        # Show different message if country was auto-detected from reply
-        if message.reply_to_message:
-            await message.answer(
-                f"⚠️ <b>ВНИМАНИЕ! ОПАСНАЯ ОПЕРАЦИЯ!</b>\n\n"
-                f"Вы собираетесь <b>ПОЛНОСТЬЮ УДАЛИТЬ</b> страну:\n\n"
-                f"🏛️ <b>{escape_html(target_player.country.name)}</b>\n"
-                f"👤 <b>Игрок:</b> {escape_html(target_player.display_name or target_player.username or 'Неизвестно')}\n"
-                f"<i>(автоматически определено из сообщения)</i>\n\n"
-                f"<b>ЭТО ДЕЙСТВИЕ НЕОБРАТИМО!</b>\n"
+        # Store data for confirmation
+        state_data = {
+            "target_country_id": target_country.id,
+            "target_country_name": target_country.name,
+        }
+        
+        if linked_player:
+            state_data["target_player_id"] = linked_player.id
+            state_data["target_telegram_id"] = linked_player.telegram_id
+        
+        await state.update_data(**state_data)
+
+        # Build confirmation message based on whether country has a player
+        if linked_player:
+            player_info = f"👤 <b>Игрок:</b> {escape_html(linked_player.display_name or linked_player.username or 'Неизвестно')}\n"
+            consequences = (
                 f"• Страна будет удалена навсегда\n"
                 f"• Игрок потеряет свою страну\n"
-                f"• Все данные страны будут потеряны\n\n"
-                f"Вы <b>ДЕЙСТВИТЕЛЬНО</b> хотите удалить эту страну?\n\n"
-                f"Напишите <b>УДАЛИТЬ</b> (заглавными буквами), чтобы продолжить, или любое другое сообщение для отмены.",
-                parse_mode="HTML",
+                f"• Все данные страны будут потеряны\n"
             )
         else:
-            await message.answer(
-                f"⚠️ <b>ВНИМАНИЕ! ОПАСНАЯ ОПЕРАЦИЯ!</b>\n\n"
-                f"Вы собираетесь <b>ПОЛНОСТЬЮ УДАЛИТЬ</b> страну:\n\n"
-                f"🏛️ <b>{escape_html(target_player.country.name)}</b>\n"
-                f"👤 <b>Игрок:</b> {escape_html(target_player.display_name or target_player.username or 'Неизвестно')}\n\n"
-                f"<b>ЭТО ДЕЙСТВИЕ НЕОБРАТИМО!</b>\n"
+            player_info = "👤 <b>Игрок:</b> <i>Отсутствует (orphaned country)</i>\n"
+            consequences = (
                 f"• Страна будет удалена навсегда\n"
-                f"• Игрок потеряет свою страну\n"
-                f"• Все данные страны будут потеряны\n\n"
-                f"Вы <b>ДЕЙСТВИТЕЛЬНО</b> хотите удалить эту страну?\n\n"
-                f"Напишите <b>УДАЛИТЬ</b> (заглавными буквами), чтобы продолжить, или любое другое сообщение для отмены.",
-                parse_mode="HTML",
+                f"• Все данные страны будут потеряны\n"
             )
+
+        # Show different message if country was auto-detected from reply
+        reply_note = ""
+        if message.reply_to_message:
+            reply_note = "<i>(автоматически определено из сообщения)</i>\n\n"
+
+        await message.answer(
+            f"⚠️ <b>ВНИМАНИЕ! ОПАСНАЯ ОПЕРАЦИЯ!</b>\n\n"
+            f"Вы собираетесь <b>ПОЛНОСТЬЮ УДАЛИТЬ</b> страну:\n\n"
+            f"🏛️ <b>{escape_html(target_country.name)}</b>\n"
+            f"{player_info}"
+            f"{reply_note}"
+            f"<b>ЭТО ДЕЙСТВИЕ НЕОБРАТИМО!</b>\n"
+            f"{consequences}\n"
+            f"Вы <b>ДЕЙСТВИТЕЛЬНО</b> хотите удалить эту страну?\n\n"
+            f"Напишите <b>УДАЛИТЬ</b> (заглавными буквами), чтобы продолжить, или любое другое сообщение для отмены.",
+            parse_mode="HTML",
+        )
 
         await state.set_state(AdminStates.waiting_for_delete_country_confirmation)
         break
@@ -1390,6 +1398,7 @@ async def process_delete_country_confirmation(
     data = await state.get_data()
     target_country_id = data["target_country_id"]
     target_country_name = data["target_country_name"]
+    target_player_id = data.get("target_player_id")  # May be None for orphaned countries
 
     user_id = message.from_user.id
 
@@ -1417,15 +1426,39 @@ async def process_delete_country_confirmation(
             await state.clear()
             return
 
-        # Ask for final message to send to the player
-        await state.update_data(admin_id=admin.id)
-        await message.answer(
-            f"💬 <b>Последнее слово</b>\n\n"
-            f"Перед удалением страны <b>{escape_html(target_country_name)}</b> вы можете отправить игроку последнее сообщение.\n\n"
-            f"Введите текст сообщения или напишите <code>skip</code>, чтобы пропустить:",
-            parse_mode="HTML",
-        )
-        await state.set_state(AdminStates.waiting_for_final_message)
+        # If country has a player, ask for final message
+        if target_player_id:
+            await state.update_data(admin_id=admin.id)
+            await message.answer(
+                f"💬 <b>Последнее слово</b>\n\n"
+                f"Перед удалением страны <b>{escape_html(target_country_name)}</b> вы можете отправить игроку последнее сообщение.\n\n"
+                f"Введите текст сообщения или напишите <code>skip</code>, чтобы пропустить:",
+                parse_mode="HTML",
+            )
+            await state.set_state(AdminStates.waiting_for_final_message)
+        else:
+            # Orphaned country - delete immediately without asking for message
+            await message.answer(
+                f"🔄 Удаляю страну <b>{escape_html(target_country_name)}</b> (без игрока)...",
+                parse_mode="HTML",
+            )
+            
+            # Delete the country
+            success = await game_engine.delete_country(target_country_id)
+
+            if success:
+                await message.answer(
+                    f"✅ <b>Страна успешно удалена!</b>\n\n"
+                    f"🏛️ {escape_html(target_country_name)}\n\n"
+                    f"<i>Orphaned country была удалена из базы данных.</i>",
+                    parse_mode="HTML",
+                )
+            else:
+                await message.answer(
+                    f"❌ Не удалось удалить страну. Возможно, она уже была удалена."
+                )
+
+            await state.clear()
         break
 
 
@@ -1438,6 +1471,10 @@ async def process_final_message(message: Message, state: FSMContext) -> None:
     target_country_id = data["target_country_id"]
     target_country_name = data["target_country_name"]
     admin_id = data["admin_id"]
+    
+    # These may not exist for orphaned countries
+    target_player_id = data.get("target_player_id")
+    target_telegram_id = data.get("target_telegram_id")
 
     user_id = message.from_user.id
 
@@ -1468,8 +1505,8 @@ async def process_final_message(message: Message, state: FSMContext) -> None:
             await state.clear()
             return
 
-        # Send final message to player if provided
-        if final_message_text.lower() != "skip" and len(final_message_text) >= 3:
+        # Send final message to player if provided and player exists
+        if target_player_id and target_telegram_id and final_message_text.lower() != "skip" and len(final_message_text) >= 3:
             if len(final_message_text) > 2000:
                 await message.answer(
                     "❌ Сообщение слишком длинное (максимум 2000 символов). Попробуйте еще раз или напишите <code>skip</code> для пропуска:",
@@ -1486,14 +1523,14 @@ async def process_final_message(message: Message, state: FSMContext) -> None:
                 )
 
                 await bot.send_message(
-                    data["target_telegram_id"],
+                    target_telegram_id,
                     final_message,
                     parse_mode="HTML",
                 )
 
                 # Save the admin message to database for RAG context
                 await game_engine.create_message(
-                    player_id=data["target_player_id"],
+                    player_id=target_player_id,
                     game_id=admin.game_id,
                     content=final_message_text,
                     is_admin_reply=True,
