@@ -185,6 +185,15 @@ async def handle_text_message(message: Message, state: FSMContext) -> None:
 
         # Check if this is an admin replying to a message or sending a message with ID
         if await is_admin(user_id, game_engine.db, message.chat.id):
+            # If admin is sending a message in admin chat (not a reply), skip it
+            # This is just admins talking to each other in the chat
+            from wpg_engine.config.settings import settings
+
+            if settings.telegram.is_admin_chat() and not message.reply_to_message:
+                # Skip messages from admins in admin chat that are not replies
+                # This prevents processing of regular admin-to-admin conversations
+                return
+
             # Check if this is a reply to a message (for registration decisions)
             if message.reply_to_message:
                 await handle_admin_reply(message, player, game_engine)
