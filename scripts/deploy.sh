@@ -127,6 +127,9 @@ echo "🚀 Starting new container..."
 docker run -d \\
   --name \$CONTAINER_NAME \\
   --restart unless-stopped \\
+  --dns 8.8.8.8 \\
+  --dns 8.8.4.4 \\
+  --dns 1.1.1.1 \\
   -e TG_TOKEN="\${TG_TOKEN}" \\
   -e TG_ADMIN_ID="\${TG_ADMIN_ID}" \\
   -e AI_OPENROUTER_API_KEY="\${AI_OPENROUTER_API_KEY:-}" \\

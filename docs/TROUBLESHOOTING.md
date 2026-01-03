@@ -1,5 +1,119 @@
 # Устранение проблем деплоя
 
+## Ошибка DNS: "Cannot connect to host api.telegram.org"
+
+### Описание проблемы
+Ошибка возникает при попытке бота подключиться к Telegram API:
+
+```
+ClientConnectorDNSError: Cannot connect to host api.telegram.org:443 ssl:default [Name or service not known]
+```
+
+### Причины
+1. Docker контейнер не может разрешить доменные имена
+2. Не настроены DNS серверы в контейнере
+3. Проблемы с DNS на хост-системе
+4. Блокировка DNS запросов фаерволом/VPN
+
+### Решение
+
+#### 1. Автоматическая диагностика
+Запустите скрипт диагностики:
+```bash
+./scripts/check-dns.sh
+```
+
+Этот скрипт:
+- Проверит настройки DNS в контейнере
+- Протестирует разрешение api.telegram.org
+- Проанализирует логи на наличие DNS ошибок
+- Даст конкретные рекомендации
+
+#### 2. Быстрое исправление (docker-compose)
+```bash
+cd deploy
+docker-compose down
+docker-compose up -d
+```
+
+Файлы `docker-compose.yml` и `docker-compose.dev.yml` уже содержат правильные DNS настройки:
+```yaml
+services:
+  wpg-bot:
+    dns:
+      - 8.8.8.8      # Google DNS
+      - 8.8.4.4      # Google DNS Secondary
+      - 1.1.1.1      # Cloudflare DNS
+```
+
+#### 3. Исправление для скриптов деплоя
+Если используете `./scripts/quick-deploy.sh`, убедитесь что в команде `docker run` есть флаги DNS:
+```bash
+docker run -d \
+  --name wpg-engine-bot \
+  --dns 8.8.8.8 \
+  --dns 8.8.4.4 \
+  --dns 1.1.1.1 \
+  --restart unless-stopped \
+  # ... остальные параметры
+```
+
+Скрипты уже обновлены с правильными DNS настройками.
+
+#### 4. Глобальная настройка Docker (опционально)
+На сервере отредактируйте `/etc/docker/daemon.json`:
+```json
+{
+  "dns": ["8.8.8.8", "8.8.4.4", "1.1.1.1"]
+}
+```
+
+Затем перезапустите Docker:
+```bash
+sudo systemctl restart docker
+```
+
+### Проверка решения
+
+1. **Проверить DNS в контейнере:**
+```bash
+docker exec wpg-engine-bot cat /etc/resolv.conf
+```
+
+Должно быть:
+```
+nameserver 8.8.8.8
+nameserver 8.8.4.4
+nameserver 1.1.1.1
+```
+
+2. **Проверить разрешение домена:**
+```bash
+docker exec wpg-engine-bot nslookup api.telegram.org
+```
+
+3. **Проверить логи бота:**
+```bash
+docker logs wpg-engine-bot
+```
+
+Не должно быть ошибок `ClientConnectorDNSError`.
+
+### Альтернативные DNS для России
+Если Google DNS не работает (блокировка), используйте Yandex DNS:
+```yaml
+dns:
+  - 77.88.8.8
+  - 77.88.8.1
+  - 8.8.8.8
+```
+
+### Дополнительные ресурсы
+- [Подробный анализ проблемы DNS](DNS_ISSUE_ANALYSIS.md)
+- [Руководство по исправлению DNS](DOCKER_DNS_FIX.md)
+
+---
+
 ## Ошибка "jq: parse error: Invalid numeric literal"
 
 ### Описание проблемы

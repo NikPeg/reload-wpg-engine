@@ -8,6 +8,10 @@ services:
       target: builder
     container_name: wpg-engine-bot-dev
     restart: "no"
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
+      - 1.1.1.1
     environment:
       # Database settings
       - DB_URL=sqlite:///./data/wpg_engine_dev.db

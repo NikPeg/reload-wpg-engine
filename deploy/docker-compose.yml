@@ -5,6 +5,10 @@ services:
       dockerfile: deploy/Dockerfile
     container_name: wpg-engine-bot
     restart: unless-stopped
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
+      - 1.1.1.1
     environment:
       # Database settings
       - DB_URL=sqlite:///./data/wpg_engine.db
