@@ -1448,7 +1448,6 @@ async def process_final_message(message: Message, state: FSMContext) -> None:
     admin_id = data["admin_id"]
 
     user_id = message.from_user.id
-    chat_id = message.chat.id
 
     async for db in get_db():
         game_engine = GameEngine(db)
