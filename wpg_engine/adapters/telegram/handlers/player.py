@@ -406,7 +406,9 @@ async def examples_command(message: Message) -> None:
             country_text += f"<b>Население:</b> {country.population:,} чел.\n"
 
         if country.description:
-            country_text += f"\n<b>Описание:</b>\n<i>{escape_html(country.description)}</i>\n"
+            country_text += (
+                f"\n<b>Описание:</b>\n<i>{escape_html(country.description)}</i>\n"
+            )
 
         country_text += "\n<b>Аспекты развития:</b>\n\n"
 
@@ -423,7 +425,9 @@ async def examples_command(message: Message) -> None:
 
             country_text += f"{emoji} <b>{name}</b>: {value}/10\n"
             country_text += f"   {rating_bar}\n"
-            country_text += f"   <i>{escape_html(truncate_text(description, 200))}</i>\n\n"
+            country_text += (
+                f"   <i>{escape_html(truncate_text(description, 200))}</i>\n\n"
+            )
 
         country_text += (
             "\n💡 <b>Чтобы играть за эту страну, ответьте на это сообщение</b> "

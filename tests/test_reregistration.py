@@ -121,8 +121,7 @@ class TestReregistration:
 
         # Old country should have no players
         result = await db_session.execute(
-            select(Country)
-            .where(Country.id == country1.id)
+            select(Country).where(Country.id == country1.id)
         )
         old_country_final = result.scalar_one_or_none()
         assert old_country_final is not None
@@ -173,4 +172,3 @@ class TestReregistration:
         )
         country_after = result.scalar_one_or_none()
         assert country_after is None
-

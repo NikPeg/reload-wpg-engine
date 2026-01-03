@@ -1515,8 +1515,10 @@ async def process_final_message(message: Message, state: FSMContext) -> None:
             # Check if there was a player assigned to this country
             player_message = ""
             if data.get("target_telegram_id"):
-                player_message = "👤 <b>Игрок:</b> освобожден от страны\n\n" \
-                               "Игрок может теперь зарегистрировать новую страну командой /register"
+                player_message = (
+                    "👤 <b>Игрок:</b> освобожден от страны\n\n"
+                    "Игрок может теперь зарегистрировать новую страну командой /register"
+                )
             else:
                 player_message = "👤 <b>Игрок:</b> страна не была привязана к игроку"
 

@@ -116,9 +116,7 @@ async def test_new_player_selects_example(db_session, game, example, example_cou
     assert player.country.name == "Example Country"
 
     # Verify example is deleted
-    result = await db_session.execute(
-        select(Example).where(Example.id == example.id)
-    )
+    result = await db_session.execute(select(Example).where(Example.id == example.id))
     deleted_example = result.scalar_one_or_none()
     assert deleted_example is None
 
@@ -177,9 +175,7 @@ async def test_existing_player_changes_to_example(
     assert old_country_check is not None
 
     # Verify example is deleted
-    result = await db_session.execute(
-        select(Example).where(Example.id == example.id)
-    )
+    result = await db_session.execute(select(Example).where(Example.id == example.id))
     deleted_example = result.scalar_one_or_none()
     assert deleted_example is None
 
@@ -206,9 +202,7 @@ async def test_example_not_available_after_selection(
     await db_session.commit()
 
     # Try to get the example (should not exist)
-    result = await db_session.execute(
-        select(Example).where(Example.id == example.id)
-    )
+    result = await db_session.execute(select(Example).where(Example.id == example.id))
     deleted_example = result.scalar_one_or_none()
 
     assert deleted_example is None
@@ -300,9 +294,7 @@ async def test_multiple_examples_selection(db_session, game, admin_player):
     assert players[1].country.name == "Country 1"  # 66666
 
     # Verify both examples are deleted
-    result = await db_session.execute(
-        select(Example).where(Example.game_id == game.id)
-    )
+    result = await db_session.execute(select(Example).where(Example.game_id == game.id))
     examples = result.scalars().all()
     assert len(examples) == 0
 
@@ -320,17 +312,12 @@ async def test_country_remains_after_example_deletion(
     await db_session.commit()
 
     # Verify example is deleted
-    result = await db_session.execute(
-        select(Example).where(Example.id == example_id)
-    )
+    result = await db_session.execute(select(Example).where(Example.id == example_id))
     deleted_example = result.scalar_one_or_none()
     assert deleted_example is None
 
     # Verify country still exists
-    result = await db_session.execute(
-        select(Country).where(Country.id == country_id)
-    )
+    result = await db_session.execute(select(Country).where(Country.id == country_id))
     country = result.scalar_one_or_none()
     assert country is not None
     assert country.name == "Example Country"
-

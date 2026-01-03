@@ -140,9 +140,7 @@ async def handle_text_message(message: Message, state: FSMContext) -> None:
     if message.reply_to_message and message.reply_to_message.text:
         import re
 
-        example_match = re.search(
-            r"\[EXAMPLE:(\d+)\]", message.reply_to_message.text
-        )
+        example_match = re.search(r"\[EXAMPLE:(\d+)\]", message.reply_to_message.text)
         if example_match and content.lower() in ["выбрать", "выбираю"]:
             async for db in get_db():
                 game_engine = GameEngine(db)
