@@ -485,20 +485,34 @@ async def complete_registration(message: Message, state: FSMContext) -> None:
         )
 
         # Send registration to admin
-        # Find admin to send registration to
-        result = await game_engine.db.execute(
-            select(Player)
-            .where(Player.game_id == data["game_id"])
-            .where(Player.role == PlayerRole.ADMIN)
-            .limit(1)
-        )
-        admin = result.scalar_one_or_none()
+        # Import settings to check if admin_id is a chat
+        import random
 
-        if admin and admin.telegram_id:
+        from wpg_engine.config.settings import settings
+
+        # Determine target based on admin_id configuration
+        admin = None
+        target_chat_id = None
+
+        if settings.telegram.is_admin_chat():
+            # If admin_id is a chat (negative), send to that chat
+            target_chat_id = settings.telegram.admin_id
+        else:
+            # Find admin(s) to send registration to
+            result = await game_engine.db.execute(
+                select(Player)
+                .where(Player.game_id == data["game_id"])
+                .where(Player.role == PlayerRole.ADMIN)
+            )
+            admins = result.scalars().all()
+
+            if admins:
+                # If multiple admins, choose one randomly
+                admin = random.choice(admins)
+                target_chat_id = admin.telegram_id
+
+        if target_chat_id:
             try:
-                # Import settings to check if admin_id is a chat
-                from wpg_engine.config.settings import settings
-
                 # Calculate total points spent
                 total_points = (
                     data["economy"]
@@ -543,12 +557,6 @@ async def complete_registration(message: Message, state: FSMContext) -> None:
 
                 # Send to admin
                 bot = message.bot
-
-                # Determine target chat_id based on admin_id configuration
-                target_chat_id = admin.telegram_id
-                if settings.telegram.is_admin_chat():
-                    # If admin_id is a chat (negative), send to that chat
-                    target_chat_id = settings.telegram.admin_id
 
                 await bot.send_message(
                     target_chat_id, registration_message, parse_mode="HTML"

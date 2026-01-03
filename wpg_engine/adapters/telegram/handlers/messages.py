@@ -192,27 +192,36 @@ async def handle_player_message(
     # Confirm to player
     await message.answer("✅ Сообщение отправлено администратору!")
 
-    # Find admin to send message to
-    result = await game_engine.db.execute(
-        select(Player)
-        .where(Player.game_id == player.game_id)
-        .where(Player.role == PlayerRole.ADMIN)
-    )
-    admin = result.scalar_one_or_none()
+    # Import settings to check if admin_id is a chat
+    import random
 
-    if admin and admin.telegram_id:
+    from wpg_engine.config.settings import settings
+
+    # Determine target based on admin_id configuration
+    admin = None
+    target_chat_id = None
+
+    if settings.telegram.is_admin_chat():
+        # If admin_id is a chat (negative), send to that chat
+        target_chat_id = settings.telegram.admin_id
+    else:
+        # Find admin(s) to send message to
+        result = await game_engine.db.execute(
+            select(Player)
+            .where(Player.game_id == player.game_id)
+            .where(Player.role == PlayerRole.ADMIN)
+        )
+        admins = result.scalars().all()
+
+        if admins:
+            # If multiple admins, choose one randomly
+            admin = random.choice(admins)
+            target_chat_id = admin.telegram_id
+
+    if target_chat_id:
         try:
             country_name = player.country.name if player.country else "без страны"
             bot = message.bot
-
-            # Import settings to check if admin_id is a chat
-            from wpg_engine.config.settings import settings
-
-            # Determine target chat_id based on admin_id configuration
-            target_chat_id = admin.telegram_id
-            if settings.telegram.is_admin_chat():
-                # If admin_id is a chat (negative), send to that chat
-                target_chat_id = settings.telegram.admin_id
 
             # Step 1: Send original message to admin first
             admin_message = (

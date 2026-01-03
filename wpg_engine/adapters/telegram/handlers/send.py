@@ -185,15 +185,14 @@ async def process_message_content(message: Message, state: FSMContext) -> None:
         )
         target_player = result.scalar_one_or_none()
 
-        # Get admin player for this game
+        # Get admin player(s) for this game
         result = await game_engine.db.execute(
             select(Player)
             .options(selectinload(Player.country))
             .where(Player.game_id == sender.game_id if sender else None)
             .where(Player.role == PlayerRole.ADMIN)
-            .limit(1)
         )
-        admin_player = result.scalar_one_or_none()
+        admin_players = result.scalars().all()
         break
 
     if not sender or not target_player:
@@ -222,13 +221,28 @@ async def process_message_content(message: Message, state: FSMContext) -> None:
 
         # Send copy to admin if admin exists and is not the sender or recipient
         # Import settings to check if admin_id is a chat
+        import random
+
         from wpg_engine.config.settings import settings
 
-        if (
-            admin_player
-            and admin_player.telegram_id != sender.telegram_id
-            and admin_player.telegram_id != target_player.telegram_id
-        ):
+        # Determine target based on admin_id configuration
+        admin_player = None
+        target_chat_id = None
+
+        if settings.telegram.is_admin_chat():
+            # If admin_id is a chat (negative), send to that chat
+            target_chat_id = settings.telegram.admin_id
+        elif admin_players:
+            # Choose random admin if multiple exist
+            admin_player = random.choice(admin_players)
+            # Only send if admin is not the sender or recipient
+            if (
+                admin_player.telegram_id != sender.telegram_id
+                and admin_player.telegram_id != target_player.telegram_id
+            ):
+                target_chat_id = admin_player.telegram_id
+
+        if target_chat_id:
             try:
                 admin_message = (
                     f"📋 <b>Копия сообщения между странами</b>\n\n"
@@ -236,12 +250,6 @@ async def process_message_content(message: Message, state: FSMContext) -> None:
                     f"<b>Кому:</b> {escape_html(target_player.country.name)}\n\n"
                     f"<b>Сообщение:</b>\n{escape_html(message_content)}"
                 )
-
-                # Determine target chat_id based on admin_id configuration
-                target_chat_id = admin_player.telegram_id
-                if settings.telegram.is_admin_chat():
-                    # If admin_id is a chat (negative), send to that chat
-                    target_chat_id = settings.telegram.admin_id
 
                 await bot.send_message(
                     target_chat_id,
