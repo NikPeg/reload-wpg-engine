@@ -69,9 +69,15 @@ ASPECT_DESCRIPTIONS = {
 async def register_command(message: Message, state: FSMContext) -> None:
     """Handle /register command"""
     user_id = message.from_user.id
+    chat_id = message.chat.id
 
     async for db in get_db():
         game_engine = GameEngine(db)
+
+        # Check if user is admin from env
+        from wpg_engine.core.admin_utils import is_admin_from_env
+
+        is_admin_user = is_admin_from_env(user_id, chat_id)
 
         # Check if user is already registered
         result = await game_engine.db.execute(
@@ -96,6 +102,29 @@ async def register_command(message: Message, state: FSMContext) -> None:
             )
             return
         break
+
+    # If user is admin from env, inform them they don't need to register
+    if is_admin_user and not existing_player:
+        await message.answer(
+            "ℹ️ <b>Вы - администратор игры!</b>\n\n"
+            "Администратору не требуется регистрировать страну.\n"
+            "Используйте /start для доступа к панели администратора.\n\n"
+            "Если вы всё же хотите зарегистрировать страну для себя как игрок, "
+            "напишите <b>ПРОДОЛЖИТЬ</b> (заглавными буквами).",
+            parse_mode="HTML",
+        )
+        # Store intent for optional registration
+        await state.update_data(
+            user_id=user_id,
+            game_id=game.id,
+            max_points=game.max_points,
+            max_population=game.max_population,
+            admin_wants_country=True,
+        )
+        await state.set_state(
+            RegistrationStates.waiting_for_reregistration_confirmation
+        )
+        return
 
     # If user is already registered, ask for confirmation to re-register
     if existing_player:
@@ -576,15 +605,63 @@ async def process_reregistration_confirmation(
     """Process confirmation for re-registration"""
     confirmation = message.text.strip()
 
-    if confirmation != "ПОДТВЕРЖДАЮ":
-        await message.answer(
-            "❌ Перерегистрация отменена. Ваша текущая регистрация сохранена."
-        )
+    # Get stored data to check if this is admin wanting country
+    data = await state.get_data()
+    is_admin_wanting_country = data.get("admin_wants_country", False)
+
+    if confirmation != "ПОДТВЕРЖДАЮ" and confirmation != "ПРОДОЛЖИТЬ":
+        if is_admin_wanting_country:
+            await message.answer(
+                "❌ Регистрация отменена. Используйте /start для доступа к панели администратора."
+            )
+        else:
+            await message.answer(
+                "❌ Перерегистрация отменена. Ваша текущая регистрация сохранена."
+            )
         await state.clear()
         return
 
-    # Get stored data
-    data = await state.get_data()
+    # Handle admin wanting to register a country
+    if is_admin_wanting_country and confirmation == "ПРОДОЛЖИТЬ":
+        user_id = data["user_id"]
+        game_id = data["game_id"]
+        max_points = data["max_points"]
+        max_population = data["max_population"]
+
+        async for db in get_db():
+            game_engine = GameEngine(db)
+            result = await game_engine.db.execute(
+                select(Game).where(Game.id == game_id)
+            )
+            game = result.scalar_one_or_none()
+            break
+
+        # Clear old data and start fresh registration
+        await state.clear()
+        await state.update_data(
+            game_id=game_id,
+            user_id=user_id,
+            max_points=max_points,
+            max_population=max_population,
+            spent_points=0,
+            is_admin_registering=True,  # Mark this as admin registering
+        )
+
+        await message.answer(
+            f"✅ <b>Начинаем регистрацию страны для администратора.</b>\n\n"
+            f"🎮 <b>Регистрация в игре '{escape_html(game.name)}'</b>\n\n"
+            f"Для участия в игре вам необходимо создать свою страну.\n"
+            f"Вы будете управлять страной по 10 аспектам развития.\n\n"
+            f"📊 <b>У вас есть {game.max_points} очков</b> для распределения между аспектами.\n"
+            f"Каждый аспект можно развить от 0 до 10 уровня.\n\n"
+            f"<b>Начнем с основной информации:</b>\n\n"
+            f"Как будет называться ваша страна?",
+            parse_mode="HTML",
+        )
+        await state.set_state(RegistrationStates.waiting_for_country_name)
+        return
+
+    # Get stored data for normal re-registration
     user_id = data["user_id"]
     game_id = data["game_id"]
     max_points = data["max_points"]

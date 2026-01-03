@@ -404,41 +404,17 @@ async def process_restart_confirmation(message: Message, state: FSMContext) -> N
             max_population=max_population,
         )
 
-        # Create admin player
+        # Create admin player WITHOUT a country
         username = message.from_user.username
         display_name = message.from_user.full_name or f"Admin_{user_id}"
 
-        admin_player = await game_engine.create_player(
+        await game_engine.create_player(
             game_id=game.id,
             telegram_id=user_id,
             username=username,
             display_name=display_name,
             role=PlayerRole.ADMIN,
         )
-
-        # Create admin country
-        admin_country = await game_engine.create_country(
-            game_id=game.id,
-            name="Административная Республика",
-            description="Страна администратора игры",
-            capital="Центральный Город",
-            population=1000000,
-            aspects={
-                "economy": 8,
-                "military": 7,
-                "foreign_policy": 9,
-                "territory": 6,
-                "technology": 8,
-                "religion_culture": 7,
-                "governance_law": 10,
-                "construction_infrastructure": 7,
-                "social_relations": 8,
-                "intelligence": 9,
-            },
-        )
-
-        # Assign country to admin
-        await game_engine.assign_player_to_country(admin_player.id, admin_country.id)
 
         await message.answer(
             f"✅ <b>Игра успешно перезапущена!</b>\n\n"
@@ -448,7 +424,9 @@ async def process_restart_confirmation(message: Message, state: FSMContext) -> N
             f"<b>Макс очков для стран:</b> {max_points}\n"
             f"<b>Макс население стран:</b> {max_population:,}\n"
             f"<b>ID игры:</b> {game.id}\n\n"
-            f"Вы назначены администратором игры и получили страну '{escape_html(admin_country.name)}'.\n\n"
+            f"Вы назначены администратором игры.\n\n"
+            f"<i>💡 Администратору не требуется страна. "
+            f"Если вы хотите создать страну для себя, используйте /register</i>\n\n"
             f"Теперь игроки могут регистрироваться в игре командой /register",
             parse_mode="HTML",
         )
