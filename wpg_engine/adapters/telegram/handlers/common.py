@@ -6,7 +6,6 @@ from aiogram import Dispatcher
 from aiogram.filters import Command
 from aiogram.types import Message, ReplyKeyboardRemove
 from sqlalchemy import func, select
-from sqlalchemy.orm import selectinload
 
 from wpg_engine.adapters.telegram.utils import escape_html
 from wpg_engine.core.admin_utils import is_admin

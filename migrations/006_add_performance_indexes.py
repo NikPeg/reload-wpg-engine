@@ -14,18 +14,19 @@ class PerformanceIndexesMigration(Migration):
 
     def __init__(self):
         super().__init__(
-            version="006", description="Add performance indexes for frequently queried fields"
+            version="006",
+            description="Add performance indexes for frequently queried fields",
         )
 
     async def up(self, session: AsyncSession) -> None:
         """Add indexes for performance optimization"""
         print("Running migration 006: Add performance indexes")
-        
+
         # Add index on players.telegram_id (most frequently queried field)
         await session.execute(
             text(
                 """
-            CREATE INDEX IF NOT EXISTS idx_players_telegram_id 
+            CREATE INDEX IF NOT EXISTS idx_players_telegram_id
             ON players(telegram_id)
             """
             )
@@ -36,7 +37,7 @@ class PerformanceIndexesMigration(Migration):
         await session.execute(
             text(
                 """
-            CREATE INDEX IF NOT EXISTS idx_players_game_id 
+            CREATE INDEX IF NOT EXISTS idx_players_game_id
             ON players(game_id)
             """
             )
@@ -47,7 +48,7 @@ class PerformanceIndexesMigration(Migration):
         await session.execute(
             text(
                 """
-            CREATE INDEX IF NOT EXISTS idx_players_role 
+            CREATE INDEX IF NOT EXISTS idx_players_role
             ON players(role)
             """
             )
@@ -58,7 +59,7 @@ class PerformanceIndexesMigration(Migration):
         await session.execute(
             text(
                 """
-            CREATE INDEX IF NOT EXISTS idx_players_telegram_id_role 
+            CREATE INDEX IF NOT EXISTS idx_players_telegram_id_role
             ON players(telegram_id, role)
             """
             )
@@ -69,7 +70,7 @@ class PerformanceIndexesMigration(Migration):
         await session.execute(
             text(
                 """
-            CREATE INDEX IF NOT EXISTS idx_messages_player_id 
+            CREATE INDEX IF NOT EXISTS idx_messages_player_id
             ON messages(player_id)
             """
             )
@@ -80,7 +81,7 @@ class PerformanceIndexesMigration(Migration):
         await session.execute(
             text(
                 """
-            CREATE INDEX IF NOT EXISTS idx_messages_game_id 
+            CREATE INDEX IF NOT EXISTS idx_messages_game_id
             ON messages(game_id)
             """
             )
@@ -91,7 +92,7 @@ class PerformanceIndexesMigration(Migration):
         await session.execute(
             text(
                 """
-            CREATE INDEX IF NOT EXISTS idx_messages_created_at 
+            CREATE INDEX IF NOT EXISTS idx_messages_created_at
             ON messages(created_at)
             """
             )
@@ -102,7 +103,7 @@ class PerformanceIndexesMigration(Migration):
         await session.execute(
             text(
                 """
-            CREATE INDEX IF NOT EXISTS idx_messages_is_admin_reply 
+            CREATE INDEX IF NOT EXISTS idx_messages_is_admin_reply
             ON messages(is_admin_reply)
             """
             )
@@ -115,7 +116,7 @@ class PerformanceIndexesMigration(Migration):
     async def down(self, session: AsyncSession) -> None:
         """Remove performance indexes"""
         print("Downgrading migration 006: Remove performance indexes")
-        
+
         await session.execute(text("DROP INDEX IF EXISTS idx_players_telegram_id"))
         await session.execute(text("DROP INDEX IF EXISTS idx_players_game_id"))
         await session.execute(text("DROP INDEX IF EXISTS idx_players_role"))
@@ -124,11 +125,10 @@ class PerformanceIndexesMigration(Migration):
         await session.execute(text("DROP INDEX IF EXISTS idx_messages_game_id"))
         await session.execute(text("DROP INDEX IF EXISTS idx_messages_created_at"))
         await session.execute(text("DROP INDEX IF EXISTS idx_messages_is_admin_reply"))
-        
+
         await session.commit()
         print("Migration 006 downgrade completed")
 
 
 # Create migration instance
 migration_006 = PerformanceIndexesMigration()
-
