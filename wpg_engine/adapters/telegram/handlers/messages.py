@@ -163,7 +163,7 @@ async def handle_text_message(message: Message, state: FSMContext) -> None:
             return
 
         # Check if this is an admin replying to a message or sending a message with ID
-        if await is_admin(user_id, game_engine.db):
+        if await is_admin(user_id, game_engine.db, message.chat.id):
             # Check if this is a reply to a message (for registration decisions)
             if message.reply_to_message:
                 await handle_admin_reply(message, player, game_engine)

@@ -10,7 +10,7 @@ from wpg_engine.config.settings import TelegramSettings
 from wpg_engine.core.admin_utils import (
     determine_player_role,
     is_admin,
-    is_admin_from_env,
+    is_admin_chat,
 )
 from wpg_engine.models import PlayerRole
 
@@ -35,8 +35,8 @@ class TestAdminChatSupport:
         assert telegram_settings.is_admin_user() is True
         assert telegram_settings.is_admin_chat() is False
 
-    def test_is_admin_from_env_with_chat(self):
-        """Test is_admin_from_env with admin chat"""
+    def test_is_admin_chat_with_chat(self):
+        """Test is_admin_chat with admin chat"""
         # Mock settings with admin chat
         telegram_settings = TelegramSettings.model_construct(
             token="test", admin_id=-1001234567890
@@ -46,28 +46,16 @@ class TestAdminChatSupport:
             mock_settings.telegram = telegram_settings
 
             # User from admin chat should be admin
-            assert (
-                is_admin_from_env(
-                    telegram_id=999999999,  # Any user
-                    chat_id=-1001234567890,  # Admin chat
-                )
-                is True
-            )
+            assert is_admin_chat(chat_id=-1001234567890) is True
 
             # User from different chat should not be admin
-            assert (
-                is_admin_from_env(
-                    telegram_id=999999999,
-                    chat_id=-1009876543210,  # Different chat
-                )
-                is False
-            )
+            assert is_admin_chat(chat_id=-1009876543210) is False
 
             # User in private message should not be admin (no chat_id)
-            assert is_admin_from_env(telegram_id=999999999, chat_id=None) is False
+            assert is_admin_chat(chat_id=None) is False
 
-    def test_is_admin_from_env_with_user(self):
-        """Test is_admin_from_env with admin user"""
+    def test_is_admin_chat_with_user(self):
+        """Test is_admin_chat with admin user (positive ID)"""
         # Mock settings with admin user
         telegram_settings = TelegramSettings.model_construct(
             token="test", admin_id=123456789
@@ -76,16 +64,9 @@ class TestAdminChatSupport:
         with patch("wpg_engine.core.admin_utils.settings") as mock_settings:
             mock_settings.telegram = telegram_settings
 
-            # Specific user should be admin
-            assert is_admin_from_env(telegram_id=123456789, chat_id=None) is True
-
-            # Different user should not be admin
-            assert is_admin_from_env(telegram_id=987654321, chat_id=None) is False
-
-            # Even in a chat, specific user is admin
-            assert (
-                is_admin_from_env(telegram_id=123456789, chat_id=-1001234567890) is True
-            )
+            # Positive admin_id (user) should not trigger admin chat
+            assert is_admin_chat(chat_id=-1001234567890) is False
+            assert is_admin_chat(chat_id=None) is False
 
     @pytest.mark.asyncio
     async def test_determine_player_role_with_admin_chat(self):

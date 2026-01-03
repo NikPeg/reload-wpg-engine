@@ -66,17 +66,27 @@ async def determine_player_role(
     return PlayerRole.PLAYER
 
 
-async def is_admin(telegram_id: int, db: AsyncSession) -> bool:
+async def is_admin(
+    telegram_id: int, db: AsyncSession, chat_id: int | None = None
+) -> bool:
     """
-    Check if user is admin by checking database role.
+    Check if user is admin by checking:
+    1. Admin chat (if message is from admin chat)
+    2. Database role
 
     Args:
         telegram_id: User's Telegram ID
         db: Database session
+        chat_id: Chat ID (if message is from a chat/group)
 
     Returns:
-        True if user has ADMIN role in database
+        True if user is admin (from admin chat or has ADMIN role in database)
     """
+    # Check if message is from admin chat
+    if is_admin_chat(chat_id):
+        return True
+
+    # Check database role
     result = await db.execute(
         select(Player).where(Player.telegram_id == telegram_id).limit(1)
     )

@@ -23,7 +23,7 @@ async def start_command(message: Message) -> None:
         # Check if user is admin (from DB)
         from wpg_engine.core.admin_utils import is_admin
 
-        is_admin_user = await is_admin(user_id, game_engine.db)
+        is_admin_user = await is_admin(user_id, game_engine.db, message.chat.id)
 
         # Check if user is already registered
         result = await game_engine.db.execute(

@@ -11,9 +11,8 @@ from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
 from wpg_engine.adapters.telegram.utils import escape_html
-from wpg_engine.core.admin_utils import determine_player_role
 from wpg_engine.core.engine import GameEngine
-from wpg_engine.models import Country, Game, GameStatus, Player, get_db
+from wpg_engine.models import Country, Game, GameStatus, Player, PlayerRole, get_db
 from wpg_engine.models.message import Message as MessageModel
 
 
@@ -76,7 +75,7 @@ async def register_command(message: Message, state: FSMContext) -> None:
         # Check if user is admin (already registered in DB)
         from wpg_engine.core.admin_utils import is_admin
 
-        is_admin_user = await is_admin(user_id, game_engine.db)
+        is_admin_user = await is_admin(user_id, game_engine.db, message.chat.id)
 
         # Check if user is already registered
         result = await game_engine.db.execute(
@@ -475,105 +474,82 @@ async def complete_registration(message: Message, state: FSMContext) -> None:
             },
         )
 
-        # Determine player role
-        player_role = await determine_player_role(
-            telegram_id=data["user_id"],
-            game_id=data["game_id"],
-            db=game_engine.db,
-            chat_id=message.chat.id,
-        )
-
-        # Create player with determined role
+        # Create player with PLAYER role (registration is for countries, not admins)
         await game_engine.create_player(
             game_id=data["game_id"],
             telegram_id=data["user_id"],
             username=message.from_user.username,
             display_name=message.from_user.full_name,
             country_id=country.id,
-            role=player_role,
+            role=PlayerRole.PLAYER,
         )
 
-        # If this is a regular player, send registration to admin
-        if player_role.value == "player":
-            # Find admin to send registration to
-            from wpg_engine.models import PlayerRole
+        # Send registration to admin
+        # Find admin to send registration to
+        result = await game_engine.db.execute(
+            select(Player)
+            .where(Player.game_id == data["game_id"])
+            .where(Player.role == PlayerRole.ADMIN)
+            .limit(1)
+        )
+        admin = result.scalar_one_or_none()
 
-            result = await game_engine.db.execute(
-                select(Player)
-                .where(Player.game_id == data["game_id"])
-                .where(Player.role == PlayerRole.ADMIN)
-                .limit(1)
-            )
-            admin = result.scalar_one_or_none()
+        if admin and admin.telegram_id:
+            try:
+                # Calculate total points spent
+                total_points = (
+                    data["economy"]
+                    + data["military"]
+                    + data["foreign_policy"]
+                    + data["territory"]
+                    + data["technology"]
+                    + data["religion_culture"]
+                    + data["governance_law"]
+                    + data["construction_infrastructure"]
+                    + data["social_relations"]
+                    + data["intelligence"]
+                )
 
-            if admin and admin.telegram_id:
-                try:
-                    # Calculate total points spent
-                    total_points = (
-                        data["economy"]
-                        + data["military"]
-                        + data["foreign_policy"]
-                        + data["territory"]
-                        + data["technology"]
-                        + data["religion_culture"]
-                        + data["governance_law"]
-                        + data["construction_infrastructure"]
-                        + data["social_relations"]
-                        + data["intelligence"]
-                    )
+                # Format registration message for admin
+                registration_message = (
+                    f"📋 <b>Новая заявка на регистрацию</b>\n\n"
+                    f"<b>Игрок:</b> {escape_html(message.from_user.full_name or 'Не указано')}\n"
+                    f"<b>Username:</b> @{escape_html(message.from_user.username or 'не указан')}\n"
+                    f"<b>Telegram ID:</b> <code>{data['user_id']}</code>\n\n"
+                    f"<b>Страна:</b> {escape_html(data['country_name'])}\n"
+                    f"<b>Столица:</b> {escape_html(data['capital'])}\n"
+                    f"<b>Население:</b> {data['population']:,}\n\n"
+                    f"<b>Описание:</b>\n{escape_html(data['country_description'])}\n\n"
+                    f"📊 <b>Очки: {total_points}/{data['max_points']} (осталось: {data['max_points'] - total_points})</b>\n\n"
+                    f"<b>Аспекты развития:</b>\n"
+                    f"💰 Экономика: {data['economy']}/10\n"
+                    f"⚔️ Военное дело: {data['military']}/10\n"
+                    f"🤝 Внешняя политика: {data['foreign_policy']}/10\n"
+                    f"🗺️ Территория: {data['territory']}/10\n"
+                    f"🔬 Технологичность: {data['technology']}/10\n"
+                    f"🏛️ Религия и культура: {data['religion_culture']}/10\n"
+                    f"⚖️ Управление и право: {data['governance_law']}/10\n"
+                    f"🏗️ Строительство: {data['construction_infrastructure']}/10\n"
+                    f"👥 Общественные отношения: {data['social_relations']}/10\n"
+                    f"🕵️ Разведка: {data['intelligence']}/10\n\n"
+                    f"<b>Ответьте на это сообщение:</b>\n"
+                    f"• <code>одобрить</code> - для одобрения заявки\n"
+                    f"• <code>отклонить</code> - для отклонения заявки\n"
+                    f"• <code>отклонить [причина]</code> - для отклонения с указанием причины"
+                )
 
-                    # Format registration message for admin
-                    registration_message = (
-                        f"📋 <b>Новая заявка на регистрацию</b>\n\n"
-                        f"<b>Игрок:</b> {escape_html(message.from_user.full_name or 'Не указано')}\n"
-                        f"<b>Username:</b> @{escape_html(message.from_user.username or 'не указан')}\n"
-                        f"<b>Telegram ID:</b> <code>{data['user_id']}</code>\n\n"
-                        f"<b>Страна:</b> {escape_html(data['country_name'])}\n"
-                        f"<b>Столица:</b> {escape_html(data['capital'])}\n"
-                        f"<b>Население:</b> {data['population']:,}\n\n"
-                        f"<b>Описание:</b>\n{escape_html(data['country_description'])}\n\n"
-                        f"📊 <b>Очки: {total_points}/{data['max_points']} (осталось: {data['max_points'] - total_points})</b>\n\n"
-                        f"<b>Аспекты развития:</b>\n"
-                        f"💰 Экономика: {data['economy']}/10\n"
-                        f"⚔️ Военное дело: {data['military']}/10\n"
-                        f"🤝 Внешняя политика: {data['foreign_policy']}/10\n"
-                        f"🗺️ Территория: {data['territory']}/10\n"
-                        f"🔬 Технологичность: {data['technology']}/10\n"
-                        f"🏛️ Религия и культура: {data['religion_culture']}/10\n"
-                        f"⚖️ Управление и право: {data['governance_law']}/10\n"
-                        f"🏗️ Строительство: {data['construction_infrastructure']}/10\n"
-                        f"👥 Общественные отношения: {data['social_relations']}/10\n"
-                        f"🕵️ Разведка: {data['intelligence']}/10\n\n"
-                        f"<b>Ответьте на это сообщение:</b>\n"
-                        f"• <code>одобрить</code> - для одобрения заявки\n"
-                        f"• <code>отклонить</code> - для отклонения заявки\n"
-                        f"• <code>отклонить [причина]</code> - для отклонения с указанием причины"
-                    )
+                # Send to admin
+                bot = message.bot
+                await bot.send_message(
+                    admin.telegram_id, registration_message, parse_mode="HTML"
+                )
 
-                    # Send to admin
-                    bot = message.bot
-                    await bot.send_message(
-                        admin.telegram_id, registration_message, parse_mode="HTML"
-                    )
-
-                except Exception as e:
-                    print(f"Failed to send registration to admin: {e}")
+            except Exception as e:
+                print(f"Failed to send registration to admin: {e}")
 
         break
 
-    # Show summary with role-specific message
-    role_message = ""
-    if player_role.value == "admin":
-        role_message = (
-            "👑 *Вы назначены администратором игры!*\n"
-            "Используйте /admin для доступа к панели управления.\n\n"
-        )
-    else:
-        role_message = (
-            "⏳ *Ваша заявка отправлена администратору на рассмотрение.*\n"
-            "Вы получите уведомление, когда заявка будет одобрена.\n\n"
-        )
-
+    # Show summary - registration request sent to admin
     await message.answer(
         f"🎉 <b>Регистрация завершена!</b>\n\n"
         f"<b>Ваша страна:</b> {escape_html(data['country_name'])}\n"
@@ -590,7 +566,8 @@ async def complete_registration(message: Message, state: FSMContext) -> None:
         f"🏗️ Строительство: {data['construction_infrastructure']}\n"
         f"👥 Общественные отношения: {data['social_relations']}\n"
         f"🕵️ Разведка: {data['intelligence']}\n\n"
-        f"{role_message}"
+        f"⏳ <b>Ваша заявка отправлена администратору на рассмотрение.</b>\n"
+        f"Вы получите уведомление, когда заявка будет одобрена.\n\n"
         f"Используйте /start для просмотра доступных команд.",
         parse_mode="HTML",
     )
