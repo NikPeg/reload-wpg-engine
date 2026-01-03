@@ -18,9 +18,71 @@ logger = logging.getLogger(__name__)
 
 # Removed PostStates - no longer needed
 
+# Telegram message limit
+TELEGRAM_MAX_MESSAGE_LENGTH = 4096
+
+
+async def send_long_message(
+    message: Message, text: str, parse_mode: str = "HTML"
+) -> None:
+    """
+    Send a long message, splitting it intelligently if it exceeds Telegram's limit.
+
+    Tries to split by section markers to keep related content together.
+    Section markers are lines starting with emoji + <b> tag (aspect headers).
+
+    Args:
+        message: The message to reply to
+        text: The text to send (can be longer than 4096 characters)
+        parse_mode: Parse mode for Telegram (default: HTML)
+    """
+    if len(text) <= TELEGRAM_MAX_MESSAGE_LENGTH:
+        # Message fits in one piece, send as is
+        await message.answer(text, parse_mode=parse_mode)
+        return
+
+    # Split text into logical sections (header + content blocks)
+    sections = []
+    current_section = ""
+
+    lines = text.split("\n")
+    for line in lines:
+        # If adding this line would exceed the limit, save current section and start new
+        potential_length = len(current_section) + len(line) + 1  # +1 for newline
+
+        if potential_length > TELEGRAM_MAX_MESSAGE_LENGTH - 100:  # Leave some margin
+            # If current section is empty, we need to force-split this single line
+            if not current_section.strip():
+                # Force split this line into chunks
+                while len(line) > TELEGRAM_MAX_MESSAGE_LENGTH - 100:
+                    chunk = line[: TELEGRAM_MAX_MESSAGE_LENGTH - 100]
+                    sections.append(chunk)
+                    line = line[TELEGRAM_MAX_MESSAGE_LENGTH - 100 :]
+                current_section = line + "\n" if line else ""
+            else:
+                # Save current section and start new one with this line
+                sections.append(current_section.rstrip())
+                current_section = line + "\n"
+        else:
+            current_section += line + "\n"
+
+    # Add remaining section
+    if current_section.strip():
+        sections.append(current_section.rstrip())
+
+    # Send all sections
+    for section in sections:
+        if section.strip():  # Only send non-empty sections
+            await message.answer(section, parse_mode=parse_mode)
+
 
 def truncate_text(text: str, max_length: int = 300) -> str:
-    """Truncate text to max_length characters, adding ... if truncated"""
+    """
+    Truncate text to max_length characters, adding ... if truncated
+
+    NOTE: This function is kept for backward compatibility but should not be used
+    for country descriptions. Use full text and rely on send_long_message() instead.
+    """
     if not text:
         return text
     if len(text) <= max_length:
@@ -93,7 +155,8 @@ async def stats_command(message: Message) -> None:
 
         aspects_text += f"{emoji} <b>{name}</b>: {value}/10\n"
         aspects_text += f"   {rating_bar}\n"
-        aspects_text += f"   <i>{escape_html(truncate_text(description, 300))}</i>\n\n"
+        # Don't truncate aspect descriptions - send full text
+        aspects_text += f"   <i>{escape_html(description)}</i>\n\n"
 
     # Build country info message
     country_info = "🏛️ <b>Информация о вашей стране</b>\n\n"
@@ -106,13 +169,15 @@ async def stats_command(message: Message) -> None:
 
     country_info += f"<b>Столица:</b> {escape_html(country.capital or 'Не указана')}\n"
     country_info += f"<b>Население:</b> {country.population:,} чел.\n\n"
-    country_info += f"<b>Описание:</b>\n<i>{escape_html(truncate_text(country.description, 300))}</i>\n\n"
+    # Don't truncate country description - send full text
+    country_info += f"<b>Описание:</b>\n<i>{escape_html(country.description)}</i>\n\n"
     country_info += f"<b>Аспекты развития:</b>\n\n{aspects_text}"
     country_info += f"<b>Игра:</b> {escape_html(player.game.name)}\n"
     country_info += f"<b>Сеттинг:</b> {escape_html(player.game.setting)}\n"
     country_info += f"<b>Темп:</b> {player.game.years_per_day} лет/день"
 
-    await message.answer(country_info, parse_mode="HTML")
+    # Use smart message sending that handles long texts
+    await send_long_message(message, country_info, parse_mode="HTML")
 
 
 # Removed post_command and process_post_content functions
@@ -242,9 +307,11 @@ async def world_command(message: Message) -> None:
             if country.population:
                 country_info += f"<b>Население:</b> {country.population:,} чел.\n"
 
-            # Show description for all players when requesting specific country
+            # Show description for all players when requesting specific country (full text, no truncation)
             if country.description:
-                country_info += f"<b>Описание:</b> <i>{escape_html(truncate_text(country.description, 300))}</i>\n"
+                country_info += (
+                    f"<b>Описание:</b> <i>{escape_html(country.description)}</i>\n"
+                )
 
             country_info += "\n"
 
@@ -267,16 +334,15 @@ async def world_command(message: Message) -> None:
 
                 country_info += f"{emoji} <b>{name}</b>: {value}/10\n"
                 country_info += f"   {rating_bar}\n"
-                country_info += (
-                    f"   <i>{escape_html(truncate_text(description, 300))}</i>\n\n"
-                )
+                # Don't truncate aspect descriptions - send full text
+                country_info += f"   <i>{escape_html(description)}</i>\n\n"
 
             # Add hidden marker for admin editing (invisible to user) only for admins
             if user_is_admin:
                 country_info += f"\n<code>[EDIT_COUNTRY:{country.id}]</code>"
 
-            # Send country info
-            await message.answer(country_info, parse_mode="HTML")
+            # Send country info using smart message sending
+            await send_long_message(message, country_info, parse_mode="HTML")
             logger.info(
                 f"✅ Информация о стране '{country.name}' отправлена пользователю {user_id}"
             )
@@ -331,7 +397,10 @@ async def world_command(message: Message) -> None:
                     country_info += f"<b>Население:</b> {country.population:,} чел.\n"
 
                 if country.description and user_is_admin:
-                    country_info += f"<b>Описание:</b> <i>{escape_html(truncate_text(country.description, 300))}</i>\n"
+                    # Don't truncate country description for admins - send full text
+                    country_info += (
+                        f"<b>Описание:</b> <i>{escape_html(country.description)}</i>\n"
+                    )
 
                 country_info += "\n"
 
@@ -351,7 +420,8 @@ async def world_command(message: Message) -> None:
 
                         country_info += f"{emoji} <b>{name}</b>: {value}/10\n"
                         country_info += f"   {rating_bar}\n"
-                        country_info += f"   <i>{escape_html(truncate_text(description, 300))}</i>\n\n"
+                        # Don't truncate aspect descriptions - send full text
+                        country_info += f"   <i>{escape_html(description)}</i>\n\n"
 
                     # Add hidden marker for admin editing (invisible to user)
                     country_info += f"\n<code>[EDIT_COUNTRY:{country.id}]</code>"
@@ -375,8 +445,8 @@ async def world_command(message: Message) -> None:
                     else:
                         country_info += "<i>Публичная информация недоступна</i>\n"
 
-                # Send country info as separate message
-                await message.answer(country_info, parse_mode="HTML")
+                # Send country info using smart message sending
+                await send_long_message(message, country_info, parse_mode="HTML")
 
             logger.info(
                 f"✅ Информация о {countries_count} странах отправлена пользователю {user_id}"
@@ -474,6 +544,7 @@ async def examples_command(message: Message) -> None:
 
         if country.description:
             country_text += (
+                # Don't truncate country description - send full text
                 f"\n<b>Описание:</b>\n<i>{escape_html(country.description)}</i>\n"
             )
 
@@ -492,9 +563,8 @@ async def examples_command(message: Message) -> None:
 
             country_text += f"{emoji} <b>{name}</b>: {value}/10\n"
             country_text += f"   {rating_bar}\n"
-            country_text += (
-                f"   <i>{escape_html(truncate_text(description, 200))}</i>\n\n"
-            )
+            # Don't truncate aspect descriptions - send full text
+            country_text += f"   <i>{escape_html(description)}</i>\n\n"
 
         country_text += (
             "\n💡 <b>Чтобы играть за эту страну, ответьте на это сообщение</b> "
@@ -502,7 +572,8 @@ async def examples_command(message: Message) -> None:
             f"<code>[EXAMPLE:{example.id}]</code>"
         )
 
-        await message.answer(country_text, parse_mode="HTML")
+        # Use smart message sending for examples too
+        await send_long_message(message, country_text, parse_mode="HTML")
 
 
 def register_player_handlers(dp: Dispatcher) -> None:
