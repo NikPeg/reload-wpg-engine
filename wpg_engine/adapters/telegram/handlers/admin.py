@@ -1274,8 +1274,7 @@ async def delete_country_command(message: Message, state: FSMContext) -> None:
 
         # Get all countries in the same game (both linked and orphaned)
         result = await game_engine.db.execute(
-            select(Country)
-            .where(Country.game_id == admin.game_id)
+            select(Country).where(Country.game_id == admin.game_id)
         )
         all_countries = result.scalars().all()
 
@@ -1328,9 +1327,7 @@ async def delete_country_command(message: Message, state: FSMContext) -> None:
 
         # Find player linked to this country (if exists)
         result = await game_engine.db.execute(
-            select(Player)
-            .where(Player.country_id == target_country.id)
-            .limit(1)
+            select(Player).where(Player.country_id == target_country.id).limit(1)
         )
         linked_player = result.scalar_one_or_none()
 
@@ -1339,26 +1336,25 @@ async def delete_country_command(message: Message, state: FSMContext) -> None:
             "target_country_id": target_country.id,
             "target_country_name": target_country.name,
         }
-        
+
         if linked_player:
             state_data["target_player_id"] = linked_player.id
             state_data["target_telegram_id"] = linked_player.telegram_id
-        
+
         await state.update_data(**state_data)
 
         # Build confirmation message based on whether country has a player
         if linked_player:
             player_info = f"👤 <b>Игрок:</b> {escape_html(linked_player.display_name or linked_player.username or 'Неизвестно')}\n"
             consequences = (
-                f"• Страна будет удалена навсегда\n"
-                f"• Игрок потеряет свою страну\n"
-                f"• Все данные страны будут потеряны\n"
+                "• Страна будет удалена навсегда\n"
+                "• Игрок потеряет свою страну\n"
+                "• Все данные страны будут потеряны\n"
             )
         else:
             player_info = "👤 <b>Игрок:</b> <i>Отсутствует (orphaned country)</i>\n"
             consequences = (
-                f"• Страна будет удалена навсегда\n"
-                f"• Все данные страны будут потеряны\n"
+                "• Страна будет удалена навсегда\n• Все данные страны будут потеряны\n"
             )
 
         # Show different message if country was auto-detected from reply
@@ -1398,7 +1394,9 @@ async def process_delete_country_confirmation(
     data = await state.get_data()
     target_country_id = data["target_country_id"]
     target_country_name = data["target_country_name"]
-    target_player_id = data.get("target_player_id")  # May be None for orphaned countries
+    target_player_id = data.get(
+        "target_player_id"
+    )  # May be None for orphaned countries
 
     user_id = message.from_user.id
 
@@ -1442,7 +1440,7 @@ async def process_delete_country_confirmation(
                 f"🔄 Удаляю страну <b>{escape_html(target_country_name)}</b> (без игрока)...",
                 parse_mode="HTML",
             )
-            
+
             # Delete the country
             success = await game_engine.delete_country(target_country_id)
 
@@ -1455,7 +1453,7 @@ async def process_delete_country_confirmation(
                 )
             else:
                 await message.answer(
-                    f"❌ Не удалось удалить страну. Возможно, она уже была удалена."
+                    "❌ Не удалось удалить страну. Возможно, она уже была удалена."
                 )
 
             await state.clear()
@@ -1471,7 +1469,7 @@ async def process_final_message(message: Message, state: FSMContext) -> None:
     target_country_id = data["target_country_id"]
     target_country_name = data["target_country_name"]
     admin_id = data["admin_id"]
-    
+
     # These may not exist for orphaned countries
     target_player_id = data.get("target_player_id")
     target_telegram_id = data.get("target_telegram_id")
@@ -1506,7 +1504,12 @@ async def process_final_message(message: Message, state: FSMContext) -> None:
             return
 
         # Send final message to player if provided and player exists
-        if target_player_id and target_telegram_id and final_message_text.lower() != "skip" and len(final_message_text) >= 3:
+        if (
+            target_player_id
+            and target_telegram_id
+            and final_message_text.lower() != "skip"
+            and len(final_message_text) >= 3
+        ):
             if len(final_message_text) > 2000:
                 await message.answer(
                     "❌ Сообщение слишком длинное (максимум 2000 символов). Попробуйте еще раз или напишите <code>skip</code> для пропуска:",
