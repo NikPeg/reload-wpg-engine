@@ -156,13 +156,9 @@ async def handle_text_message(message: Message, state: FSMContext) -> None:
                 )
             return
 
-    # Skip if message is too short or too long
+    # Skip if message is too short
     if len(content) < 3:
         await message.answer("❌ Сообщение слишком короткое (минимум 3 символа).")
-        return
-
-    if len(content) > 2000:
-        await message.answer("❌ Сообщение слишком длинное (максимум 2000 символов).")
         return
 
     async with get_db() as db:
@@ -317,16 +313,72 @@ async def handle_player_message(
             bot = message.bot
 
             # Step 1: Send original message to admin IMMEDIATELY (no AI yet)
-            admin_message = (
+            # Prepare header part
+            header_message = (
                 f"💬 <b>Новое сообщение от игрока</b>\n\n"
                 f"<b>От:</b> {escape_html(player.display_name)} (ID: {player.telegram_id})\n"
                 f"<b>Страна:</b> {escape_html(country_name)}\n\n"
-                f"<b>Сообщение:</b>\n{escape_html(content)}"
+                f"<b>Сообщение:</b>\n"
             )
-
-            sent_message = await bot.send_message(
-                target_chat_id, admin_message, parse_mode="HTML"
-            )
+            
+            escaped_content = escape_html(content)
+            full_admin_message = header_message + escaped_content
+            
+            # Check if message is too long (Telegram limit is 4096 characters)
+            if len(full_admin_message) > 4096:
+                # Split message: send header first, then content (possibly in parts)
+                logger.info(f"⚠️ Сообщение слишком длинное ({len(full_admin_message)} символов), разбиваю на части")
+                
+                # Send header
+                sent_message = await bot.send_message(
+                    target_chat_id, header_message, parse_mode="HTML"
+                )
+                
+                # Send content - split if it's also too long
+                if len(escaped_content) > 4096:
+                    # Content itself is too long, split it
+                    content_parts = _split_long_text(escaped_content, 4096)
+                    for part in content_parts:
+                        await bot.send_message(
+                            target_chat_id, part, parse_mode="HTML"
+                        )
+                else:
+                    # Content fits in one message
+                    await bot.send_message(
+                        target_chat_id, escaped_content, parse_mode="HTML"
+                    )
+            else:
+                # Message fits in one part, send it
+                try:
+                    sent_message = await bot.send_message(
+                        target_chat_id, full_admin_message, parse_mode="HTML"
+                    )
+                except Exception as send_error:
+                    # Check if error is due to message length (might be HTML encoding issue)
+                    error_str = str(send_error).lower()
+                    if "message is too long" in error_str or "message_too_long" in error_str:
+                        # Split message: send header first, then content
+                        logger.info(f"⚠️ Ошибка при отправке сообщения, разбиваю на части: {send_error}")
+                        
+                        # Send header
+                        sent_message = await bot.send_message(
+                            target_chat_id, header_message, parse_mode="HTML"
+                        )
+                        
+                        # Send content - split if needed
+                        if len(escaped_content) > 4096:
+                            content_parts = _split_long_text(escaped_content, 4096)
+                            for part in content_parts:
+                                await bot.send_message(
+                                    target_chat_id, part, parse_mode="HTML"
+                                )
+                        else:
+                            await bot.send_message(
+                                target_chat_id, escaped_content, parse_mode="HTML"
+                            )
+                    else:
+                        # Re-raise if it's a different error
+                        raise
 
             # Step 2: Save message to database IMMEDIATELY
             await game_engine.create_message(
@@ -521,10 +573,6 @@ async def handle_country_event(
     # Validate message content
     if len(content) < 3:
         await message.answer("❌ Сообщение слишком короткое (минимум 3 символа).")
-        return
-
-    if len(content) > 2000:
-        await message.answer("❌ Сообщение слишком длинное (максимум 2000 символов).")
         return
 
     # Get the country
