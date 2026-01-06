@@ -215,6 +215,7 @@ async def _process_ai_analysis_background(
     sent_message_id: int,
     player_id: int,
     game_id: int,
+    country_id: int | None = None,
 ) -> None:
     """
     Background task to process AI analysis (classification + RAG).
@@ -261,6 +262,9 @@ async def _process_ai_analysis_background(
 
             # Send RAG context as reply to admin's message if available
             if rag_context:
+                # Add country identifier at the end of the context
+                if country_id:
+                    rag_context += f"\n\n<code>[EDIT_COUNTRY:{country_id}]</code>"
                 await _send_long_message(
                     bot, target_chat_id, rag_context, sent_message_id
                 )
@@ -403,6 +407,7 @@ async def handle_player_message(
                         sent_message.message_id,
                         player.id,
                         player.game_id,
+                        country_id=player.country.id,
                     )
                 )
                 logger.info("✅ Background task launched, returning control to user")

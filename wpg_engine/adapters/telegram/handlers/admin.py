@@ -805,6 +805,139 @@ async def process_event_message(message: Message, state: FSMContext) -> None:
     await state.clear()
 
 
+class VerdictGenerator:
+    """Class for generating verdicts based on admin reference"""
+
+    EMOTIONAL_MARKERS = [
+        "катастрофический",
+        "ужасный",
+        "трагический",
+        "провальный",
+        "неудачный",
+        "разрушительный",
+        "критический",
+        "плачевный",
+        "блестящий",
+        "триумфальный",
+        "успешный",
+        "отличный",
+        "превосходный",
+        "великолепный",
+        "исключительный",
+        "неожиданный",
+        "непредвиденный",
+        "драматический",
+        "эпический",
+        "загадочный",
+        "парадоксальный",
+        "сомнительный",
+        "спорный",
+        "нейтральный",
+        "смешанный",
+    ]
+
+    def __init__(self, rag_system: RAGSystem):
+        self.rag_system = rag_system
+
+    async def generate_verdict(
+        self,
+        admin_reference: str,
+        country_id: int,
+        game_id: int,
+        game_setting: str,
+        admin_prompt: str | None = None,
+        emotional_marker: str | None = None,
+    ) -> str:
+        """
+        Generate verdict based on admin reference
+
+        Args:
+            admin_reference: Admin reference text (справка для администратора)
+            country_id: Country ID for context
+            game_id: Game ID
+            game_setting: Game setting
+            admin_prompt: Optional admin prompt to consider
+            emotional_marker: Optional emotional marker (e.g., "ужасно", "прекрасно")
+
+        Returns:
+            Generated verdict text
+        """
+        # Build prompt based on mode
+        if emotional_marker:
+            # Random mode - use emotional marker
+            prompt = f"""Ты администратор многопользовательской стратегической игры в сеттинге "{game_setting}".
+
+СПРАВКА ДЛЯ АДМИНИСТРАТОРА:
+{admin_reference}
+
+Напиши вердикт для игрока, учитывая справку и учитывая {emotional_marker} результат действия игрока.
+
+Вердикт должен быть:
+- Кратким (2-4 предложения)
+- Соответствующим сеттингу игры
+- Учитывающим информацию из справки
+- Отражающим {emotional_marker} результат действия
+
+Отвечай на русском языке."""
+        elif admin_prompt:
+            # Custom prompt mode
+            prompt = f"""Ты администратор многопользовательской стратегической игры в сеттинге "{game_setting}".
+
+СПРАВКА ДЛЯ АДМИНИСТРАТОРА:
+{admin_reference}
+
+Администратор просит: {admin_prompt}
+
+Напиши вердикт для игрока, учитывая справку и запрос администратора.
+
+Вердикт должен быть:
+- Кратким (2-4 предложения)
+- Соответствующим сеттингу игры
+- Учитывающим информацию из справки
+- Учитывающим запрос администратора: {admin_prompt}
+
+Отвечай на русском языке."""
+        else:
+            # Default mode - just use reference
+            prompt = f"""Ты администратор многопользовательской стратегической игры в сеттинге "{game_setting}".
+
+СПРАВКА ДЛЯ АДМИНИСТРАТОРА:
+{admin_reference}
+
+Напиши вердикт для игрока, учитывая справку.
+
+Вердикт должен быть:
+- Кратким (2-4 предложения)
+- Соответствующим сеттингу игры
+- Учитывающим информацию из справки
+
+Отвечай на русском языке."""
+
+        try:
+            logger.info("🎲 Начало генерации вердикта")
+            verdict = await self.rag_system.client.call_api(
+                prompt=prompt,
+                max_tokens=1000,
+                temperature=0.3,
+                max_retries=2,
+                timeout_seconds=60.0,
+            )
+            logger.info(
+                f"✅ Вердикт успешно сгенерирован (длина: {len(verdict)} символов)"
+            )
+            return verdict
+        except Exception as e:
+            logger.error(f"❌ Ошибка при генерации вердикта: {type(e).__name__}: {e}")
+            logger.exception("Full traceback:")
+            return "Не удалось сгенерировать вердикт. Попробуйте еще раз."
+
+    def get_random_emotional_marker(self) -> str:
+        """Get random emotional marker"""
+        import random
+
+        return random.choice(self.EMOTIONAL_MARKERS)
+
+
 async def generate_game_event(
     rag_system: RAGSystem,
     game_id: int,
@@ -951,9 +1084,9 @@ async def generate_game_event(
 
 
 async def gen_command(message: Message, state: FSMContext) -> None:
-    """Handle /gen command - generate game event"""
+    """Handle /gen command - generate verdict based on admin reference"""
     user_id = message.from_user.id
-    args = message.text.split(" ", 1)  # /gen [country_name]
+    args = message.text.split(" ", 1)  # /gen [prompt|random|рандом]
 
     async with get_db() as db:
         game_engine = GameEngine(db)
@@ -972,119 +1105,144 @@ async def gen_command(message: Message, state: FSMContext) -> None:
             )
             return
 
-        # Get all countries in the same game
+        # Check if this is a reply to a message with admin reference
+        if not message.reply_to_message or not message.reply_to_message.text:
+            await message.answer(
+                "❌ Ответьте на сообщение со справкой для администратора, чтобы сгенерировать вердикт."
+            )
+            return
+
+        replied_text = message.reply_to_message.text
+
+        # Extract country ID from admin reference
+        import re
+
+        country_id_match = re.search(r"\[EDIT_COUNTRY:(\d+)\]", replied_text)
+        if not country_id_match:
+            await message.answer(
+                "❌ В сообщении не найдена справка для администратора с идентификатором страны."
+            )
+            return
+
+        country_id = int(country_id_match.group(1))
+
+        # Get country
+        country = await game_engine.get_country(country_id)
+        if not country:
+            await message.answer("❌ Страна не найдена.")
+            return
+
+        # Get player for this country
         result = await game_engine.db.execute(
             select(Player)
             .options(selectinload(Player.country))
-            .where(Player.game_id == admin.game_id)
-            .where(Player.country_id.isnot(None))
+            .where(Player.country_id == country_id)
             .where(Player.role == PlayerRole.PLAYER)
+            .limit(1)
         )
-        all_players = result.scalars().all()
+        target_player = result.scalar_one_or_none()
 
-        # Get available countries
-        available_countries = []
-        for player in all_players:
-            if player.country:
-                available_countries.append(player.country.name)
-
-        if not available_countries:
-            await message.answer("❌ В игре нет стран для генерации событий.")
+        if not target_player:
+            await message.answer(
+                f"❌ Не найден игрок для страны {escape_html(country.name)}."
+            )
             return
 
-        # Check if this is a reply to a message with country information
-        target_player = None
-        target_country_name = None
+        # Determine mode and parameters
+        admin_prompt = None
+        emotional_marker = None
+        mode_description = ""
 
-        # Try to extract country from reply message
-        reply_result = await extract_country_from_reply(message, all_players)
-        if reply_result:
-            target_player, target_country_name = reply_result
+        if len(args) > 1:
+            prompt_text = args[1].strip().lower()
+            if prompt_text in ["random", "рандом"]:
+                # Random mode
+                generator = VerdictGenerator(RAGSystem(game_engine.db))
+                emotional_marker = generator.get_random_emotional_marker()
+                mode_description = f"случайный маркер: {emotional_marker}"
+            else:
+                # Custom prompt mode
+                admin_prompt = args[1].strip()
+                mode_description = f"промпт: {admin_prompt}"
+        else:
+            # Default mode - just use reference
+            mode_description = "стандартный режим"
 
-        # If no country found from reply, check if country name was provided in command
-        if not target_player and len(args) > 1:
-            target_country_name = args[1].strip()
-            target_player = await find_target_player_by_country_name(
-                all_players, target_country_name
-            )
-
-            if not target_player:
-                countries_list = "\n".join(
-                    [f"• {country}" for country in sorted(available_countries)]
-                )
-                await message.answer(
-                    f"❌ Страна '{escape_html(target_country_name)}' не найдена.\n\n"
-                    f"Доступные страны:\n{countries_list}\n\n"
-                    f"Используйте: <code>/gen название_страны</code> или <code>/gen</code> для всех",
-                    parse_mode="HTML",
-                )
-                return
-
-        # Initialize RAG system
+        # Initialize RAG system and generator
         rag_system = RAGSystem(game_engine.db)
+        generator = VerdictGenerator(rag_system)
 
-        # Generate event
-        event_text, selected_tone = await generate_game_event(
-            rag_system, admin.game_id, target_country_name, admin.game.setting
+        # Get admin reference (remove the country identifier at the end)
+        admin_reference = re.sub(r"\n\n<code>\[EDIT_COUNTRY:\d+\]</code>$", "", replied_text)
+        admin_reference = re.sub(r"\n\n\[EDIT_COUNTRY:\d+\]$", "", admin_reference)
+
+        # Generate verdict
+        await message.answer(f"🎲 Генерирую вердикт ({mode_description})...")
+
+        verdict_text = await generator.generate_verdict(
+            admin_reference=admin_reference,
+            country_id=country_id,
+            game_id=admin.game_id,
+            game_setting=admin.game.setting,
+            admin_prompt=admin_prompt,
+            emotional_marker=emotional_marker,
         )
-
-        tone_message = await message.answer(f"🎲 Генерирую {selected_tone} событие...")
 
         # Create inline keyboard
         keyboard = InlineKeyboardMarkup(
             inline_keyboard=[
                 [
-                    InlineKeyboardButton(text="📤 Отправить", callback_data="gen_send"),
                     InlineKeyboardButton(
-                        text="🔄 Заново", callback_data="gen_regenerate"
+                        text="📤 Отправить", callback_data="gen_verdict_send"
                     ),
                     InlineKeyboardButton(
-                        text="❌ Отменить", callback_data="gen_cancel"
+                        text="🔄 Заново", callback_data="gen_verdict_regenerate"
+                    ),
+                    InlineKeyboardButton(
+                        text="❌ Отменить", callback_data="gen_verdict_cancel"
                     ),
                 ]
             ]
         )
 
-        # Send event with buttons
-        event_header = "🎲 **Сгенерированное событие**\n"
-        if target_country_name:
-            event_header += f"**Для страны:** {target_country_name}\n"
-            # Show different message if country was auto-detected from reply
-            if message.reply_to_message:
-                event_header += "*(автоматически определено из сообщения)*\n\n"
-            else:
-                event_header += "\n"
-        else:
-            event_header += "**Глобальное событие для всех стран**\n\n"
+        # Send verdict with buttons
+        verdict_header = "🎲 **Сгенерированный вердикт**\n\n"
+        verdict_header += f"**Для страны:** {escape_markdown(country.name)}\n"
+        if mode_description:
+            verdict_header += f"**Режим:** {escape_markdown(mode_description)}\n"
+        verdict_header += "\n"
 
         # Format the full message with markdownify
-        full_message = f"{event_header}{event_text}"
+        full_message = f"{verdict_header}{verdict_text}"
 
         try:
             formatted_message = markdownify(full_message)
-            event_message = await message.answer(
+            verdict_message = await message.answer(
                 formatted_message, parse_mode="MarkdownV2", reply_markup=keyboard
             )
         except Exception as e:
             logger.warning(
-                f"⚠️ Не удалось отправить форматированное сообщение события: {e}"
+                f"⚠️ Не удалось отправить форматированное сообщение вердикта: {e}"
             )
             # Fallback to HTML
-            event_message = await message.answer(
-                f"{event_header}{escape_html(event_text)}",
+            verdict_message = await message.answer(
+                f"{verdict_header}{escape_html(verdict_text)}",
                 parse_mode="HTML",
                 reply_markup=keyboard,
             )
 
         # Store data for callback handlers
         await state.update_data(
-            target_country_name=target_country_name,
-            target_player_id=target_player.id if target_player else None,
-            event_text=event_text,
+            target_country_name=country.name,
+            target_player_id=target_player.id,
+            target_country_id=country_id,
+            verdict_text=verdict_text,
             game_id=admin.game_id,
             game_setting=admin.game.setting,
-            tone_message_id=tone_message.message_id,
-            event_message_id=event_message.message_id,
+            admin_reference=admin_reference,
+            admin_prompt=admin_prompt,
+            emotional_marker=emotional_marker,
+            verdict_message_id=verdict_message.message_id,
         )
 
         await state.set_state(AdminStates.waiting_for_gen_action)
@@ -1094,12 +1252,6 @@ async def process_gen_callback(
     callback_query: CallbackQuery, state: FSMContext
 ) -> None:
     """Process callback from gen command buttons"""
-    data = await state.get_data()
-
-    if not data:
-        await callback_query.answer("❌ Данные сессии утеряны. Начните заново.")
-        return
-
     user_id = callback_query.from_user.id
 
     async with get_db() as db:
@@ -1117,7 +1269,275 @@ async def process_gen_callback(
             await callback_query.answer("❌ Администратор не найден в игре.")
             return
 
-        if callback_query.data == "gen_cancel":
+        # Check if this is an admin chat callback (no state required)
+        if callback_query.data.startswith("gen_verdict_resend:") or callback_query.data.startswith("gen_verdict_undo:"):
+            # Handle admin chat callbacks (no state)
+            parts = callback_query.data.split(":")
+            action = parts[0]
+            player_id = int(parts[1])
+
+            result = await game_engine.db.execute(
+                select(Player)
+                .options(selectinload(Player.country))
+                .where(Player.id == player_id)
+            )
+            target_player = result.scalar_one_or_none()
+
+            if not target_player:
+                await callback_query.answer("❌ Игрок не найден.")
+                return
+
+            # Extract verdict from current message
+            message_text = callback_query.message.text or callback_query.message.caption or ""
+            import re
+            # Try to extract verdict text (between "Вердикт:" and end)
+            verdict_match = re.search(r"<b>Вердикт:</b>\n(.*?)(?:\n\n|$)", message_text, re.DOTALL)
+            if verdict_match:
+                verdict_text = verdict_match.group(1).strip()
+                # Remove HTML tags
+                verdict_text = re.sub(r"<[^>]+>", "", verdict_text)
+            else:
+                # Fallback: try to extract from message text (everything after "Вердикт:")
+                if "Вердикт:" in message_text:
+                    verdict_text = message_text.split("Вердикт:")[-1].strip()
+                    verdict_text = re.sub(r"<[^>]+>", "", verdict_text)
+                else:
+                    await callback_query.answer("❌ Не удалось найти текст вердикта.")
+                    return
+
+            if action == "gen_verdict_resend":
+                await callback_query.answer("📤 Отправляю вердикт заново...")
+                try:
+                    # Send verdict to player again
+                    await callback_query.bot.send_message(
+                        target_player.telegram_id,
+                        escape_html(verdict_text),
+                        parse_mode="HTML",
+                    )
+
+                    # Save the admin message to database
+                    await game_engine.create_message(
+                        player_id=target_player.id,
+                        game_id=admin.game_id,
+                        content=verdict_text,
+                        is_admin_reply=True,
+                    )
+
+                    await callback_query.message.edit_text(
+                        f"✅ <b>Вердикт отправлен игроку заново</b>\n\n"
+                        f"<b>Игрок:</b> {escape_html(target_player.display_name)}\n"
+                        f"<b>Страна:</b> {escape_html(target_player.country.name if target_player.country else 'без страны')}\n\n"
+                        f"<b>Вердикт:</b>\n{escape_html(verdict_text)}",
+                        parse_mode="HTML",
+                    )
+                except Exception as e:
+                    await callback_query.answer(f"❌ Не удалось отправить вердикт: {e}")
+
+            elif action == "gen_verdict_undo":
+                await callback_query.answer("❌ Отмена вердикта...")
+                # Note: We can't actually "undo" a sent message, but we can notify
+                await callback_query.message.edit_text(
+                    f"❌ <b>Вердикт отменен</b>\n\n"
+                    f"<b>Игрок:</b> {escape_html(target_player.display_name)}\n"
+                    f"<b>Страна:</b> {escape_html(target_player.country.name if target_player.country else 'без страны')}\n\n"
+                    f"<i>Примечание: Сообщение уже было отправлено игроку. Это уведомление для администраторов.</i>",
+                    parse_mode="HTML",
+                )
+            return
+
+        # Get state data (for verdict/event callbacks that require state)
+        data = await state.get_data()
+
+        if not data:
+            await callback_query.answer("❌ Данные сессии утеряны. Начните заново.")
+            return
+
+        # Check if this is a verdict callback (new functionality) or event callback (old)
+        is_verdict = "verdict_text" in data or callback_query.data.startswith("gen_verdict")
+
+        if is_verdict:
+            # Handle verdict callbacks
+            if callback_query.data == "gen_verdict_cancel":
+                await callback_query.message.edit_text(
+                    "❌ Генерация вердикта отменена.", parse_mode="HTML"
+                )
+                await state.clear()
+                await callback_query.answer()
+
+            elif callback_query.data == "gen_verdict_regenerate":
+                await callback_query.answer("🔄 Генерирую новый вердикт...")
+
+                # Initialize RAG system and generator
+                rag_system = RAGSystem(game_engine.db)
+                generator = VerdictGenerator(rag_system)
+
+                # Generate new verdict
+                new_verdict_text = await generator.generate_verdict(
+                    admin_reference=data["admin_reference"],
+                    country_id=data["target_country_id"],
+                    game_id=data["game_id"],
+                    game_setting=data["game_setting"],
+                    admin_prompt=data.get("admin_prompt"),
+                    emotional_marker=data.get("emotional_marker"),
+                )
+
+                # Create keyboard
+                keyboard = InlineKeyboardMarkup(
+                    inline_keyboard=[
+                        [
+                            InlineKeyboardButton(
+                                text="📤 Отправить", callback_data="gen_verdict_send"
+                            ),
+                            InlineKeyboardButton(
+                                text="🔄 Заново", callback_data="gen_verdict_regenerate"
+                            ),
+                            InlineKeyboardButton(
+                                text="❌ Отменить", callback_data="gen_verdict_cancel"
+                            ),
+                        ]
+                    ]
+                )
+
+                # Update message
+                verdict_header = "🎲 **Сгенерированный вердикт**\n\n"
+                verdict_header += f"**Для страны:** {escape_markdown(data['target_country_name'])}\n\n"
+
+                full_message = f"{verdict_header}{new_verdict_text}"
+
+                try:
+                    formatted_message = markdownify(full_message)
+                    await callback_query.message.edit_text(
+                        formatted_message, parse_mode="MarkdownV2", reply_markup=keyboard
+                    )
+                except Exception as e:
+                    logger.warning(
+                        f"⚠️ Не удалось отредактировать форматированное сообщение вердикта: {e}"
+                    )
+                    await callback_query.message.edit_text(
+                        f"{verdict_header}{escape_html(new_verdict_text)}",
+                        parse_mode="HTML",
+                        reply_markup=keyboard,
+                    )
+
+                # Update stored data
+                await state.update_data(verdict_text=new_verdict_text)
+
+            elif callback_query.data == "gen_verdict_send":
+                await callback_query.answer("📤 Отправляю вердикт...")
+
+                # Send verdict to player
+                bot = callback_query.bot
+                result = await game_engine.db.execute(
+                    select(Player)
+                    .options(selectinload(Player.country))
+                    .where(Player.id == data["target_player_id"])
+                )
+                target_player = result.scalar_one_or_none()
+
+                if target_player:
+                    try:
+                        # Send verdict to player
+                        await bot.send_message(
+                            target_player.telegram_id,
+                            escape_html(data["verdict_text"]),
+                            parse_mode="HTML",
+                        )
+
+                        # Save the admin message to database
+                        await game_engine.create_message(
+                            player_id=target_player.id,
+                            game_id=data["game_id"],
+                            content=data["verdict_text"],
+                            is_admin_reply=True,
+                        )
+
+                        # Send to admin chat with buttons
+                        from wpg_engine.config.settings import settings
+
+                        admin_chat_id = None
+                        if settings.telegram.is_admin_chat():
+                            admin_chat_id = settings.telegram.admin_id
+                        else:
+                            # Find admins
+                            result = await game_engine.db.execute(
+                                select(Player)
+                                .where(Player.game_id == data["game_id"])
+                                .where(Player.role == PlayerRole.ADMIN)
+                            )
+                            admins = result.scalars().all()
+                            if admins:
+                                import random
+
+                                admin_player = random.choice(admins)
+                                admin_chat_id = admin_player.telegram_id
+
+                        if admin_chat_id:
+                            # Create keyboard for admin chat
+                            # Store verdict text in callback data (truncate if too long)
+                            verdict_text_short = data["verdict_text"][:500] if len(data["verdict_text"]) > 500 else data["verdict_text"]
+                            admin_keyboard = InlineKeyboardMarkup(
+                                inline_keyboard=[
+                                    [
+                                        InlineKeyboardButton(
+                                            text="📤 Отправить заново",
+                                            callback_data=f"gen_verdict_resend:{target_player.id}",
+                                        ),
+                                        InlineKeyboardButton(
+                                            text="❌ Отменить",
+                                            callback_data=f"gen_verdict_undo:{target_player.id}",
+                                        ),
+                                    ]
+                                ]
+                            )
+
+                            admin_message_text = (
+                                f"✅ <b>Вердикт отправлен игроку</b>\n\n"
+                                f"<b>Игрок:</b> {escape_html(target_player.display_name)}\n"
+                                f"<b>Страна:</b> {escape_html(data['target_country_name'])}\n\n"
+                                f"<b>Вердикт:</b>\n{escape_html(data['verdict_text'])}"
+                            )
+
+                            await bot.send_message(
+                                admin_chat_id,
+                                admin_message_text,
+                                parse_mode="HTML",
+                                reply_markup=admin_keyboard,
+                            )
+
+                        # Update message with result
+                        status_text = f"✅ **Вердикт отправлен игроку {data['target_country_name']}!**"
+                        verdict_header = "🎲 **Сгенерированный вердикт**\n\n"
+                        verdict_header += f"**Для страны:** {escape_markdown(data['target_country_name'])}\n\n"
+                        full_message = f"{verdict_header}{data['verdict_text']}\n\n---\n{status_text}"
+
+                        try:
+                            formatted_message = markdownify(full_message)
+                            await callback_query.message.edit_text(
+                                formatted_message, parse_mode="MarkdownV2"
+                            )
+                        except Exception as e:
+                            logger.warning(
+                                f"⚠️ Не удалось отредактировать форматированное сообщение результата: {e}"
+                            )
+                            await callback_query.message.edit_text(
+                                f"{verdict_header}{escape_html(data['verdict_text'])}\n\n---\n{escape_html(status_text)}",
+                                parse_mode="HTML",
+                            )
+
+                    except Exception as e:
+                        logger.error(
+                            f"❌ Не удалось отправить вердикт игроку: {type(e).__name__}: {e}"
+                        )
+                        await callback_query.answer(
+                            f"❌ Не удалось отправить вердикт игроку: {e}"
+                        )
+                        return
+
+                await state.clear()
+
+
+        # Old event callbacks (keep for backward compatibility)
+        elif callback_query.data == "gen_cancel":
             await callback_query.message.edit_text(
                 "❌ Генерация события отменена.", parse_mode="HTML"
             )
@@ -1960,3 +2380,8 @@ def register_admin_handlers(dp: Dispatcher) -> None:
         process_example_message, AdminStates.waiting_for_example_message
     )
     dp.callback_query.register(process_gen_callback, AdminStates.waiting_for_gen_action)
+    # Register callback handlers for admin chat buttons (no state required)
+    dp.callback_query.register(
+        process_gen_callback,
+        lambda c: c.data and (c.data.startswith("gen_verdict_resend:") or c.data.startswith("gen_verdict_undo:")),
+    )
