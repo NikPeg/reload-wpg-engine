@@ -873,7 +873,6 @@ class VerdictGenerator:
 Напиши вердикт для игрока, учитывая справку и учитывая {emotional_marker} результат действия игрока.
 
 Вердикт должен быть:
-- Кратким (2-4 предложения)
 - Соответствующим сеттингу игры
 - Учитывающим информацию из справки
 - Отражающим {emotional_marker} результат действия
@@ -1473,8 +1472,6 @@ async def process_gen_callback(
 
                         if admin_chat_id:
                             # Create keyboard for admin chat
-                            # Store verdict text in callback data (truncate if too long)
-                            verdict_text_short = data["verdict_text"][:500] if len(data["verdict_text"]) > 500 else data["verdict_text"]
                             admin_keyboard = InlineKeyboardMarkup(
                                 inline_keyboard=[
                                     [
