@@ -320,20 +320,20 @@ async def handle_player_message(
                 f"<b>Страна:</b> {escape_html(country_name)}\n\n"
                 f"<b>Сообщение:</b>\n"
             )
-            
+
             escaped_content = escape_html(content)
             full_admin_message = header_message + escaped_content
-            
+
             # Check if message is too long (Telegram limit is 4096 characters)
             if len(full_admin_message) > 4096:
                 # Split message: send header first, then content (possibly in parts)
                 logger.info(f"⚠️ Сообщение слишком длинное ({len(full_admin_message)} символов), разбиваю на части")
-                
+
                 # Send header
                 sent_message = await bot.send_message(
                     target_chat_id, header_message, parse_mode="HTML"
                 )
-                
+
                 # Send content - split if it's also too long
                 if len(escaped_content) > 4096:
                     # Content itself is too long, split it
@@ -359,12 +359,12 @@ async def handle_player_message(
                     if "message is too long" in error_str or "message_too_long" in error_str:
                         # Split message: send header first, then content
                         logger.info(f"⚠️ Ошибка при отправке сообщения, разбиваю на части: {send_error}")
-                        
+
                         # Send header
                         sent_message = await bot.send_message(
                             target_chat_id, header_message, parse_mode="HTML"
                         )
-                        
+
                         # Send content - split if needed
                         if len(escaped_content) > 4096:
                             content_parts = _split_long_text(escaped_content, 4096)
