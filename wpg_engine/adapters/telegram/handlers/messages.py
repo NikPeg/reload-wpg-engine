@@ -262,9 +262,9 @@ async def _process_ai_analysis_background(
 
             # Send RAG context as reply to admin's message if available
             if rag_context:
-                # Add country identifier at the end of the context
+                # Add country identifier at the end of the context (for /gen command)
                 if country_id:
-                    rag_context += f"\n\n<code>[EDIT_COUNTRY:{country_id}]</code>"
+                    rag_context += f"\n\n<code>[ADMIN_REFERENCE:{country_id}]</code>"
                 await _send_long_message(
                     bot, target_chat_id, rag_context, sent_message_id
                 )
@@ -331,7 +331,9 @@ async def handle_player_message(
             # Check if message is too long (Telegram limit is 4096 characters)
             if len(full_admin_message) > 4096:
                 # Split message: send header first, then content (possibly in parts)
-                logger.info(f"⚠️ Сообщение слишком длинное ({len(full_admin_message)} символов), разбиваю на части")
+                logger.info(
+                    f"⚠️ Сообщение слишком длинное ({len(full_admin_message)} символов), разбиваю на части"
+                )
 
                 # Send header
                 sent_message = await bot.send_message(
@@ -343,9 +345,7 @@ async def handle_player_message(
                     # Content itself is too long, split it
                     content_parts = _split_long_text(escaped_content, 4096)
                     for part in content_parts:
-                        await bot.send_message(
-                            target_chat_id, part, parse_mode="HTML"
-                        )
+                        await bot.send_message(target_chat_id, part, parse_mode="HTML")
                 else:
                     # Content fits in one message
                     await bot.send_message(
@@ -360,9 +360,14 @@ async def handle_player_message(
                 except Exception as send_error:
                     # Check if error is due to message length (might be HTML encoding issue)
                     error_str = str(send_error).lower()
-                    if "message is too long" in error_str or "message_too_long" in error_str:
+                    if (
+                        "message is too long" in error_str
+                        or "message_too_long" in error_str
+                    ):
                         # Split message: send header first, then content
-                        logger.info(f"⚠️ Ошибка при отправке сообщения, разбиваю на части: {send_error}")
+                        logger.info(
+                            f"⚠️ Ошибка при отправке сообщения, разбиваю на части: {send_error}"
+                        )
 
                         # Send header
                         sent_message = await bot.send_message(
