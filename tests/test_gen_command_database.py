@@ -6,7 +6,7 @@ import pytest
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
-from wpg_engine.adapters.telegram.handlers.admin import (
+from wpg_engine.adapters.telegram.handlers.admin_gen import (
     generate_game_event,
 )
 from wpg_engine.core.engine import GameEngine

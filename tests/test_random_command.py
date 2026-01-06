@@ -11,7 +11,7 @@ from aiogram.types import User
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
 
-from wpg_engine.adapters.telegram.handlers.admin import random_command
+from wpg_engine.adapters.telegram.handlers.admin_commands import random_command
 from wpg_engine.core.engine import GameEngine
 from wpg_engine.models import PlayerRole
 from wpg_engine.models.base import Base
@@ -73,7 +73,7 @@ async def test_random_command_returns_percentage(test_db: AsyncSession):
             self._answer_text = text
 
     # Mock is_admin to return True for our test admin
-    with patch("wpg_engine.adapters.telegram.handlers.admin.is_admin") as mock_is_admin:
+    with patch("wpg_engine.adapters.telegram.handlers.admin_commands.is_admin") as mock_is_admin:
         mock_is_admin.return_value = True
 
         # Test multiple calls to ensure random percentage generation
@@ -144,7 +144,7 @@ async def test_random_command_non_admin_denied(test_db: AsyncSession):
             self._answer_text = text
 
     # Mock is_admin to return False for regular user
-    with patch("wpg_engine.adapters.telegram.handlers.admin.is_admin") as mock_is_admin:
+    with patch("wpg_engine.adapters.telegram.handlers.admin_commands.is_admin") as mock_is_admin:
         mock_is_admin.return_value = False
 
         mock_message = MockMessage()

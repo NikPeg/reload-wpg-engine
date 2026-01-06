@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from wpg_engine.adapters.telegram.handlers.admin import (
+from wpg_engine.adapters.telegram.handlers.admin_utils import (
     extract_country_from_reply,
     find_target_country_by_name,
     find_target_player_by_country_name,
