@@ -1073,6 +1073,7 @@ async def process_gen_callback(
                 data["game_id"],
                 data["target_country_name"],
                 data["game_setting"],
+                data.get("admin_prompt"),  # Pass admin prompt if it exists
             )
 
             # Step 4: Update the tone message with the actual tone
@@ -1108,9 +1109,12 @@ async def process_gen_callback(
             # Create event message
             event_header = "🎲 **Сгенерированное событие**\n"
             if data["target_country_name"]:
-                event_header += f"**Для страны:** {data['target_country_name']}\n\n"
+                event_header += f"**Для страны:** {data['target_country_name']}\n"
             else:
-                event_header += "**Глобальное событие для всех стран**\n\n"
+                event_header += "**Глобальное событие для всех стран**\n"
+            if data.get("admin_prompt"):
+                event_header += f"**Промпт:** {escape_markdown(data['admin_prompt'])}\n"
+            event_header += "\n"
 
             # Format and send the new event message
             full_message = f"{event_header}{new_event_text}"
